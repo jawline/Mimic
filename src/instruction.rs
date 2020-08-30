@@ -71,6 +71,7 @@ pub fn ld_imm_reg16(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>
   registers.write_r16(WideRegister::PC, registers.pc() + 3);
 }
 
+/// Write the value of small register one to the address pointed to by wide_reg_dst
 pub fn ld_reg8_mem_reg16(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
@@ -107,5 +108,5 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::wide_dst_small_in(WideRegister::BC, SmallWidthRegister::A)
   };
 
-  vec![no_op, load_imm_bc]
+  vec![no_op, load_imm_bc, load_bc_a]
 }
