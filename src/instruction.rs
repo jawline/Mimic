@@ -76,14 +76,29 @@ pub fn ld_reg8_mem_reg16(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
-  //Store the provided 8-bit register to the location pointed to by the 16-bit dst register
+  // Store the provided 8-bit register to the location pointed to by the 16-bit dst register
   let reg_val = registers.read_r8(additional.small_reg_one);
   let mem_dst = registers.read_r16(additional.wide_reg_dst);
   memory.write_u16(mem_dst, reg_val);
 
-  //Increment the PC by three once finished
+  // Increment the PC by three once finished
   registers.write_r16(WideRegister::PC, registers.pc() + 1);
-} 
+}
+
+/// Increment the value of a wide-register by one
+pub fn inc_wr(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  // Increment the destination wide register by one
+  registers.write_r16(
+    additional.wide_reg_dst,
+    registers.read_r16(additional.wide_reg_dst) + 1
+  );
+
+  // Increment the PC by one once finished
+  registers.write_r16(WideRegister::PC, registers.pc() + 1);
+}
 
 pub fn instruction_set() -> Vec<Instruction> {
 
@@ -108,5 +123,12 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::wide_dst_small_in(WideRegister::BC, SmallWidthRegister::A)
   };
 
-  vec![no_op, load_imm_bc, load_bc_a]
+  let inc_bc = Instruction {
+    execute: crate::instruction::inc_wr,
+    timings: (1, 8),
+    text: "inc_bc".to_string(),
+    data: InstructionData::wide_dst(WideRegister::BC),
+  };
+
+  vec![no_op, load_imm_bc, load_bc_a, inc_bc]
 }
