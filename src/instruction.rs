@@ -292,7 +292,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   let inc_b = Instruction {
     execute: inc_small_register,
     timings: (1, 4),
-    text: "inc B".to_string(),
+    text: format!("inc B"),
     data: InstructionData::small_dst(SmallWidthRegister::B),
   };
 
@@ -387,8 +387,44 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::wide_dst(WideRegister::DE)
   };
 
+  let load_mem_de_a = Instruction {
+    execute: ld_reg8_mem_reg16,
+    timings: (1, 8),
+    text: format!("ld (DE), A"),
+    data: InstructionData::wide_dst_small_in(WideRegister::DE, SmallWidthRegister::A)
+  };
+
+  let inc_de = Instruction {
+    execute: inc_wide_register,
+    timings: (1, 8),
+    text: "inc DE".to_string(),
+    data: InstructionData::wide_dst(WideRegister::DE),
+  };
+
+  let inc_d = Instruction {
+    execute: inc_small_register,
+    timings: (1, 4),
+    text: format!("inc D"),
+    data: InstructionData::small_dst(SmallWidthRegister::D),
+  };
+
+  let dec_d = Instruction {
+    execute: dec_small_register,
+    timings: (1, 4),
+    text: format!("dec D"),
+    data: InstructionData::small_dst(SmallWidthRegister::D),
+  };
+
+  let ld_d_n = Instruction {
+    execute: ld_imm_r8,
+    timings: (2, 8),
+    text: format!("ld D, n"),
+    data: InstructionData::small_dst(SmallWidthRegister::D)
+  };
+
   vec![
     no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
-    dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de,
+    dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de, load_mem_de_a, inc_de,
+    dec_d, ld_d_n
   ]
 }
