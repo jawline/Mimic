@@ -51,8 +51,16 @@ pub struct Registers {
   interrupts_enabled: bool,
 }
 
+const SIGN_FLAG: u8 = 0x1 << 7;
+const ZERO_FLAG: u8 = 0x1 << 6;
+const UDOC_FLAG: u8 = 0x1 << 5;
+const HALF_CARRY_FLAG: u8 = 0x1 << 4;
+const UDOC_2_FLAG: u8 = 0x1 << 3;
+const PO_FLAG: u8 = 0x1 << 2; //Parity or offset
+const SUBTRACT_FLAG: u8 = 0x1 << 2;
+
 /// The position of the CARRY bit in the F (flags) register
-const CARRY_BIT: u8 = 0x1;
+const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
 
@@ -61,7 +69,21 @@ impl Registers {
 
   pub fn inc_pc(&mut self, by: u16) {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
-  } 
+  }
+
+  pub fn dec_pc(&mut self, by: u16) {
+    self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) - by);
+  }
+
+  pub fn jump_relative(&mut self, by: i8) {
+    // TODO: I'm not sure if this is correct
+    // there must be a better way to do signed and unsigned addition in Rust
+    if (by > 0) {
+      self.inc_pc(by as u16);
+    } else {
+      self.dec_pc(-by as u16);
+    }
+  }
 
   pub fn read_r8(&self, reg: SmallWidthRegister) -> u8 {
     match reg {
@@ -111,17 +133,37 @@ impl Registers {
     };
   }
 
+  pub fn zero(&self) -> bool {
+    return self.read_r8(SmallWidthRegister::F) & ZERO_FLAG != 0;
+  }
+
   pub fn carry(&self) -> bool {
-    return self.read_r8(SmallWidthRegister::F) & CARRY_BIT != 0;
+    return self.read_r8(SmallWidthRegister::F) & CARRY_FLAG != 0;
   }
 
   pub fn set_carry(&mut self, state: bool) {
     let mut current_flags = self.read_r8(SmallWidthRegister::F);
-    if state {
-      current_flags |= CARRY_BIT;
+    current_flags = Registers::set_flag(current_flags, CARRY_FLAG, state);
+    self.write_r8(SmallWidthRegister::F, current_flags);
+  }
+
+  pub fn set_flag(flags: u8, flag: u8, set: bool) -> u8 {
+    if set {
+      flags | flag
     } else {
-      current_flags &= !CARRY_BIT;
+      flags & !flag
     }
+  }
+
+  pub fn set_flags(&mut self, zero: bool,
+    negative: bool,
+    half_carry: bool,
+    carry: bool) {
+    let mut current_flags = self.read_r8(SmallWidthRegister::F);
+    current_flags = Registers::set_flag(current_flags, CARRY_FLAG, carry);
+    current_flags = Registers::set_flag(current_flags, HALF_CARRY_FLAG, half_carry);
+    current_flags = Registers::set_flag(current_flags, SUBTRACT_FLAG, negative);
+    current_flags = Registers::set_flag(current_flags, ZERO_FLAG, zero);
     self.write_r8(SmallWidthRegister::F, current_flags);
   }
 }

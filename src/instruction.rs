@@ -157,10 +157,11 @@ fn rotate_left_with_carry(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
-  let a = registers.read_r8(additional.small_reg_dst);
-  registers.set_carry(a & (1 << 7) != 0);
-  a.rotate_left(1);
+  let mut a = registers.read_r8(additional.small_reg_dst);
+  let carry = a & (1 << 7) != 0;
+  a = a.rotate_left(1);
   registers.write_r8(additional.small_reg_dst, a);
+  registers.set_flags(a == 0, false, false, carry);
 
   // Increment PC by one
   registers.inc_pc(1);
@@ -171,10 +172,61 @@ fn rotate_right_with_carry(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
-  let a = registers.read_r8(additional.small_reg_dst);
-  registers.set_carry(a & (1) != 0);
-  a.rotate_right(1);
+  let mut a = registers.read_r8(additional.small_reg_dst);
+  let carry = a & (1) != 0;
+  a = a.rotate_right(1);
   registers.write_r8(additional.small_reg_dst, a);
+  registers.set_flags(a == 0, false, false, carry);
+
+  // Increment PC by one
+  registers.inc_pc(1);
+}
+
+/// Rotate 8-bit register left using the carry bit as an additional bit.
+/// In practice, store the current carry bit, set carry bit to value of bit 7
+/// then shift left everything by one bit and then replace bit 0 with the origin
+/// carry bit
+fn rotate_r8_left_through_carry(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  let mut a = registers.read_r8(additional.small_reg_dst);
+  let origin_carry = registers.carry();
+  let carry = a & (1 << 7) != 0;
+
+  if (origin_carry) {
+    a |= 1;
+  } else {
+    a &= !1;
+  }
+
+  registers.write_r8(additional.small_reg_dst, a);
+  registers.set_flags(a == 0, false, false, carry);
+
+  // Increment PC by one
+  registers.inc_pc(1);
+}
+
+/// Rotate 8-bit register right using the carry bit as an additional bit.
+/// In practice, store the current carry bit, set carry bit to value of bit 0
+/// then shift right everything by one bit and then replace bit 7 with the origin
+/// carry bit
+fn rotate_r8_right_through_carry(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  let mut a = registers.read_r8(additional.small_reg_dst);
+  let origin_carry = registers.carry();
+  let carry = a & 1 != 0;
+
+  if (origin_carry) {
+    a |= (1 << 7);
+  } else {
+    a &= !(1 << 7);
+  }
+
+  registers.write_r8(additional.small_reg_dst, a);
+  registers.set_flags(a == 0, false, false, carry);
 
   // Increment PC by one
   registers.inc_pc(1);
@@ -230,9 +282,24 @@ fn add_r16_r16(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
+  let l = registers.read_r16(additional.wide_reg_dst);
+  let r = registers.read_r16(additional.wide_reg_one);
+  let result = l + r;
+
   registers.write_r16(
     additional.wide_reg_dst,
-    registers.read_r16(additional.wide_reg_dst) + registers.read_r16(additional.wide_reg_one)
+    result
+  );
+
+  // Did the 11th bits carry?
+  let half_carried = (l & 0xFFF) + (r & 0xFFF) & (1 << 12);
+  let carried = (l as u32 + r as u32) & (1 << 16);
+
+  registers.set_flags(
+    registers.zero(),
+    false,
+    half_carried != 0, 
+    carried != 0
   );
 
   // Increment the PC by one once finished
@@ -257,6 +324,14 @@ fn stop(registers: &mut Registers,
   additional: &InstructionData) {
   registers.inc_pc(1);
   unimplemented!();
+}
+
+fn jump_relative_signed_immediate(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  let byte = memory.read_u8(registers.pc() + 1) as i8;
+  registers.inc_pc(2);
+  registers.jump_relative(byte);
 }
 
 pub fn instruction_set() -> Vec<Instruction> {
@@ -377,7 +452,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     execute: stop,
     timings: (1, 4),
     text: format!("STOP"),
-    data: InstructionData::small_dst(SmallWidthRegister::A) //Doesn't use
+    data: InstructionData::default()
   };
 
   let load_imm_de = Instruction {
@@ -422,9 +497,30 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::small_dst(SmallWidthRegister::D)
   };
 
+  let rla = Instruction {
+    execute:  rotate_r8_left_through_carry,
+    timings: (1, 4),
+    text: format!("RLA"),
+    data: InstructionData::small_dst(SmallWidthRegister::A)
+  };
+
+  let jr_n = Instruction {
+    execute: jump_relative_signed_immediate,
+    timings: (2, 12),
+    text: format!("JR n"),
+    data: InstructionData::default()
+  };
+
+  let add_hl_de = Instruction {
+    execute: add_r16_r16,
+    timings: (1, 8),
+    text: format!("add HL, DE"),
+    data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::DE)
+  };
+
   vec![
     no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
     dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de, load_mem_de_a, inc_de,
-    dec_d, ld_d_n
+    dec_d, ld_d_n, rla, jr_n, add_hl_de
   ]
 }
