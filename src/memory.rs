@@ -10,7 +10,7 @@ pub trait MemoryChunk {
 }
 
 impl dyn MemoryChunk {
-  pub fn write_u16(&mut self, address: u16, value: u8) {
+  pub fn write_u16(&mut self, address: u16, value: u16) {
     unimplemented!();
   }
   pub fn read_u16(&mut self, address: u16) -> u16 {

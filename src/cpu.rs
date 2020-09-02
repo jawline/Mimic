@@ -51,6 +51,9 @@ pub struct Registers {
   interrupts_enabled: bool,
 }
 
+/// The position of the CARRY bit in the F (flags) register
+const CARRY_BIT: u8 = 0x1;
+
 impl Registers {
 
   pub fn pc(&self) -> u16 { self.read_r16(WideRegister::PC) } 
@@ -107,22 +110,41 @@ impl Registers {
       HL => self.hl.write_u16(val)
     };
   }
+
+  pub fn carry(&self) -> bool {
+    return self.read_r8(SmallWidthRegister::F) & CARRY_BIT != 0;
+  }
+
+  pub fn set_carry(&mut self, state: bool) {
+    let mut current_flags = self.read_r8(SmallWidthRegister::F);
+    if state {
+      current_flags |= CARRY_BIT;
+    } else {
+      current_flags &= !CARRY_BIT;
+    }
+    self.write_r8(SmallWidthRegister::F, current_flags);
+  }
 }
 
 pub struct CPU {
-  registers: Registers
+  registers: Registers,
+  instructions: Vec<Instruction>
 }
 
 impl CPU {
   pub fn new() -> CPU {
     CPU {
       registers: Registers::default(),
+      instructions: instruction_set(),
     }
   }
   fn instructions() -> Vec<Instruction> {
     instruction_set()
   } 
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
+    for i in 0..self.instructions.len() {
+      println!("{}:{}", i, self.instructions[i].text);
+    }
     let opcode = memory.read_u8(self.registers.pc());
     let inst = &CPU::instructions()[opcode as usize];
     (inst.execute)(&mut self.registers, memory, &inst.data);
