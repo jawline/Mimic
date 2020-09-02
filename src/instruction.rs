@@ -1,12 +1,15 @@
-use crate::cpu::{Registers, SmallWidthRegister, WideRegister};
+use crate::cpu::{Registers, SmallWidthRegister, WideRegister, ZERO_FLAG, CARRY_FLAG};
 use crate::memory::MemoryChunk;
 
 use log::trace;
 
 /// We re-use some instruction functions for multiple register implementations
 /// This struct carries data for the single-implementation for many opcode instruction methods
+#[derive(Clone)]
 pub struct InstructionData {
   pub code: u8,
+  pub flag_mask: u8,
+  pub flag_expected: u8,
 
   pub small_reg_one: SmallWidthRegister,
   pub small_reg_two: SmallWidthRegister,
@@ -22,6 +25,9 @@ impl Default for InstructionData {
     InstructionData {
       code: 0,
 
+      flag_mask: 0,
+      flag_expected: 0,
+
       small_reg_one: SmallWidthRegister::B,
       small_reg_two: SmallWidthRegister::B,
       small_reg_dst: SmallWidthRegister::B,
@@ -34,6 +40,13 @@ impl Default for InstructionData {
 }
 
 impl InstructionData {
+
+  pub fn with_flag(&self, mask: u8, expected: u8) -> InstructionData {
+    let mut m = self.clone();
+    m.flag_mask = mask;
+    m.flag_expected = expected;
+    return m;
+  }
 
   pub fn small_dst(r: SmallWidthRegister) -> InstructionData {
     let mut a = InstructionData::default();
@@ -98,6 +111,14 @@ pub fn ld_imm_r16(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>, 
   registers.inc_pc(3);
 }
 
+/// Loads an immediate 8-bit value into the address pointed to by the wide dest register
+pub fn ld_mem_r16_immediate(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>, additional: &InstructionData) {
+  let val = memory.read_u8(registers.pc() + 1);
+  registers.inc_pc(2);
+  let addr = registers.read_r16(additional.wide_reg_dst);
+  memory.write_u8(addr, val);
+}
+
 /// Load immediate loads a 8 bit value following this instruction places it in a small register
 pub fn ld_imm_r8(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>, additional: &InstructionData) {
   //Load the 8 bit value after the opcode and store it to the dst register
@@ -142,14 +163,65 @@ pub fn inc_small_register(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
+  registers.inc_pc(1);
+
+  let l = registers.read_r8(additional.small_reg_dst);
+  let result = l + 1;
+
   // Increment the destination register by one
   registers.write_r8(
     additional.small_reg_dst,
-    registers.read_r8(additional.small_reg_dst) + 1
+    result 
   );
 
-  // Increment the PC by one once finished
+  registers.set_flags(
+    result == 0,
+    false,
+    ((l & 0xF) + 1) & (0x10) != 0,
+    registers.carry()
+  );
+}
+
+pub fn inc_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
   registers.inc_pc(1);
+  let addr = registers.read_r16(additional.wide_reg_dst);
+  let l = memory.read_u8(addr);
+  let result = l + 1;
+
+  // Increment by one and modify memory
+  memory.write_u8(addr, result);
+
+  registers.set_flags(
+    result == 0,
+    false,
+    ((l & 0xF) + 1) & (0x10) != 0,
+    registers.carry()
+  );
+}
+
+/// Decrement the value of memory pointed by a wide register by one
+/// and write it back to the same location in memory
+pub fn dec_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  registers.inc_pc(1);
+  let addr = registers.read_r16(additional.wide_reg_dst);
+  let l = memory.read_u8(addr);
+  let result = l - 1;
+
+  // Increment by one and modify memory
+  memory.write_u8(addr, result);
+
+  registers.set_flags(
+    result == 0,
+    false,
+    ((l & 0xF0) - 1) & (0x0F) != 0,
+    registers.carry()
+  );
 }
 
 /// Rotate 8-bit register left, placing whatever is in bit 7 in the carry bit before
@@ -219,8 +291,8 @@ fn rotate_r8_right_through_carry(registers: &mut Registers,
   let origin_carry = registers.carry();
   let carry = a & 1 != 0;
 
-  if (origin_carry) {
-    a |= (1 << 7);
+  if origin_carry {
+    a |= 1 << 7;
   } else {
     a &= !(1 << 7);
   }
@@ -252,10 +324,20 @@ fn dec_small_register(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
+  let l = registers.read_r8(additional.small_reg_dst);
+  let result = l - 1;
+
   // Increment the destination register by one
   registers.write_r8(
     additional.small_reg_dst,
-    registers.read_r8(additional.small_reg_dst) - 1
+    result 
+  );
+
+  registers.set_flags(
+    result == 0,
+    false,
+    ((l & 0xF0) - 1) & (0x0F) != 0,
+    registers.carry()
   );
 
   // Increment the PC by one once finished
@@ -275,6 +357,54 @@ fn load_immediate_wide_register(registers: &mut Registers,
 
   // Increment the PC by one once finished
   registers.inc_pc(3);
+}
+
+/// Place the value of a small register into the
+/// memory address pointed to by the wide destination
+/// register and then increment the wide destination register
+/// Example, ld HL, 0 ld A, 5 ldi (HL), A will leave [0] = 5, A = 5, HL = 1
+fn ldi_mem_r16_val_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let wide_reg = registers.read_r16(additional.wide_reg_dst);
+  let target = registers.read_r8(additional.small_reg_one);
+  memory.write_u8(wide_reg, target);
+  registers.write_r16(additional.wide_reg_dst, wide_reg + 1);
+}
+
+/// Place memory pointed to by the wide register into the small dst register
+/// then increment the wide register
+fn ldi_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let wide_reg = registers.read_r16(additional.wide_reg_one);
+  let mem = memory.read_u8(wide_reg);
+  let target = registers.write_r8(additional.small_reg_dst, mem);
+  registers.write_r16(additional.wide_reg_dst, wide_reg + 1);
+}
+
+/// Like ldi but decrement
+fn ldd_mem_r16_val_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let wide_reg = registers.read_r16(additional.wide_reg_dst);
+  let target = registers.read_r8(additional.small_reg_one);
+  memory.write_u8(wide_reg, target);
+  registers.write_r16(additional.wide_reg_dst, wide_reg - 1);
+}
+
+/// Like ldi but decrement
+fn ldd_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let wide_reg = registers.read_r16(additional.wide_reg_one);
+  let mem = memory.read_u8(wide_reg);
+  let target = registers.write_r8(additional.small_reg_dst, mem);
+  registers.write_r16(additional.wide_reg_dst, wide_reg - 1);
 }
 
 /// Add a wide register to a wide register
@@ -326,12 +456,44 @@ fn stop(registers: &mut Registers,
   unimplemented!();
 }
 
+/// Jump relative by a signed 8-bit value following the opcode
 fn jump_relative_signed_immediate(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   let byte = memory.read_u8(registers.pc() + 1) as i8;
   registers.inc_pc(2);
-  registers.jump_relative(byte);
+  if (registers.flags() & additional.flag_mask) == additional.flag_expected { 
+    registers.jump_relative(byte);
+  }
+}
+
+/// DAA takes the result of an arithmetic operation and makes it binary coded
+/// retrospectively
+fn daa(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  // https://forums.nesdev.com/viewtopic.php?t=15944
+  unimplemented!();
+}
+
+/// Flip all bits in an r8
+fn cpl_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  registers.write_r8(
+    additional.small_reg_dst,
+    !registers.read_r8(additional.small_reg_dst)
+  );
+  registers.set_flags(registers.zero(), true, true, registers.carry());  
+}
+
+/// Sets the carry flag, resets negative and half carry flags, zero unaffected
+fn scf(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  registers.set_flags(registers.zero(), false, false, true);
 }
 
 pub fn instruction_set() -> Vec<Instruction> {
@@ -508,7 +670,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     execute: jump_relative_signed_immediate,
     timings: (2, 12),
     text: format!("JR n"),
-    data: InstructionData::default()
+    data: InstructionData::default().with_flag(0, 0)
   };
 
   let add_hl_de = Instruction {
@@ -553,9 +715,187 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::small_dst(SmallWidthRegister::E)
   };
 
+  let rra = Instruction {
+    execute:  rotate_r8_left_through_carry,
+    timings: (1, 4),
+    text: format!("RRA"),
+    data: InstructionData::small_dst(SmallWidthRegister::A)
+  };
+
+  let jr_nz_n = Instruction {
+    execute: jump_relative_signed_immediate,
+    timings: (2, 8),
+    text: format!("JRNZ n"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, 0)
+  };
+
+  let load_imm_hl = Instruction {
+    execute: ld_imm_r16,
+    timings: (3, 12),
+    text: format!("ld HL, nn"),
+    data: InstructionData::wide_dst(WideRegister::HL)
+  };
+
+  let ldi_hl_a = Instruction {
+    execute: ldi_mem_r16_val_r8,
+    timings: (1, 8),
+    text: format!("ldi (HL), A"),
+    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A)
+  };
+
+  let inc_hl = Instruction {
+    execute: inc_wide_register,
+    timings: (1, 8),
+    text: format!("inc HL"),
+    data: InstructionData::wide_dst(WideRegister::HL),
+  };
+
+  let inc_h = Instruction {
+    execute: inc_small_register,
+    timings: (1, 4),
+    text: format!("inc H"),
+    data: InstructionData::small_dst(SmallWidthRegister::H),
+  };
+
+  let dec_h = Instruction {
+    execute: dec_small_register,
+    timings: (1, 4),
+    text: format!("dec H"),
+    data: InstructionData::small_dst(SmallWidthRegister::H),
+  };
+
+  let ld_h_n = Instruction {
+    execute: ld_imm_r8,
+    timings: (2, 8),
+    text: format!("ld H, n"),
+    data: InstructionData::small_dst(SmallWidthRegister::H)
+  };
+
+  let daa = Instruction {
+    execute: daa,
+    timings: (1, 4),
+    text: format!("daa"),
+    data: InstructionData::small_dst(SmallWidthRegister::A)
+  };
+
+  let jr_z_n = Instruction {
+    execute: jump_relative_signed_immediate,
+    timings: (2, 8),
+    text: format!("JRZ n"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG)
+  };
+
+  let add_hl_hl = Instruction {
+    execute: add_r16_r16,
+    timings: (1, 8),
+    text: format!("add HL, HL"),
+    data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::HL)
+  };
+
+  let ldi_a_hl = Instruction {
+    execute: ldi_mem_r16_val_r8,
+    timings: (1, 8),
+    text: format!("ldi A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let dec_hl = Instruction {
+    execute: dec_wide_register,
+    timings: (1, 8),
+    text: format!("dec HL"),
+    data: InstructionData::wide_dst(WideRegister::HL)
+  };
+
+  let inc_l = Instruction {
+    execute: inc_small_register,
+    timings: (1, 4),
+    text: format!("inc L"),
+    data: InstructionData::small_dst(SmallWidthRegister::L),
+  };
+
+  let dec_l = Instruction {
+    execute: dec_small_register,
+    timings: (1, 4),
+    text: format!("dec L"),
+    data: InstructionData::small_dst(SmallWidthRegister::L),
+  };
+
+  let ld_l_n = Instruction {
+    execute: ld_imm_r8,
+    timings: (2, 8),
+    text: format!("ld L, n"),
+    data: InstructionData::small_dst(SmallWidthRegister::L)
+  };
+
+  let cpl = Instruction {
+    execute: ld_imm_r8,
+    timings: (1, 4),
+    text: format!("cpl"),
+    data: InstructionData::small_dst(SmallWidthRegister::A)
+  };
+
+  let jr_nc_n = Instruction {
+    execute: jump_relative_signed_immediate,
+    timings: (2, 8),
+    text: format!("JRNC n"),
+    data: InstructionData::default().with_flag(CARRY_FLAG, 0)
+  };
+
+  let load_imm_sp = Instruction {
+    execute: ld_imm_r16,
+    timings: (3, 12),
+    text: format!("ld SP, nn"),
+    data: InstructionData::wide_dst(WideRegister::SP)
+  };
+
+  let ldd_hl_a = Instruction {
+    execute: ldd_mem_r16_val_r8,
+    timings: (1, 8),
+    text: format!("ldd (HL), A"),
+    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A)
+  };
+
+  let inc_sp = Instruction {
+    execute: inc_wide_register,
+    timings: (1, 8),
+    text: format!("inc SP"),
+    data: InstructionData::wide_dst(WideRegister::SP),
+  };
+
+  let inc_mem_hl = Instruction {
+    execute: inc_mem_r16,
+    timings: (1, 12),
+    text: format!("inc (HL)"),
+    data: InstructionData::wide_dst(WideRegister::HL),
+  };
+
+  let dec_mem_hl = Instruction {
+    execute: inc_mem_r16,
+    timings: (1, 12),
+    text: format!("dec (HL)"),
+    data: InstructionData::wide_dst(WideRegister::HL),
+  };
+
+  let ld_mem_hl_n = Instruction {
+    execute: ld_mem_r16_immediate,
+    timings: (2, 12),
+    text: format!("ld (HL), n"),
+    data: InstructionData::wide_dst(WideRegister::HL),
+  };
+
+  let scf = Instruction {
+    execute: scf,
+    timings: (1, 4),
+    text: format!("SCF"),
+    data: InstructionData::default(),
+  };
+
   vec![
     no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
     dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de, load_mem_de_a, inc_de,
-    dec_d, ld_d_n, rla, jr_n, add_hl_de, ld_a_de, dec_de, inc_e, dec_e, ld_e_n
+    dec_d, ld_d_n, rla, jr_n, add_hl_de, ld_a_de, dec_de, inc_e, dec_e, ld_e_n, rra,
+    jr_nz_n, load_imm_hl, ldi_hl_a, inc_hl, inc_h, dec_h, ld_h_n, daa, jr_z_n,
+    add_hl_hl, ldi_a_hl, dec_hl, inc_l, dec_l, ld_l_n, cpl, jr_nc_n, load_imm_sp,
+    ldd_hl_a, inc_sp, inc_mem_hl, dec_mem_hl, ld_mem_hl_n, scf,
   ]
 }

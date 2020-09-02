@@ -51,16 +51,16 @@ pub struct Registers {
   interrupts_enabled: bool,
 }
 
-const SIGN_FLAG: u8 = 0x1 << 7;
-const ZERO_FLAG: u8 = 0x1 << 6;
-const UDOC_FLAG: u8 = 0x1 << 5;
-const HALF_CARRY_FLAG: u8 = 0x1 << 4;
-const UDOC_2_FLAG: u8 = 0x1 << 3;
-const PO_FLAG: u8 = 0x1 << 2; //Parity or offset
-const SUBTRACT_FLAG: u8 = 0x1 << 2;
+pub const SIGN_FLAG: u8 = 0x1 << 7;
+pub const ZERO_FLAG: u8 = 0x1 << 6;
+pub const UDOC_FLAG: u8 = 0x1 << 5;
+pub const HALF_CARRY_FLAG: u8 = 0x1 << 4;
+pub const UDOC_2_FLAG: u8 = 0x1 << 3;
+pub const PO_FLAG: u8 = 0x1 << 2; //Parity or offset
+pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
 
 /// The position of the CARRY bit in the F (flags) register
-const CARRY_FLAG: u8 = 0x1;
+pub const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
 
@@ -133,12 +133,16 @@ impl Registers {
     };
   }
 
+  pub fn flags(&self) -> u8 {
+    self.read_r8(SmallWidthRegister::F)
+  }
+
   pub fn zero(&self) -> bool {
-    return self.read_r8(SmallWidthRegister::F) & ZERO_FLAG != 0;
+    self.flags() & ZERO_FLAG != 0
   }
 
   pub fn carry(&self) -> bool {
-    return self.read_r8(SmallWidthRegister::F) & CARRY_FLAG != 0;
+    self.flags() & CARRY_FLAG != 0
   }
 
   pub fn set_carry(&mut self, state: bool) {
