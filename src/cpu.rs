@@ -189,7 +189,7 @@ impl CPU {
   } 
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
     for i in 0..self.instructions.len() {
-      println!("{}:{}", i, self.instructions[i].text);
+      println!("{:x}:{}", i, self.instructions[i].text);
     }
     let opcode = memory.read_u8(self.registers.pc());
     let inst = &CPU::instructions()[opcode as usize];

@@ -85,6 +85,13 @@ impl InstructionData {
     a.wide_reg_one = l;
     a
   }
+
+  pub fn small_dst_small_src(r: SmallWidthRegister,
+    l: SmallWidthRegister) -> InstructionData {
+    let mut a = InstructionData::small_dst(r);
+    a.small_reg_one = l;
+    a
+  }
 }
 
 /// The instruction struct contains the implementation of and metadata on an instruction
@@ -141,6 +148,17 @@ pub fn ld_reg8_mem_reg16(registers: &mut Registers,
 
   // Increment the PC by one once finished
   registers.inc_pc(1);
+}
+
+/// Replace the value of small_reg_dst with the value of small_reg_one
+pub fn ld_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  registers.write_r8(
+    additional.small_reg_dst,
+    registers.read_r8(additional.small_reg_one)
+  );
 }
 
 /// Increment the value of a wide-register by one
@@ -496,6 +514,14 @@ fn scf(registers: &mut Registers,
   registers.set_flags(registers.zero(), false, false, true);
 }
 
+/// Complement the carry flag (flip it)
+fn ccf(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  registers.set_carry(!registers.carry());
+}
+
 pub fn instruction_set() -> Vec<Instruction> {
 
   let no_op = Instruction {
@@ -793,7 +819,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let ldi_a_hl = Instruction {
-    execute: ldi_mem_r16_val_r8,
+    execute: ldi_r8_mem_r16,
     timings: (1, 8),
     text: format!("ldi A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
@@ -890,12 +916,183 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::default(),
   };
 
+  let jr_c_n = Instruction {
+    execute: jump_relative_signed_immediate,
+    timings: (2, 8),
+    text: format!("JRC n"),
+    data: InstructionData::default().with_flag(CARRY_FLAG, CARRY_FLAG)
+  };
+
+  let add_hl_sp = Instruction {
+    execute: add_r16_r16,
+    timings: (1, 8),
+    text: format!("add HL, SP"),
+    data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::SP)
+  };
+
+  let ldd_a_hl = Instruction {
+    execute: ldd_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("ldi A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let dec_sp = Instruction {
+    execute: dec_wide_register,
+    timings: (1, 8),
+    text: format!("dec SP"),
+    data: InstructionData::wide_dst(WideRegister::SP)
+  };
+
+  let inc_a = Instruction {
+    execute: inc_small_register,
+    timings: (1, 4),
+    text: format!("inc A"),
+    data: InstructionData::small_dst(SmallWidthRegister::A),
+  };
+
+  let dec_a = Instruction {
+    execute: dec_small_register,
+    timings: (1, 4),
+    text: format!("dec A"),
+    data: InstructionData::small_dst(SmallWidthRegister::A),
+  };
+
+  let ld_a_n = Instruction {
+    execute: ld_imm_r8,
+    timings: (2, 8),
+    text: format!("ld A, n"),
+    data: InstructionData::small_dst(SmallWidthRegister::A)
+  };
+
+  let ccf = Instruction {
+    execute: ccf,
+    timings: (2, 8),
+    text: format!("CCF"),
+    data: InstructionData::default()
+  };
+
+  let ld_b_b = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::B)
+  };
+
+  let ld_b_c = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::C)
+  };
+
+  let ld_b_d = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::D)
+  };
+
+  let ld_b_e = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::E)
+  };
+
+  let ld_b_h = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::H)
+  };
+
+  let ld_b_l = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::L)
+  };
+
+  let ld_b_hl = Instruction {
+    execute: load_r16_mem_to_r8,
+    timings: (1, 8),
+    text: format!("ld B, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::B, WideRegister::HL)
+  };
+
+  let ld_b_a = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld B, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::A)
+  };
+
+  let ld_c_b = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::B)
+  };
+
+  let ld_c_c = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::C)
+  };
+
+  let ld_c_d = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::D)
+  };
+
+  let ld_c_e = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::E)
+  };
+
+  let ld_c_h = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::H)
+  };
+
+  let ld_c_l = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::L)
+  };
+
+  let ld_c_hl = Instruction {
+    execute: load_r16_mem_to_r8,
+    timings: (1, 8),
+    text: format!("ld C, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::C, WideRegister::HL)
+  };
+
+  let ld_c_a = Instruction {
+    execute: ld_r8_r8,
+    timings: (1, 4),
+    text: format!("ld C, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::A)
+  };
+
   vec![
-    no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
+    no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, dec_b, load_imm_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
     dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de, load_mem_de_a, inc_de,
-    dec_d, ld_d_n, rla, jr_n, add_hl_de, ld_a_de, dec_de, inc_e, dec_e, ld_e_n, rra,
+    inc_d, dec_d, ld_d_n, rla, jr_n, add_hl_de, ld_a_de, dec_de, inc_e, dec_e, ld_e_n, rra,
     jr_nz_n, load_imm_hl, ldi_hl_a, inc_hl, inc_h, dec_h, ld_h_n, daa, jr_z_n,
     add_hl_hl, ldi_a_hl, dec_hl, inc_l, dec_l, ld_l_n, cpl, jr_nc_n, load_imm_sp,
-    ldd_hl_a, inc_sp, inc_mem_hl, dec_mem_hl, ld_mem_hl_n, scf,
+    ldd_hl_a, inc_sp, inc_mem_hl, dec_mem_hl, ld_mem_hl_n, scf, jr_c_n, add_hl_sp,
+    ldd_a_hl, dec_sp, inc_a, dec_a, ld_a_n, ccf, ld_b_b, ld_b_c, ld_b_d, ld_b_e,
+    ld_b_h, ld_b_l, ld_b_hl, ld_b_a, ld_c_b, ld_c_c, ld_c_d, ld_c_e, ld_c_h,
+    ld_c_l, ld_c_hl, ld_c_a,
   ]
 }
