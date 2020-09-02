@@ -56,6 +56,10 @@ impl Registers {
   pub fn pc(&self) -> u16 { self.read_r16(WideRegister::PC) } 
   pub fn sp(&self) -> u16 { self.read_r16(WideRegister::SP) }
 
+  pub fn inc_pc(&mut self, by: u16) {
+    self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
+  } 
+
   pub fn read_r8(&self, reg: SmallWidthRegister) -> u8 {
     match reg {
       B => self.bc.l,
