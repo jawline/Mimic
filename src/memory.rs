@@ -1,3 +1,6 @@
+use std::io;
+use std::io::prelude::*;
+use std::fs::File;
 use std::vec::Vec;
 use log::{trace, warn, error};
 
@@ -11,10 +14,16 @@ pub trait MemoryChunk {
 
 impl dyn MemoryChunk {
   pub fn write_u16(&mut self, address: u16, value: u16) {
-    unimplemented!();
+    let lower = value & 0xFF;
+    let upper = value >> 8;
+    self.write_u8(address + 1, upper as u8);
+    self.write_u8(address, lower as u8);
   }
   pub fn read_u16(&mut self, address: u16) -> u16 {
-    unimplemented!();
+    let upper = self.read_u8(address + 1);
+    let lower = self.read_u8(address);
+    let result = ((upper as u16) << 8) + (lower as u16);
+    result
   }
 }
 
@@ -29,10 +38,20 @@ impl MemoryChunk for RomChunk {
   fn write_u8(&mut self, address: u16, _: u8) {
     warn!("tried to write to {} in RomChunk", address);
   }
-
   fn read_u8(&self, address: u16) -> u8 {
     trace!("read from {} in RomChunk", address);
     self.bytes[address as usize]
+  }
+}
+
+impl RomChunk {
+  pub fn from_file(path: &str) -> io::Result<RomChunk> {
+    let mut f = File::open(path)?;
+    let mut buffer = Vec::new();
+    f.read_to_end(&mut buffer)?;
+    Ok(RomChunk {
+      bytes: buffer
+    })
   }
 }
 

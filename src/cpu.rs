@@ -2,14 +2,14 @@ use crate::instruction::{Instruction, InstructionData, instruction_set};
 use crate::memory::MemoryChunk;
 
 /// Gameboy clock state
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Clock {
   m: u8,
   t: u8,
 }
 
 /// Represents a register pair that can be addressed either as two u8's or one u16
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct RegisterPair {
   l: u8,
   r: u8
@@ -38,7 +38,7 @@ pub enum WideRegister {
 }
 
 /// CPU state and registers for a Z80 gameboy processor.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Registers {
   pc: u16,
   sp: u16,
@@ -179,20 +179,20 @@ pub struct CPU {
 
 impl CPU {
   pub fn new() -> CPU {
+    let instructions = instruction_set();
+    for i in 0..instructions.len() {
+      println!("{:x}:{}", i, instructions[i].text);
+    }
     CPU {
       registers: Registers::default(),
-      instructions: instruction_set(),
+      instructions: instructions,
     }
   }
-  fn instructions() -> Vec<Instruction> {
-    instruction_set()
-  } 
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
-    for i in 0..self.instructions.len() {
-      println!("{:x}:{}", i, self.instructions[i].text);
-    }
     let opcode = memory.read_u8(self.registers.pc());
-    let inst = &CPU::instructions()[opcode as usize];
+    println!("{:?}", self.registers);
+    let inst = &self.instructions[opcode as usize];
+    println!("next {}:{}", opcode, inst.text);
     (inst.execute)(&mut self.registers, memory, &inst.data);
   }
 }
