@@ -261,6 +261,27 @@ fn add_r8_r8(registers: &mut Registers,
   registers.set_flags(result == 0, false, half_carry, carry);
 }
 
+/// Add value add wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn add_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
+
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let address = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(address);
+  let result = origin + add_v;
+
+  let half_carry = (((origin & 0xF) + (add_v & 0xF)) & 0xF0) != 0;
+  let carry = origin as u16 + add_v as u16 & 0xFF00 != 0;
+
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.set_flags(result == 0, false, half_carry, carry);
+}
+
 /// Rotate 8-bit register left, placing whatever is in bit 7 in the carry bit before
 fn rotate_left_with_carry(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
@@ -1489,6 +1510,20 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
   };
 
+  let add_a_hl = Instruction {
+    execute: add_r8_mem_r16,
+    timings: (1, 4),
+    text: format!("add A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let add_a_a = Instruction {
+    execute: add_r8_r8,
+    timings: (1, 4),
+    text: format!("add A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
   vec![
     no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, dec_b, load_imm_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
     dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de, load_mem_de_a, inc_de,
@@ -1505,7 +1540,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     ld_l_l, ld_l_hl, ld_l_a, load_hl_b, load_hl_c, load_hl_d, load_hl_e,
     load_hl_h, load_hl_l, halt, load_hl_a, ld_a_b, ld_a_c, ld_a_d,
     ld_a_e, ld_a_h, ld_a_l, ld_a_hl, ld_a_a, add_a_b, add_a_c, add_a_d,
-    add_a_e, add_a_h, add_a_l
+    add_a_e, add_a_h, add_a_l, add_a_hl, add_a_a,
 
   ]
 }
