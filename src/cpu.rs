@@ -78,7 +78,7 @@ impl Registers {
   pub fn jump_relative(&mut self, by: i8) {
     // TODO: I'm not sure if this is correct
     // there must be a better way to do signed and unsigned addition in Rust
-    if (by > 0) {
+    if by > 0 {
       self.inc_pc(by as u16);
     } else {
       self.dec_pc(-by as u16);
