@@ -261,6 +261,60 @@ fn add_r8_r8(registers: &mut Registers,
   registers.set_flags(result == 0, false, half_carry, carry);
 }
 
+/// Subtract two small registers (small_reg_one to small_reg_dst)
+fn sub_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
+
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let add_v = registers.read_r8(additional.small_reg_one);
+  let result = origin - add_v;
+
+  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
+  let carry = origin > result;
+
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.set_flags(result == 0, false, half_carry, carry);
+}
+
+/// And of two small registers
+fn and_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// or two small registers
+fn or_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// cp two small registers
+fn cp_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// XOR two small registers
+fn xor_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
+fn sbc_r8_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
 /// Add two small registers (small_reg_one to small_reg_dst)
 /// Also add one if the carry flag is set
 fn adc_r8_r8(registers: &mut Registers,
@@ -281,7 +335,7 @@ fn adc_r8_r8(registers: &mut Registers,
   registers.set_flags(result == 0, false, half_carry, carry);
 }
 
-/// Add value add wide_register_one in memory to small_reg_dst
+/// Add value at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
 fn add_r8_mem_r16(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
@@ -300,6 +354,67 @@ fn add_r8_mem_r16(registers: &mut Registers,
 
   registers.write_r8(additional.small_reg_dst, result);
   registers.set_flags(result == 0, false, half_carry, carry);
+}
+
+/// Subtract value add wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn sub_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
+
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let address = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(address);
+  let result = origin - add_v;
+
+  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
+  let carry = origin > result; // TODO: Probably very wrong
+
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.set_flags(result == 0, false, half_carry, carry);
+}
+
+/// Subtract through carry value at wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn sbc_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// And memory at wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn and_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// Cp memory at wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn cp_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// or memory at wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn or_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// XOR memory at wide_register_one in memory to small_reg_dst
+/// save the result in small_reg_dst
+fn xor_r8_mem_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
 }
 
 /// Add value add wide_register_one in memory to small_reg_dst
@@ -1554,7 +1669,7 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let add_a_hl = Instruction {
     execute: add_r8_mem_r16,
-    timings: (1, 4),
+    timings: (1, 8),
     text: format!("add A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
   };
@@ -1612,7 +1727,7 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let adc_a_hl = Instruction {
     execute: adc_r8_mem_r16,
-    timings: (1, 4),
+    timings: (1, 8),
     text: format!("adc A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
   };
@@ -1621,6 +1736,348 @@ pub fn instruction_set() -> Vec<Instruction> {
     execute: adc_r8_r8,
     timings: (1, 4),
     text: format!("adc A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
+  // Subtract
+  let sub_a_b = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B)
+  };
+
+  let sub_a_c = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
+  };
+
+  let sub_a_d = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D)
+  };
+
+  let sub_a_e = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E)
+  };
+
+  let sub_a_h = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H)
+  };
+
+  let sub_a_l = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
+  };
+
+  let sub_a_hl = Instruction {
+    execute: sub_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("sub A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let sub_a_a = Instruction {
+    execute: sub_r8_r8,
+    timings: (1, 4),
+    text: format!("sub A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
+  // Subtract with carry
+  let sbc_a_b = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B)
+  };
+
+  let sbc_a_c = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
+  };
+
+  let sbc_a_d = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D)
+  };
+
+  let sbc_a_e = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E)
+  };
+
+  let sbc_a_h = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H)
+  };
+
+  let sbc_a_l = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
+  };
+
+  let sbc_a_hl = Instruction {
+    execute: sbc_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("sbc A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let sbc_a_a = Instruction {
+    execute: sbc_r8_r8,
+    timings: (1, 4),
+    text: format!("sbc A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
+  // And
+  let and_a_b = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B)
+  };
+
+  let and_a_c = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
+  };
+
+  let and_a_d = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D)
+  };
+
+  let and_a_e = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E)
+  };
+
+  let and_a_h = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H)
+  };
+
+  let and_a_l = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
+  };
+
+  let and_a_hl = Instruction {
+    execute: and_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("and A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let and_a_a = Instruction {
+    execute: and_r8_r8,
+    timings: (1, 4),
+    text: format!("and A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
+  // Xor
+  let xor_a_b = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B)
+  };
+
+  let xor_a_c = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
+  };
+
+  let xor_a_d = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D)
+  };
+
+  let xor_a_e = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E)
+  };
+
+  let xor_a_h = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H)
+  };
+
+  let xor_a_l = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
+  };
+
+  let xor_a_hl = Instruction {
+    execute: xor_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("xor A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let xor_a_a = Instruction {
+    execute: xor_r8_r8,
+    timings: (1, 4),
+    text: format!("xor A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
+  // or
+  let or_a_b = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B)
+  };
+
+  let or_a_c = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
+  };
+
+  let or_a_d = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D)
+  };
+
+  let or_a_e = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E)
+  };
+
+  let or_a_h = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H)
+  };
+
+  let or_a_l = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
+  };
+
+  let or_a_hl = Instruction {
+    execute: or_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("or A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let or_a_a = Instruction {
+    execute: or_r8_r8,
+    timings: (1, 4),
+    text: format!("or A, A"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
+  };
+
+  // cp
+  let cp_a_b = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, B"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B)
+  };
+
+  let cp_a_c = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, C"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
+  };
+
+  let cp_a_d = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, D"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D)
+  };
+
+  let cp_a_e = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, E"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E)
+  };
+
+  let cp_a_h = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, H"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H)
+  };
+
+  let cp_a_l = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, L"),
+    data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L)
+  };
+
+  let cp_a_hl = Instruction {
+    execute: cp_r8_mem_r16,
+    timings: (1, 8),
+    text: format!("cp A, (HL)"),
+    data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL)
+  };
+
+  let cp_a_a = Instruction {
+    execute: cp_r8_r8,
+    timings: (1, 4),
+    text: format!("cp A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
   };
 
@@ -1641,7 +2098,13 @@ pub fn instruction_set() -> Vec<Instruction> {
     load_hl_h, load_hl_l, halt, load_hl_a, ld_a_b, ld_a_c, ld_a_d,
     ld_a_e, ld_a_h, ld_a_l, ld_a_hl, ld_a_a, add_a_b, add_a_c, add_a_d,
     add_a_e, add_a_h, add_a_l, add_a_hl, add_a_a, adc_a_b, adc_a_c, adc_a_d,
-    adc_a_e, adc_a_h, adc_a_l, adc_a_hl, adc_a_a,
+    adc_a_e, adc_a_h, adc_a_l, adc_a_hl, adc_a_a, sub_a_b, sub_a_c, sub_a_d,
+    sub_a_e, sub_a_h, sub_a_l, sub_a_hl, sub_a_a, sbc_a_b, sbc_a_c, sbc_a_d,
+    sbc_a_e, sbc_a_h, sbc_a_l, sbc_a_hl, sbc_a_a, and_a_b, and_a_c, and_a_d,
+    and_a_e, and_a_h, and_a_l, and_a_hl, and_a_a, xor_a_b, xor_a_c, xor_a_d,
+    xor_a_e, xor_a_h, xor_a_l, xor_a_hl, xor_a_a, or_a_b, or_a_c, or_a_d,
+    or_a_e, or_a_h, or_a_l, or_a_hl, or_a_a, cp_a_b, cp_a_c, cp_a_d,
+    cp_a_e, cp_a_h, cp_a_l, cp_a_hl, cp_a_a,
 
   ]
 }

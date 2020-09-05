@@ -1,5 +1,6 @@
 use crate::instruction::{Instruction, InstructionData, instruction_set};
 use crate::memory::MemoryChunk;
+use log::trace;
 
 /// Gameboy clock state
 #[derive(Default, Debug)]
@@ -190,9 +191,10 @@ impl CPU {
   }
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
     let opcode = memory.read_u8(self.registers.pc());
-    println!("{:?}", self.registers);
+    trace!("pre-step: {:?}", self.registers);
     let inst = &self.instructions[opcode as usize];
-    println!("next {}:{}", opcode, inst.text);
+    trace!("next {}:{}", opcode, inst.text);
     (inst.execute)(&mut self.registers, memory, &inst.data);
+    trace!("post-step: {:?}", self.registers);
   }
 }
