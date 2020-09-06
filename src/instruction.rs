@@ -41,11 +41,17 @@ impl Default for InstructionData {
 
 impl InstructionData {
 
+  pub fn rst_n(code: u8) -> InstructionData {
+    let mut m = InstructionData::default();
+    m.code = code;
+    m
+  }
+
   pub fn with_flag(&self, mask: u8, expected: u8) -> InstructionData {
     let mut m = self.clone();
     m.flag_mask = mask;
     m.flag_expected = expected;
-    return m;
+    m
   }
 
   pub fn small_dst(r: SmallWidthRegister) -> InstructionData {
@@ -242,6 +248,32 @@ pub fn dec_mem_r16(registers: &mut Registers,
   );
 }
 
+/// Add two 8-bit values and set flags
+fn add_8_bit_values(l: u8, r: u8, registers: &mut Registers) -> u8 {
+  let half_carry = (((l & 0xF) + (r & 0xF)) & 0xF0) != 0;
+  let carry = l as u16 + l as u16 & 0xFF00 != 0;
+  let result = l + r;
+  registers.set_flags(result == 0, false, half_carry, carry);
+  result
+}
+
+/// Add an immediate to a small register 
+fn add_r8_imm(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+
+  let add_v = memory.read_u8(registers.pc() + 1);
+
+  // Increment the PC by one once finished
+  registers.inc_pc(2);
+
+  let origin = registers.read_r8(additional.small_reg_dst);
+
+  // We calculate the registers here since its shared with other adds
+  let result = add_8_bit_values(origin, add_v, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+}
+
 /// Add two small registers (small_reg_one to small_reg_dst)
 fn add_r8_r8(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
@@ -252,13 +284,10 @@ fn add_r8_r8(registers: &mut Registers,
 
   let origin = registers.read_r8(additional.small_reg_dst);
   let add_v = registers.read_r8(additional.small_reg_one);
-  let result = origin + add_v;
 
-  let half_carry = (((origin & 0xF) + (add_v & 0xF)) & 0xF0) != 0;
-  let carry = origin as u16 + add_v as u16 & 0xFF00 != 0;
-
+  // We calculate the registers here since its shared with immediates
+  let result = add_8_bit_values(origin, add_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, half_carry, carry);
 }
 
 /// Subtract two small registers (small_reg_one to small_reg_dst)
@@ -682,6 +711,40 @@ fn jump_relative_signed_immediate(registers: &mut Registers,
   }
 }
 
+/// Return if the flags & mask == expected
+fn ret(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    let ret_pc = registers.stack_pop16(memory);
+    registers.set_pc(ret_pc);
+  }
+}
+
+/// Jump to destination if flags & mask == expected
+fn jump_immediate(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  let target_address = memory.read_u16(registers.pc() + 1);
+  registers.inc_pc(3);
+  if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    registers.set_pc(target_address);
+  }
+}
+
+/// Call function if flags & mask == expected
+fn call_immediate(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  let target_address = memory.read_u16(registers.pc() + 1);
+  registers.inc_pc(3);
+  if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    unimplemented!("Need to work out how to call functions");
+    registers.set_pc(target_address);
+  }
+}
+
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
 fn daa(registers: &mut Registers,
@@ -701,6 +764,27 @@ fn cpl_r8(registers: &mut Registers,
     !registers.read_r8(additional.small_reg_dst)
   );
   registers.set_flags(registers.zero(), true, true, registers.carry());  
+}
+
+/// Push a 16-bit register to the stack
+fn push_wide_register(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let to_push = registers.read_r16(additional.wide_reg_dst);
+  registers.stack_push16(to_push, memory);
+}
+
+/// Pop two bytes from the stack and store them in specified register
+fn pop_wide_register(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let popped_value = registers.stack_pop16(memory);
+  registers.write_r16(
+    additional.wide_reg_dst,
+    popped_value 
+  );
 }
 
 /// Halt the processor 
@@ -725,6 +809,15 @@ fn ccf(registers: &mut Registers,
   additional: &InstructionData) {
   registers.inc_pc(1);
   registers.set_carry(!registers.carry());
+}
+
+/// Push current PC to stack then jump to n (8-bit immediate)
+fn rst_n(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  registers.stack_push16(registers.pc(), memory);
+  registers.set_pc(additional.code as u16);
 }
 
 pub fn instruction_set() -> Vec<Instruction> {
@@ -2081,6 +2174,76 @@ pub fn instruction_set() -> Vec<Instruction> {
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A)
   };
 
+  let ret_n_z = Instruction {
+    execute: ret,
+    timings: (1, 8),
+    text: format!("retnz"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, 0)
+  };
+
+  let pop_bc = Instruction {
+    execute: pop_wide_register,
+    timings: (1, 12),
+    text: format!("pop BC"),
+    data: InstructionData::wide_dst(WideRegister::BC)
+  };
+
+  let jnz = Instruction {
+    execute: jump_immediate,
+    timings: (3, 12),
+    text: format!("jnz NN"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, 0)
+  };
+
+  let jmp = Instruction {
+    execute: jump_immediate,
+    timings: (3, 16),
+    text: format!("jmp NN"),
+    data: InstructionData::default().with_flag(0, 0)
+  };
+
+  let callnz = Instruction {
+    execute: call_immediate,
+    timings: (3, 12),
+    text: format!("callnz NN"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, 0)
+  };
+
+  let push_bc = Instruction {
+    execute: push_wide_register,
+    timings: (1, 16),
+    text: format!("push BC"),
+    data: InstructionData::wide_dst(WideRegister::BC)
+  };
+
+  let add_a_n = Instruction {
+    execute: add_r8_imm,
+    timings: (2, 8),
+    text: format!("add A, n"),
+    data: InstructionData::wide_dst(WideRegister::BC)
+  };
+
+  let rst_0 = Instruction {
+    execute: rst_n,
+    timings: (1, 16),
+    text: format!("rst 0"),
+    data: InstructionData::rst_n(0)
+  };
+
+  let ret_z = Instruction {
+    execute: ret,
+    timings: (1, 8),
+    text: format!("retz"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG)
+  };
+
+  let jz = Instruction {
+    execute: jump_immediate,
+    timings: (3, 12),
+    text: format!("jz NN"),
+    data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG)
+  };
+
   vec![
     no_op, load_imm_bc, load_bc_a, inc_bc, inc_b, dec_b, load_imm_b, rlca, ld_nn_sp, add_hl_bc, ld_a_bc,
     dec_bc, inc_c, dec_c, ld_c_n, rrca, stop, load_imm_de, load_mem_de_a, inc_de,
@@ -2104,7 +2267,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     and_a_e, and_a_h, and_a_l, and_a_hl, and_a_a, xor_a_b, xor_a_c, xor_a_d,
     xor_a_e, xor_a_h, xor_a_l, xor_a_hl, xor_a_a, or_a_b, or_a_c, or_a_d,
     or_a_e, or_a_h, or_a_l, or_a_hl, or_a_a, cp_a_b, cp_a_c, cp_a_d,
-    cp_a_e, cp_a_h, cp_a_l, cp_a_hl, cp_a_a,
-
+    cp_a_e, cp_a_h, cp_a_l, cp_a_hl, cp_a_a, ret_n_z, pop_bc, jnz, jmp,
+    callnz, push_bc, add_a_n, rst_0, ret_z, jz,
   ]
 }

@@ -68,12 +68,34 @@ impl Registers {
   pub fn pc(&self) -> u16 { self.read_r16(WideRegister::PC) } 
   pub fn sp(&self) -> u16 { self.read_r16(WideRegister::SP) }
 
+  pub fn set_pc(&mut self, pc: u16) { self.write_r16(WideRegister::PC, pc); }
+
   pub fn inc_pc(&mut self, by: u16) {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
   }
 
   pub fn dec_pc(&mut self, by: u16) {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) - by);
+  }
+
+  /// Push a 8 bit value from the stack and return it
+  pub fn stack_push8(&mut self, v: u8, memory: &mut Box<dyn MemoryChunk>) {
+    unimplemented!();
+  }
+
+  /// Push a 16 bit value from the stack and return it
+  pub fn stack_push16(&mut self, v: u16, memory: &mut Box<dyn MemoryChunk>) {
+    unimplemented!();
+  }
+
+  /// Pop an 8 bit value from the stack and return it
+  pub fn stack_pop8(&mut self, memory: &mut Box<dyn MemoryChunk>) -> u8 {
+    unimplemented!();
+  }
+
+  /// Pop a 16 bit value from the stack and return it
+  pub fn stack_pop16(&mut self, memory: &mut Box<dyn MemoryChunk>) -> u16 {
+    unimplemented!();
   }
 
   pub fn jump_relative(&mut self, by: i8) {
