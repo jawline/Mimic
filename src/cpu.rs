@@ -49,7 +49,7 @@ pub struct Registers {
   hl: RegisterPair,
 
   clock: Clock,
-  interrupts_enabled: bool,
+  pub interrupts_enabled: bool,
 }
 
 pub const SIGN_FLAG: u8 = 0x1 << 7;
