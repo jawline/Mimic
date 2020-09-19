@@ -122,7 +122,7 @@ impl MemoryChunk for MemoryMap {
       trace!("write to {} map entry {}", address, entry_idx);
       self.entries[entry_idx].write_u8(address, val);
     } else {
-      error!("write to unmapped address {}", address);
+      error!("write {} to unmapped address {}", val, address);
     }
   }
 

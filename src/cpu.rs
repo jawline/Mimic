@@ -18,11 +18,14 @@ pub struct RegisterPair {
 
 impl RegisterPair {
   fn as_u16(&self) -> u16 {
-    unimplemented!();
+    let high_portion = (self.l as u16) << 8;
+    let low_portion = self.r as u16;
+    high_portion + low_portion
   }
 
   fn write_u16(&mut self, v: u16) {
-    unimplemented!();
+    self.l = (v >> 8) as u8;
+    self.r = (v & 0xFF) as u8;
   }
 }
 
