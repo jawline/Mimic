@@ -9,6 +9,7 @@ use memory::{RomChunk, MemoryMapEntry, MemoryMap};
 use log::info;
 
 fn main() -> io::Result<()> {
+  env_logger::init();
   info!("preparing initial state");
 
   let boot_rom = RomChunk::from_file("/home/blake/gb/bios.gb");

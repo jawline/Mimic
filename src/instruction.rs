@@ -123,9 +123,12 @@ pub fn no_op(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>, addit
 
 /// Load immediate loads a 16 bit value following this instruction places it in a register
 pub fn ld_imm_r16(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>, additional: &InstructionData) {
+
   //Load the 16 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u16(registers.pc() + 1);
   registers.write_r16(additional.wide_reg_dst, imm_val);
+
+  trace!("Load Immediate to r16 {:?} {}", additional.wide_reg_dst, imm_val); 
 
   //Increment the PC by three once finished
   registers.inc_pc(3);
@@ -279,7 +282,7 @@ fn add_8_bit_values(l: u8, r: u8, registers: &mut Registers) -> u8 {
 }
 
 /// Add an immediate to a small register 
-fn add_r8_imm(registers: &mut Registers,
+fn add_r8_n(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
@@ -326,7 +329,6 @@ fn sub_r8_r8(registers: &mut Registers,
   let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
   let carry = origin > result;
 
-  registers.write_r8(additional.small_reg_dst, result);
   registers.set_flags(result == 0, false, half_carry, carry);
 }
 
@@ -338,7 +340,7 @@ fn sub_r8_n(registers: &mut Registers,
   let add_v = memory.read_u8(registers.pc() + 1);
 
   // Increment the PC by one once finished
-  registers.inc_pc(1);
+  registers.inc_pc(2);
 
   let origin = registers.read_r8(additional.small_reg_dst); 
   let result = origin - add_v;
@@ -389,7 +391,18 @@ fn cp_r8_r8(registers: &mut Registers,
 fn cp_r8_n(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
-  unimplemented!();
+  let add_v = memory.read_u8(registers.pc() + 1);
+
+  // Increment the PC by one once finished
+  registers.inc_pc(2);
+
+  let origin = registers.read_r8(additional.small_reg_dst); 
+  let result = origin - add_v;
+
+  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
+  let carry = origin > result;
+
+  registers.set_flags(result == 0, false, half_carry, carry);
 }
 
 /// XOR two small registers
@@ -1420,7 +1433,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let cpl = Instruction {
-    execute: ld_imm_r8,
+    execute: cpl_r8,
     timings: (1, 4),
     text: format!("cpl"),
     data: InstructionData::small_dst(SmallWidthRegister::A)
@@ -2485,7 +2498,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let add_a_n = Instruction {
-    execute: add_r8_imm,
+    execute: add_r8_n,
     timings: (2, 8),
     text: format!("add A, n"),
     data: InstructionData::wide_dst(WideRegister::BC)

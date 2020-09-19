@@ -33,10 +33,13 @@ pub enum SmallWidthRegister {
 }
 
 /// Enum to address all the 16-bit wide registers
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum WideRegister {
   PC, SP, BC, AF, DE, HL
 }
+
+use SmallWidthRegister::*;
+use WideRegister::*;
 
 /// CPU state and registers for a Z80 gameboy processor.
 #[derive(Default, Debug)]
@@ -47,7 +50,6 @@ pub struct Registers {
   af: RegisterPair,
   de: RegisterPair,
   hl: RegisterPair,
-
   clock: Clock,
   pub interrupts_enabled: bool,
 }
@@ -146,9 +148,16 @@ impl Registers {
   }
 
   pub fn write_r16(&mut self, reg: WideRegister, val: u16) {
+    trace!("Writing {} -> {:?}", val, reg);
     match reg {
-      PC => self.pc = val,
-      SP => self.sp = val,
+      PC => {
+        trace!("-> PC");
+        self.pc = val
+      },
+      SP => {
+        trace!("-> SP");
+        self.sp = val;
+      },
       BC => self.bc.write_u16(val),
       AF => self.af.write_u16(val),
       DE => self.de.write_u16(val),
@@ -215,7 +224,7 @@ impl CPU {
     let opcode = memory.read_u8(self.registers.pc());
     trace!("pre-step: {:?}", self.registers);
     let inst = &self.instructions[opcode as usize];
-    trace!("next {}:{}", opcode, inst.text);
+    trace!("{} ({})", inst.text, opcode);
     (inst.execute)(&mut self.registers, memory, &inst.data);
     trace!("post-step: {:?}", self.registers);
   }
