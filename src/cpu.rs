@@ -1,4 +1,4 @@
-use crate::instruction::{Instruction, InstructionData, instruction_set};
+use crate::instruction::{Instruction, InstructionData, instruction_set, extended_instruction_set};
 use crate::memory::MemoryChunk;
 use log::trace;
 
@@ -30,7 +30,7 @@ impl RegisterPair {
 }
 
 /// Enum to address all the 8-bit registers
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum SmallWidthRegister {
   B, C, A, F, D, E, H, L
 }
@@ -209,18 +209,24 @@ impl Registers {
 
 pub struct CPU {
   registers: Registers,
-  instructions: Vec<Instruction>
+  instructions: Vec<Instruction>,
+  ext_instructions: Vec<Instruction>,
 }
 
 impl CPU {
   pub fn new() -> CPU {
     let instructions = instruction_set();
+    let ext = extended_instruction_set();
     for i in 0..instructions.len() {
       println!("{:x}:{}", i, instructions[i].text);
+    }
+    for i in 0..ext.len() {
+      println!("{:x}:{}", i, ext[i].text);
     }
     CPU {
       registers: Registers::default(),
       instructions: instructions,
+      ext_instructions: ext,
     }
   }
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {

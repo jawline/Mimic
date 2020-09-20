@@ -2873,3 +2873,159 @@ pub fn instruction_set() -> Vec<Instruction> {
     ld_hl_sp, ld_a_nn, ei, invalid.clone(), invalid.clone(), cp_a_n, rst_38,
   ]
 }
+
+/// RLC in the extended set 
+fn ext_rlc_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_rlc_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// RRC in the extended set 
+fn ext_rrc_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_rrc_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// RL in the extended set 
+fn ext_rl_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_rl_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// RR in the extended set 
+fn ext_rr_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_rr_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// Instruction list when generating a row
+fn next_instr_register(index: usize) -> SmallWidthRegister {
+  match index {
+    0 => SmallWidthRegister::B,
+    1 => SmallWidthRegister::C,
+    2 => SmallWidthRegister::D,
+    3 => SmallWidthRegister::E,
+    4 => SmallWidthRegister::H,
+    5 => SmallWidthRegister::L,
+    6 => SmallWidthRegister::B, /* Should never be selected, is the indirect slot */
+    7 => SmallWidthRegister::A,
+    _ => { unimplemented!(); },
+  }
+}
+
+/// The extended set is a systematic. This produces an 8-instruction row from it
+fn make_extended_row(normal_skeleton: Instruction, indirect_skeleton: Instruction) -> Vec<Instruction> {
+  let mut res = Vec::new();
+  for i in 0..8 {
+    if i == 6 {
+      let mut next_instr = normal_skeleton.clone();
+      next_instr.text = format!("{} (HL)", indirect_skeleton.text);
+      next_instr.data.wide_reg_dst = WideRegister::HL;
+      res.push(next_instr);
+    } else {
+      let mut next_instr = normal_skeleton.clone();
+      next_instr.text = format!("{} {:?}", indirect_skeleton.text, next_instr_register(i));
+      next_instr.data.small_reg_dst = next_instr_register(i);
+      res.push(next_instr);
+    }
+  }
+  res
+}
+
+pub fn extended_instruction_set() -> Vec<Instruction> {
+
+  // RLC
+  let rlc_r8_skeleton = Instruction {
+    execute: ext_rlc_r8,
+    timings: (1, 8),
+    text: format!("RLC "),
+    data: InstructionData::default()
+  };
+  let rlc_indirect_skeleton = Instruction {
+    execute: ext_rlc_indirect_r16,
+    timings: (1, 16),
+    text: format!("RLC "),
+    data: InstructionData::default()
+  };
+  let rlc_row = make_extended_row(rlc_r8_skeleton, rlc_indirect_skeleton);
+
+  // RRC
+  let rrc_r8_skeleton = Instruction {
+    execute: ext_rrc_r8,
+    timings: (1, 8),
+    text: format!("RRC "),
+    data: InstructionData::default()
+  };
+  let rrc_indirect_skeleton = Instruction {
+    execute: ext_rrc_indirect_r16,
+    timings: (1, 16),
+    text: format!("RRC "),
+    data: InstructionData::default()
+  };
+  let rrc_row = make_extended_row(rrc_r8_skeleton, rrc_indirect_skeleton);
+
+  // RL
+  let rl_r8_skeleton = Instruction {
+    execute: ext_rl_r8,
+    timings: (1, 8),
+    text: format!("RL "),
+    data: InstructionData::default()
+  };
+  let rl_indirect_skeleton = Instruction {
+    execute: ext_rl_indirect_r16,
+    timings: (1, 16),
+    text: format!("RL "),
+    data: InstructionData::default()
+  };
+  let rl_row = make_extended_row(rl_r8_skeleton, rl_indirect_skeleton);
+
+  // RR
+  let rr_r8_skeleton = Instruction {
+    execute: ext_rr_r8,
+    timings: (1, 8),
+    text: format!("RR "),
+    data: InstructionData::default()
+  };
+  let rr_indirect_skeleton = Instruction {
+    execute: ext_rr_indirect_r16,
+    timings: (1, 16),
+    text: format!("RR "),
+    data: InstructionData::default()
+  };
+  let rr_row = make_extended_row(rr_r8_skeleton, rr_indirect_skeleton);
+
+  rlc_row.iter()
+    .chain(rrc_row.iter())
+    .chain(rl_row.iter())
+    .chain(rr_row.iter())
+    .cloned()
+    .collect()
+}
