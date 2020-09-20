@@ -77,6 +77,7 @@ impl Registers {
   pub fn sp(&self) -> u16 { self.read_r16(WideRegister::SP) }
 
   pub fn set_pc(&mut self, pc: u16) { self.write_r16(WideRegister::PC, pc); }
+  pub fn set_sp(&mut self, sp: u16) { self.write_r16(WideRegister::SP, sp); }
 
   pub fn inc_pc(&mut self, by: u16) {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
@@ -87,23 +88,33 @@ impl Registers {
   }
 
   /// Push a 8 bit value from the stack and return it
-  pub fn stack_push8(&mut self, v: u8, memory: &mut Box<dyn MemoryChunk>) {
-    unimplemented!();
+  pub fn stack_push8(&mut self, value: u8, memory: &mut Box<dyn MemoryChunk>) {
+    let new_sp = self.sp() - 1;
+    memory.write_u8(new_sp, value);
+    self.set_sp(new_sp);
   }
 
   /// Push a 16 bit value from the stack and return it
-  pub fn stack_push16(&mut self, v: u16, memory: &mut Box<dyn MemoryChunk>) {
-    unimplemented!();
+  pub fn stack_push16(&mut self, value: u16, memory: &mut Box<dyn MemoryChunk>) {
+    let new_sp = self.sp() - 2;
+    memory.write_u16(new_sp, value);
+    self.set_sp(new_sp);
   }
 
   /// Pop an 8 bit value from the stack and return it
   pub fn stack_pop8(&mut self, memory: &mut Box<dyn MemoryChunk>) -> u8 {
-    unimplemented!();
+    let sp = self.sp();
+    let rval = memory.read_u8(sp);
+    self.set_sp(sp + 1);
+    rval
   }
 
   /// Pop a 16 bit value from the stack and return it
   pub fn stack_pop16(&mut self, memory: &mut Box<dyn MemoryChunk>) -> u16 {
-    unimplemented!();
+    let sp = self.sp();
+    let rval = memory.read_u16(sp);
+    self.set_sp(sp + 2);
+    rval
   }
 
   pub fn jump_relative(&mut self, by: i8) {
@@ -197,7 +208,8 @@ impl Registers {
     }
   }
 
-  pub fn set_flags(&mut self, zero: bool,
+  pub fn set_flags(&mut self,
+    zero: bool,
     negative: bool,
     half_carry: bool,
     carry: bool) {

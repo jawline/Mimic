@@ -1026,7 +1026,7 @@ fn call_immediate(registers: &mut Registers,
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
-    unimplemented!("Need to work out how to call functions");
+    registers.stack_push16(registers.pc(), memory);
     registers.set_pc(target_address);
   }
 }
@@ -2987,7 +2987,15 @@ fn ext_srl_indirect_r16(registers: &mut Registers,
 fn ext_bit_r8(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let selected_bit = 1 << additional.bit;
+  let target_register = registers.read_r8(additional.small_reg_dst);
+  registers.set_flags(
+    selected_bit & target_register == 0,
+    false,
+    true,
+    registers.carry()
+  );
 }
 
 fn ext_bit_indirect_r16(registers: &mut Registers,

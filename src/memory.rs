@@ -55,6 +55,32 @@ impl RomChunk {
   }
 }
 
+/**
+ * RAM read/write memory as bytes
+ */
+pub struct RamChunk {
+  pub bytes: Vec<u8>
+}
+
+impl MemoryChunk for RamChunk {
+  fn write_u8(&mut self, address: u16, v: u8) {
+    trace!("write {} to {} in RamChunk", v, address);
+    self.bytes[address as usize] = v;
+  }
+  fn read_u8(&self, address: u16) -> u8 {
+    trace!("read from {} in RamChunk", address);
+    self.bytes[address as usize]
+  }
+}
+
+impl RamChunk {
+  pub fn new(size: usize) -> RamChunk {
+    RamChunk {
+      bytes: vec![0; size]
+    }
+  }
+}
+
 pub type MemoryMapRegion = (u16, u16);
 
 pub struct MemoryMapEntry {
@@ -73,6 +99,11 @@ impl MemoryMapEntry {
   fn contains(&self, address: u16) -> bool {
     let (min, max) = self.region;
     address >= min && address <= max
+  }
+
+  fn address_offset(&self, address: u16) -> u16 {
+    let (min, _) = self.region;
+    return address - min;
   }
 }
 
@@ -120,6 +151,7 @@ impl MemoryChunk for MemoryMap {
   fn write_u8(&mut self, address: u16, val: u8) {
     if let Some(entry_idx) = self.find_entry(address) {
       trace!("write to {} map entry {}", address, entry_idx);
+      let address = self.entries[entry_idx].address_offset(address);
       self.entries[entry_idx].write_u8(address, val);
     } else {
       error!("write {} to unmapped address {}", val, address);
@@ -129,6 +161,7 @@ impl MemoryChunk for MemoryMap {
   fn read_u8(&self, address: u16) -> u8 {
     if let Some(entry_idx) = self.find_entry(address) {
       trace!("read {} map entry {}", address, entry_idx);
+      let address = self.entries[entry_idx].address_offset(address);
       self.entries[entry_idx].read_u8(address)
     } else {
       panic!("read from unmapped address {}", address);
