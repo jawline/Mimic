@@ -2926,6 +2926,58 @@ fn ext_rr_indirect_r16(registers: &mut Registers,
   unimplemented!();
 }
 
+/// SLA in the extended set 
+fn ext_sla_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_sla_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// SRA in the extended set 
+fn ext_sra_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_sra_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// SWAP in the extended set 
+fn ext_swap_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_swap_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// SRL in the extended set 
+fn ext_srl_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_srl_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
 /// Instruction list when generating a row
 fn next_instr_register(index: usize) -> SmallWidthRegister {
   match index {
@@ -3022,10 +3074,74 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   };
   let rr_row = make_extended_row(rr_r8_skeleton, rr_indirect_skeleton);
 
+  // SLA
+  let sla_r8_skeleton = Instruction {
+    execute: ext_sla_r8,
+    timings: (1, 8),
+    text: format!("SLA "),
+    data: InstructionData::default()
+  };
+  let sla_indirect_skeleton = Instruction {
+    execute: ext_sla_indirect_r16,
+    timings: (1, 16),
+    text: format!("SLA "),
+    data: InstructionData::default()
+  };
+  let sla_row = make_extended_row(sla_r8_skeleton, sla_indirect_skeleton);
+
+  // SRA
+  let sra_r8_skeleton = Instruction {
+    execute: ext_sra_r8,
+    timings: (1, 8),
+    text: format!("SRA "),
+    data: InstructionData::default()
+  };
+  let sra_indirect_skeleton = Instruction {
+    execute: ext_sra_indirect_r16,
+    timings: (1, 16),
+    text: format!("SRA "),
+    data: InstructionData::default()
+  };
+  let sra_row = make_extended_row(sra_r8_skeleton, sra_indirect_skeleton);
+
+  // SWAP
+  let swap_r8_skeleton = Instruction {
+    execute: ext_swap_r8,
+    timings: (1, 8),
+    text: format!("SWAP "),
+    data: InstructionData::default()
+  };
+  let swap_indirect_skeleton = Instruction {
+    execute: ext_swap_indirect_r16,
+    timings: (1, 16),
+    text: format!("SWAP "),
+    data: InstructionData::default()
+  };
+  let swap_row = make_extended_row(swap_r8_skeleton, swap_indirect_skeleton);
+
+  // SRL
+  let srl_r8_skeleton = Instruction {
+    execute: ext_srl_r8,
+    timings: (1, 8),
+    text: format!("SRL "),
+    data: InstructionData::default()
+  };
+  let srl_indirect_skeleton = Instruction {
+    execute: ext_srl_indirect_r16,
+    timings: (1, 16),
+    text: format!("SRL "),
+    data: InstructionData::default()
+  };
+  let srl_row = make_extended_row(srl_r8_skeleton, srl_indirect_skeleton);
+
   rlc_row.iter()
     .chain(rrc_row.iter())
     .chain(rl_row.iter())
     .chain(rr_row.iter())
+    .chain(sla_row.iter())
+    .chain(sra_row.iter())
+    .chain(swap_row.iter())
+    .chain(srl_row.iter())
     .cloned()
     .collect()
 }
