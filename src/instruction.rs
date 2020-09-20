@@ -10,6 +10,7 @@ pub struct InstructionData {
   pub code: u8,
   pub flag_mask: u8,
   pub flag_expected: u8,
+  pub bit: u8,
 
   pub small_reg_one: SmallWidthRegister,
   pub small_reg_two: SmallWidthRegister,
@@ -24,14 +25,12 @@ impl Default for InstructionData {
   fn default() -> InstructionData {
     InstructionData {
       code: 0,
-
+      bit: 0,
       flag_mask: 0,
       flag_expected: 0,
-
       small_reg_one: SmallWidthRegister::B,
       small_reg_two: SmallWidthRegister::B,
       small_reg_dst: SmallWidthRegister::B,
-
       wide_reg_one: WideRegister::BC,
       wide_reg_two: WideRegister::BC,
       wide_reg_dst: WideRegister::BC,
@@ -51,6 +50,12 @@ impl InstructionData {
     let mut m = self.clone();
     m.flag_mask = mask;
     m.flag_expected = expected;
+    m
+  }
+
+  pub fn with_bit(&self, bit: u8) -> InstructionData {
+    let mut m = self.clone();
+    m.bit = bit;
     m
   }
 
@@ -936,12 +941,12 @@ fn stop(registers: &mut Registers,
   unimplemented!();
 }
 
-/// Escape? TODO 
+/// Escape 
 fn escape(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   registers.inc_pc(1);
-  unimplemented!();
+  registers.escaped = true;
 }
 
 /// Jump relative by a signed 8-bit value following the opcode
@@ -2978,6 +2983,45 @@ fn ext_srl_indirect_r16(registers: &mut Registers,
   unimplemented!();
 }
 
+/// BIT in the extended set 
+fn ext_bit_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_bit_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// RES in the extended set 
+fn ext_res_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_res_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+/// SET in the extended set 
+fn ext_set_r8(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
+fn ext_set_indirect_r16(registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  unimplemented!();
+}
+
 /// Instruction list when generating a row
 fn next_instr_register(index: usize) -> SmallWidthRegister {
   match index {
@@ -3010,6 +3054,22 @@ fn make_extended_row(normal_skeleton: Instruction, indirect_skeleton: Instructio
     }
   }
   res
+}
+
+/// Make bit-set of extended rows. This enumerates the instructions for every bit on every register for the BIT, RES, and SET instructions 
+fn make_bit_set(normal_skeleton: Instruction, indirect_skeleton: Instruction) -> Vec<Instruction> {
+  (0..8)
+    .map(|bit| {
+      let mut normal_skeleton = normal_skeleton.clone();
+      let mut indirect_skeleton = indirect_skeleton.clone();
+      normal_skeleton.data = normal_skeleton.data.with_bit(bit);
+      normal_skeleton.text = format!("{} {}, ", normal_skeleton.text, bit);
+      indirect_skeleton.data = indirect_skeleton.data.with_bit(bit);
+      indirect_skeleton.text = format!("{} {}, ", indirect_skeleton.text, bit);
+      make_extended_row(normal_skeleton, indirect_skeleton)
+    })
+    .flatten()
+    .collect()
 }
 
 pub fn extended_instruction_set() -> Vec<Instruction> {
@@ -3134,6 +3194,51 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   };
   let srl_row = make_extended_row(srl_r8_skeleton, srl_indirect_skeleton);
 
+  // BIT
+  let bit_r8_skeleton = Instruction {
+    execute: ext_bit_r8,
+    timings: (1, 8),
+    text: format!("BIT "),
+    data: InstructionData::default()
+  };
+  let bit_indirect_skeleton = Instruction {
+    execute: ext_bit_indirect_r16,
+    timings: (1, 16),
+    text: format!("BIT "),
+    data: InstructionData::default()
+  };
+  let bits_row = make_bit_set(bit_r8_skeleton, bit_indirect_skeleton);
+
+  // RES
+  let res_r8_skeleton = Instruction {
+    execute: ext_res_r8,
+    timings: (1, 8),
+    text: format!("RES "),
+    data: InstructionData::default()
+  };
+  let res_indirect_skeleton = Instruction {
+    execute: ext_res_indirect_r16,
+    timings: (1, 16),
+    text: format!("RES "),
+    data: InstructionData::default()
+  };
+  let rst_row = make_bit_set(res_r8_skeleton, res_indirect_skeleton);
+
+  // SET
+  let set_r8_skeleton = Instruction {
+    execute: ext_set_r8,
+    timings: (1, 8),
+    text: format!("SET "),
+    data: InstructionData::default()
+  };
+  let set_indirect_skeleton = Instruction {
+    execute: ext_set_indirect_r16,
+    timings: (1, 16),
+    text: format!("SET "),
+    data: InstructionData::default()
+  };
+  let set_row = make_bit_set(set_r8_skeleton, set_indirect_skeleton);
+
   rlc_row.iter()
     .chain(rrc_row.iter())
     .chain(rl_row.iter())
@@ -3142,6 +3247,9 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     .chain(sra_row.iter())
     .chain(swap_row.iter())
     .chain(srl_row.iter())
+    .chain(bits_row.iter())
+    .chain(rst_row.iter())
+    .chain(set_row.iter())
     .cloned()
     .collect()
 }

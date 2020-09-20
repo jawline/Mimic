@@ -55,6 +55,9 @@ pub struct Registers {
   hl: RegisterPair,
   clock: Clock,
   pub interrupts_enabled: bool,
+
+  /// This indicates the last opcode processed was an escape opcode, triggering the extended instruction set
+  pub escaped: bool, 
 }
 
 pub const SIGN_FLAG: u8 = 0x1 << 7;
@@ -232,7 +235,17 @@ impl CPU {
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
     let opcode = memory.read_u8(self.registers.pc());
     trace!("pre-step: {:?}", self.registers);
-    let inst = &self.instructions[opcode as usize];
+
+    let inst;
+
+    if self.registers.escaped {
+      trace!("Selected opcode from extended set since escaped is set");
+      inst = &self.ext_instructions[opcode as usize];
+      self.registers.escaped = false;
+    } else {
+      inst = &self.instructions[opcode as usize];
+    }
+
     trace!("{} ({})", inst.text, opcode);
     (inst.execute)(&mut self.registers, memory, &inst.data);
     trace!("post-step: {:?}", self.registers);
