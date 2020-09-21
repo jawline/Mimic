@@ -1,4 +1,4 @@
-use crate::instruction::{Instruction, InstructionData, instruction_set, extended_instruction_set};
+use crate::instruction::{Instruction, instruction_set, extended_instruction_set};
 use crate::memory::MemoryChunk;
 use log::trace;
 
@@ -54,19 +54,18 @@ pub struct Registers {
   de: RegisterPair,
   hl: RegisterPair,
   clock: Clock,
-  pub interrupts_enabled: bool,
 
   /// This indicates the last opcode processed was an escape opcode, triggering the extended instruction set
-  pub escaped: bool, 
+  pub escaped: bool,
+
+  /// How many cycles passed in the last CPU step
+  pub last_clock: u16, 
 }
 
-pub const SIGN_FLAG: u8 = 0x1 << 7;
 pub const ZERO_FLAG: u8 = 0x1 << 6;
-pub const UDOC_FLAG: u8 = 0x1 << 5;
 pub const HALF_CARRY_FLAG: u8 = 0x1 << 4;
-pub const UDOC_2_FLAG: u8 = 0x1 << 3;
-pub const PO_FLAG: u8 = 0x1 << 2; //Parity or offset
 pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
+pub const INTERRUPTS: u16 = 0xFFFF;
 
 /// The position of the CARRY bit in the F (flags) register
 pub const CARRY_FLAG: u8 = 0x1;
@@ -87,26 +86,11 @@ impl Registers {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) - by);
   }
 
-  /// Push a 8 bit value from the stack and return it
-  pub fn stack_push8(&mut self, value: u8, memory: &mut Box<dyn MemoryChunk>) {
-    let new_sp = self.sp() - 1;
-    memory.write_u8(new_sp, value);
-    self.set_sp(new_sp);
-  }
-
   /// Push a 16 bit value from the stack and return it
   pub fn stack_push16(&mut self, value: u16, memory: &mut Box<dyn MemoryChunk>) {
     let new_sp = self.sp() - 2;
     memory.write_u16(new_sp, value);
     self.set_sp(new_sp);
-  }
-
-  /// Pop an 8 bit value from the stack and return it
-  pub fn stack_pop8(&mut self, memory: &mut Box<dyn MemoryChunk>) -> u8 {
-    let sp = self.sp();
-    let rval = memory.read_u8(sp);
-    self.set_sp(sp + 1);
-    rval
   }
 
   /// Pop a 16 bit value from the stack and return it
@@ -223,7 +207,7 @@ impl Registers {
 }
 
 pub struct CPU {
-  registers: Registers,
+  pub registers: Registers,
   instructions: Vec<Instruction>,
   ext_instructions: Vec<Instruction>,
 }
@@ -261,5 +245,6 @@ impl CPU {
     trace!("{} ({})", inst.text, opcode);
     (inst.execute)(&mut self.registers, memory, &inst.data);
     trace!("post-step: {:?}", self.registers);
+    self.registers.last_clock = inst.timings.1;
   }
 }

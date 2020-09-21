@@ -1,4 +1,4 @@
-use crate::cpu::{Registers, SmallWidthRegister, WideRegister, ZERO_FLAG, CARRY_FLAG};
+use crate::cpu::{Registers, SmallWidthRegister, WideRegister, ZERO_FLAG, CARRY_FLAG, INTERRUPTS};
 use crate::memory::MemoryChunk;
 
 use log::{trace, info, error};
@@ -121,9 +121,12 @@ pub struct Instruction {
 }
 
 /// No-op just increments the stack pointer
-pub fn no_op(registers: &mut Registers, memory: &mut Box<dyn MemoryChunk>, additional: &InstructionData) {
+pub fn no_op(
+  registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   trace!("NoOp!");
-  registers.write_r16(WideRegister::PC, registers.pc() + 1);
+  registers.inc_pc(1);
 }
 
 /// Load immediate loads a 16 bit value following this instruction places it in a register
@@ -174,7 +177,7 @@ pub fn ld_reg8_mem_reg16(registers: &mut Registers,
 
 /// Replace the value of small_reg_dst with the value of small_reg_one
 pub fn ld_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   registers.inc_pc(1);
   registers.write_r8(
@@ -199,7 +202,7 @@ pub fn ld_r8_indirect_imm(registers: &mut Registers,
 
 /// Increment the value of a wide-register by one
 pub fn inc_wide_register(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   // Increment the destination wide register by one
@@ -214,7 +217,7 @@ pub fn inc_wide_register(registers: &mut Registers,
 
 /// Increment the value of a small register by one
 pub fn inc_small_register(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   registers.inc_pc(1);
@@ -306,7 +309,7 @@ fn add_r8_n(registers: &mut Registers,
 
 /// Add two small registers (small_reg_one to small_reg_dst)
 fn add_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   // Increment the PC by one once finished
@@ -322,7 +325,7 @@ fn add_r8_r8(registers: &mut Registers,
 
 /// Subtract two small registers (small_reg_one to small_reg_dst)
 fn sub_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   // Increment the PC by one once finished
@@ -359,37 +362,42 @@ fn sub_r8_n(registers: &mut Registers,
 }
 
 /// And of two small registers
-fn and_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn and_r8_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// And imm with small reg dst
-fn and_r8_n(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn and_r8_n(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// or two small registers
-fn or_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn or_r8_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// bitwise or small reg dst with immediate
-fn or_r8_n(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn or_r8_n(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// cp two small registers
-fn cp_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn cp_r8_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
@@ -413,7 +421,7 @@ fn cp_r8_n(registers: &mut Registers,
 
 /// XOR two small registers
 fn xor_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   registers.inc_pc(1);
   let v_src = registers.read_r8(additional.small_reg_one);
@@ -424,23 +432,26 @@ fn xor_r8_r8(registers: &mut Registers,
 }
 
 /// XOR small dst register with immediate
-fn xor_r8_n(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn xor_r8_n(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
-fn sbc_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn sbc_r8_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// Subtract immediate through carry
-fn sbc_r8_n(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn sbc_r8_n(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
@@ -525,7 +536,7 @@ fn adc_r8_imm(registers: &mut Registers,
 /// Add two small registers (small_reg_one to small_reg_dst)
 /// Also add one if the carry flag is set
 fn adc_r8_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   // Increment the PC by one once finished
@@ -581,41 +592,46 @@ fn sub_r8_mem_r16(registers: &mut Registers,
 
 /// Subtract through carry value at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn sbc_r8_mem_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn sbc_r8_mem_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// And memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn and_r8_mem_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn and_r8_mem_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// Cp memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn cp_r8_mem_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn cp_r8_mem_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// or memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn or_r8_mem_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn or_r8_mem_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// XOR memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn xor_r8_mem_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn xor_r8_mem_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
@@ -643,7 +659,7 @@ fn adc_r8_mem_r16(registers: &mut Registers,
 
 /// Rotate 8-bit register left, placing whatever is in bit 7 in the carry bit before
 fn rotate_left_with_carry(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -658,7 +674,7 @@ fn rotate_left_with_carry(registers: &mut Registers,
 
 /// Rotate 8-bit register right, placing whatever is in bit 0 in the carry bit before
 fn rotate_right_with_carry(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -676,7 +692,7 @@ fn rotate_right_with_carry(registers: &mut Registers,
 /// then shift left everything by one bit and then replace bit 0 with the origin
 /// carry bit
 fn rotate_r8_left_through_carry(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -701,7 +717,7 @@ fn rotate_r8_left_through_carry(registers: &mut Registers,
 /// then shift right everything by one bit and then replace bit 7 with the origin
 /// carry bit
 fn rotate_r8_right_through_carry(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -723,7 +739,7 @@ fn rotate_r8_right_through_carry(registers: &mut Registers,
 
 /// Decrement the value of a small register by one
 fn dec_wide_register(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   // Increment the destination register by one
@@ -738,7 +754,7 @@ fn dec_wide_register(registers: &mut Registers,
 
 /// Decrement the value of a small register by one
 fn dec_small_register(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   let l = registers.read_r8(additional.small_reg_dst);
@@ -812,7 +828,7 @@ fn ldi_r8_mem_r16(registers: &mut Registers,
   registers.inc_pc(1);
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
-  let target = registers.write_r8(additional.small_reg_dst, mem);
+  registers.write_r8(additional.small_reg_dst, mem);
   registers.write_r16(additional.wide_reg_dst, wide_reg + 1);
 }
 
@@ -834,13 +850,13 @@ fn ldd_r8_mem_r16(registers: &mut Registers,
   registers.inc_pc(1);
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
-  let target = registers.write_r8(additional.small_reg_dst, mem);
+  registers.write_r8(additional.small_reg_dst, mem);
   registers.write_r16(additional.wide_reg_dst, wide_reg - 1);
 }
 
 /// Add a wide register to a wide register
 fn add_r16_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
 
   let l = registers.read_r16(additional.wide_reg_dst);
@@ -892,7 +908,7 @@ fn add_r16_n(registers: &mut Registers,
 
 /// Load wide_reg_one into wide reg dst  
 fn ld_r16_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   registers.inc_pc(1);
   registers.write_r16(additional.wide_reg_dst, registers.read_r16(additional.wide_reg_one));
@@ -935,16 +951,16 @@ fn load_r16_mem_to_r8(registers: &mut Registers,
 
 /// Stop the processor & screen until button press
 fn stop(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   registers.inc_pc(1);
   unimplemented!();
 }
 
 /// Escape 
 fn escape(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   registers.inc_pc(1);
   registers.escaped = true;
 }
@@ -974,26 +990,26 @@ fn ret(registers: &mut Registers,
 /// Enable interrupts
 fn enable_interrupts(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _additional: &InstructionData) {
   registers.inc_pc(1);
-  registers.interrupts_enabled = false;
+  memory.write_u8(INTERRUPTS, 1);
 }
 
 /// Disable interrupts
 fn disable_interrupts(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _additional: &InstructionData) {
   registers.inc_pc(1);
-  registers.interrupts_enabled = false;
+  memory.write_u8(INTERRUPTS, 0);
 }
 
 /// Return and enable interrupts 
 fn reti(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _additional: &InstructionData) {
   let ret_pc = registers.stack_pop16(memory);
   registers.set_pc(ret_pc);
-  registers.interrupts_enabled = true;
+  memory.write_u8(INTERRUPTS, 1);
 }
 
 /// Jump to destination if flags & mask == expected
@@ -1033,22 +1049,22 @@ fn call_immediate(registers: &mut Registers,
 
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
-fn daa(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn daa(_registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   // https://forums.nesdev.com/viewtopic.php?t=15944
   unimplemented!();
 }
 
-fn invalid_op(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn invalid_op(_registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// Flip all bits in an r8
 fn cpl_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   registers.inc_pc(1);
   registers.write_r8(
@@ -1081,24 +1097,24 @@ fn pop_wide_register(registers: &mut Registers,
 
 /// Halt the processor 
 fn halt(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   registers.inc_pc(1);
   unimplemented!();
 }
 
 /// Sets the carry flag, resets negative and half carry flags, zero unaffected
 fn scf(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   registers.inc_pc(1);
   registers.set_flags(registers.zero(), false, false, true);
 }
 
 /// Complement the carry flag (flip it)
 fn ccf(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   registers.inc_pc(1);
   registers.set_carry(!registers.carry());
 }
@@ -1332,7 +1348,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let rra = Instruction {
-    execute:  rotate_r8_left_through_carry,
+    execute:  rotate_r8_right_through_carry,
     timings: (1, 4),
     text: format!("RRA"),
     data: InstructionData::small_dst(SmallWidthRegister::A)
@@ -1486,7 +1502,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let dec_mem_hl = Instruction {
-    execute: inc_mem_r16,
+    execute: dec_mem_r16,
     timings: (1, 12),
     text: format!("dec (HL)"),
     data: InstructionData::wide_dst(WideRegister::HL),
@@ -2768,7 +2784,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let ld_a_ff00_c = Instruction {
-    execute: ld_r8_ff00_imm,
+    execute: ld_r8_ff00_r8,
     timings: (1, 8),
     text: format!("ld A, (FF00 + C)"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
@@ -2880,112 +2896,128 @@ pub fn instruction_set() -> Vec<Instruction> {
 }
 
 /// RLC in the extended set 
-fn ext_rlc_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rlc_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_rlc_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rlc_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// RRC in the extended set 
-fn ext_rrc_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rrc_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_rrc_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rrc_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// RL in the extended set 
-fn ext_rl_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rl_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_rl_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rl_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// RR in the extended set 
-fn ext_rr_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rr_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_rr_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_rr_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// SLA in the extended set 
-fn ext_sla_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_sla_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_sla_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_sla_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// SRA in the extended set 
-fn ext_sra_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_sra_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_sra_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_sra_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// SWAP in the extended set 
-fn ext_swap_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_swap_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_swap_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_swap_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// SRL in the extended set 
-fn ext_srl_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_srl_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_srl_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_srl_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// BIT in the extended set 
 fn ext_bit_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
+  _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   registers.inc_pc(1);
   let selected_bit = 1 << additional.bit;
@@ -2998,35 +3030,40 @@ fn ext_bit_r8(registers: &mut Registers,
   );
 }
 
-fn ext_bit_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_bit_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// RES in the extended set 
-fn ext_res_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_res_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_res_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_res_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
 /// SET in the extended set 
-fn ext_set_r8(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_set_r8(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 
-fn ext_set_indirect_r16(registers: &mut Registers,
-  memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
+fn ext_set_indirect_r16(
+  _registers: &mut Registers,
+  _memory: &mut Box<dyn MemoryChunk>,
+  _additional: &InstructionData) {
   unimplemented!();
 }
 

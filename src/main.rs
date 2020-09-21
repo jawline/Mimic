@@ -5,7 +5,6 @@ mod machine;
 mod instruction;
 
 use std::io;
-use std::error::Error;
 use memory::{RomChunk, RamChunk, MemoryMapEntry, MemoryMap};
 use log::info;
 use gpu::GPU;
@@ -14,7 +13,7 @@ fn main() -> io::Result<()> {
   env_logger::init();
   info!("preparing initial state");
 
-  let mut gpu = GPU::new();
+  let gpu = GPU::new();
 
   let gb_test = RomChunk::from_file("/home/blake/gb/test2.gb");
   let boot_rom = RomChunk::from_file("/home/blake/gb/bios.gb");
@@ -38,6 +37,7 @@ fn main() -> io::Result<()> {
 
   let mut gameboy_state = machine::Machine {
     cpu: cpu::CPU::new(),
+    gpu: gpu,
     memory: Box::new(root_map)
   };
 
@@ -45,6 +45,5 @@ fn main() -> io::Result<()> {
 
   loop {
     gameboy_state.step();
-    gpu.step();
   }
 }
