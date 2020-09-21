@@ -2927,10 +2927,17 @@ fn ext_rrc_indirect_r16(
 
 /// RL in the extended set 
 fn ext_rl_r8(
-  _registers: &mut Registers,
+  registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  additional: &InstructionData) {
+
+  registers.inc_pc(1);
+
+  let reg = registers.read_r8(additional.small_reg_dst);
+  let new_reg = (reg << 1) | if registers.carry() { 1 } else { 0 };
+
+  registers.write_r8(additional.small_reg_dst, new_reg);
+  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
 
 fn ext_rl_indirect_r16(

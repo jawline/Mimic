@@ -13,7 +13,7 @@ use sdl2::keyboard::Keycode;
 use crate::cpu::CPU;
 use crate::memory::MemoryChunk;
 
-use log::trace;
+use log::{trace, info};
 
 const GB_SCREEN_WIDTH: u32 = 160;
 const GB_SCREEN_HEIGHT: u32 = 144;
@@ -61,7 +61,7 @@ impl GPU {
     let canvas = window.into_canvas().present_vsync().build().unwrap();
     let event_pump = sdl_context.event_pump().unwrap();
     let pixels = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
-    trace!("GPU initialized");
+    info!("GPU initialized");
     GPU {
       events: event_pump,
       texture_creator: Rc::new(canvas.texture_creator()),
@@ -99,6 +99,13 @@ impl GPU {
     self.mode = mode;
   }
 
+  fn write_px(&mut self, x: usize, y: usize, val: u8) {
+    let canvas_offset = (GB_SCREEN_WIDTH * 3) as usize * y;
+    self.pixels[(x * 3) + canvas_offset] = val;
+    self.pixels[(x * 3) + canvas_offset + 1] = val;
+    self.pixels[(x * 3) + canvas_offset + 2] = val;
+  }
+
   fn render_line(&mut self, mem: &mut Box<dyn MemoryChunk>) {
     trace!("Rendering full line {}", self.current_line);
     let scx = mem.read_u8(SCX);
@@ -109,15 +116,9 @@ impl GPU {
     let y = (self.current_line as u16 + scy as u16) & 7;
     let mut x = scx & 7;
     let mut tile = mem.read_u8(map_offset + line_offset) as u16;
-    let canvas_offset = (GB_SCREEN_WIDTH * 3) as usize * self.current_line;
     for i in 0..160 {
-      self.pixels[(i * 3) + canvas_offset] = 255;
-      self.pixels[(i * 3) + canvas_offset + 1] = 255;
-      self.pixels[(i * 3) + canvas_offset + 2] = 255;
       let val = self.tile_value(1, tile as u16, x as u16, y as u16, mem);
-      if val != 0 {
-        self.pixels[(i * 3) + canvas_offset] = 0;
-      }
+      self.write_px(i, self.current_line, if val != 0 { 0 } else { 255 });
       x += 1;
       if x == 8 {
         x = 0;
@@ -132,6 +133,7 @@ impl GPU {
 
   fn update_scanline(&mut self, mem: &mut Box<dyn MemoryChunk>) {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
+    trace!("CURRENT SCANLINE: {}", mem.read_u8(CURRENT_SCANLINE));
   }
 
   pub fn step(&mut self, cpu: &mut CPU, mem: &mut Box<dyn MemoryChunk>) {
@@ -169,7 +171,7 @@ impl GPU {
           trace!("TODO: Increment LY");
         }
 
-        if self.cycles_in_mode >= 4560 {
+        if self.cycles_in_mode > 4560 {
           self.current_line = 0;
           //TODO: flip interrupt
           self.enter_mode(Mode::OAM);
