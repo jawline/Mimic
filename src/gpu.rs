@@ -49,6 +49,7 @@ pub struct GPU {
   mode: Mode,
 }
 
+
 impl GPU {
 
   pub fn new() -> GPU {
@@ -73,24 +74,25 @@ impl GPU {
     }
   }
 
-  fn tile_value(&self, tileset: u8, id: u16, x: u16, y: u16, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+  fn tile_value(&self, id: u16, x: u16, y: u16, mem: &mut Box<dyn MemoryChunk>) -> u8 {
     const TILE_SIZE: u16 = 16;
-    let addr = if tileset == 1 { TILESET_ONE_ADDR } else { TILESET_TWO_ADDR };
-    let tile_addr = addr + (TILE_SIZE * id);
+    let tile_addr = TILESET_ONE_ADDR + (TILE_SIZE * id);
     let y_addr = tile_addr + (y * 2);
     let mask_x = 1 << (7 - x);
-    mem.read_u8(y_addr) & mask_x + mem.read_u8(y_addr + 1) & mask_x
+    let low_bit = if mem.read_u8(y_addr) & mask_x != 0 { 1 } else { 0 };
+    let high_bit = if mem.read_u8(y_addr + 1) & mask_x != 0 { 2 } else { 0 };
+    low_bit + high_bit
   }
 
-  fn lcd_control(&mut self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+  fn lcd_control(&self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
     mem.read_u8(LCD_CONTROL)
   }
 
-  fn bgmap(&mut self, mem: &mut Box<dyn MemoryChunk>) -> bool {
+  fn bgmap(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
     self.lcd_control(mem) & 0x08 != 0
   }
 
-  fn bgtile(&mut self, mem: &mut Box<dyn MemoryChunk>) -> bool {
+  fn bgtile(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
     self.lcd_control(mem) & 0x10 != 0
   }
 
@@ -106,27 +108,42 @@ impl GPU {
     self.pixels[(x * 3) + canvas_offset + 2] = val;
   }
 
+  fn fetch_tile(&self, addr: u16, mem: &mut Box<dyn MemoryChunk>) -> u16 {
+    let tile = mem.read_u8(addr) as u16;
+    if self.bgtile(mem) && tile < 128 {
+      tile + 256
+    } else {
+      tile
+    }
+  }
+
+  fn scx(&self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+    mem.read_u8(SCX)
+  }
+
+  fn scy(&self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+    mem.read_u8(SCY)
+  }
+
   fn render_line(&mut self, mem: &mut Box<dyn MemoryChunk>) {
     trace!("Rendering full line {}", self.current_line);
-    let scx = mem.read_u8(SCX);
-    let scy = mem.read_u8(SCY);
+    let scy = self.scy(mem);
+    let scx = self.scx(mem);
+    let map_line = (scy as u16 + self.current_line as u16) & 255;
     let map_offset = if self.bgmap(mem) { BGMAP } else { MAP };
-    let map_offset = map_offset + ((scy as u16 + self.current_line as u16) >> 3);
-    let mut line_offset = scx as u16 >> 3;
+    let map_offset = map_offset + (map_line >> 3);
+    let mut line_offset = (scx >> 3) as u16;
     let y = (self.current_line as u16 + scy as u16) & 7;
-    let mut x = scx & 7;
-    let mut tile = mem.read_u8(map_offset + line_offset) as u16;
+    let mut x = scx as u16 & 7;
+    let mut tile = self.fetch_tile(map_offset + line_offset, mem);
     for i in 0..160 {
-      let val = self.tile_value(1, tile as u16, x as u16, y as u16, mem);
+      let val = self.tile_value(tile, x as u16, y as u16, mem);
       self.write_px(i, self.current_line, if val != 0 { 0 } else { 255 });
       x += 1;
       if x == 8 {
         x = 0;
         line_offset = (line_offset + 1) & 31;
-        tile = mem.read_u8(map_offset + line_offset) as u16;
-        if self.bgtile(mem) && tile < 128 {
-          tile += 256;
-        }
+        tile = self.fetch_tile(map_offset + line_offset, mem);
       }
     }
   }
