@@ -161,6 +161,7 @@ impl MemoryChunk for MemoryMap {
   fn read_u8(&self, address: u16) -> u8 {
     if let Some(entry_idx) = self.find_entry(address) {
       trace!("read {:x} map entry {}", address, entry_idx);
+      if address == 0xFF80 { trace!("magic read!"); return 0x0; /* TODO: Tetris wants a gamepad input but we currently don't support it with the magic registers. */ }
       let address = self.entries[entry_idx].address_offset(address);
       self.entries[entry_idx].read_u8(address)
     } else {

@@ -229,7 +229,19 @@ impl CPU {
   }
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
     let opcode = memory.read_u8(self.registers.pc());
-    trace!("pre-step: {:?}", self.registers);
+    trace!(
+      "pre\nPC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x}",
+      self.registers.pc(),
+      self.registers.sp(),
+      self.registers.read_r16(WideRegister::BC),
+      self.registers.read_r16(WideRegister::AF),
+      self.registers.read_r16(WideRegister::DE),
+      self.registers.read_r16(WideRegister::HL),
+      self.registers.bc.l, self.registers.bc.r,
+      self.registers.af.l, self.registers.af.r,
+      self.registers.de.l, self.registers.de.r,
+      self.registers.hl.l, self.registers.hl.r,
+    );
 
     let inst;
 

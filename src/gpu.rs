@@ -1,24 +1,14 @@
 use std::rc::Rc;
 
-use sdl2;
-use sdl2::EventPump;
-use sdl2::video::{WindowContext};
-use sdl2::render::{WindowCanvas, TextureCreator};
-use sdl2::rect::Rect;
-use sdl2::pixels::Color;
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-
 use crate::cpu::CPU;
 use crate::memory::MemoryChunk;
 
 use log::{trace, info};
 
-const GB_SCREEN_WIDTH: u32 = 160;
-const GB_SCREEN_HEIGHT: u32 = 144;
-const BYTES_PER_PIXEL: u32 = 3;
-const BYTES_PER_ROW: u32 = GB_SCREEN_WIDTH * BYTES_PER_PIXEL;
+pub const GB_SCREEN_WIDTH: u32 = 160;
+pub const GB_SCREEN_HEIGHT: u32 = 144;
+pub const BYTES_PER_PIXEL: u32 = 3;
+pub const BYTES_PER_ROW: u32 = GB_SCREEN_WIDTH * BYTES_PER_PIXEL;
 
 const TILESET_ONE_ADDR: u16 = 0x8000;
 
@@ -38,35 +28,23 @@ enum Mode {
   VBLANK,
 }
 
+pub enum GpuStepState {
+  None,
+  VBlank,
+  HBlank,
+}
+
 pub struct GPU {
-  events: EventPump,
-  canvas: WindowCanvas,
-  texture_creator: Rc<TextureCreator<WindowContext>>,
-  pixels: Vec<u8>,
   cycles_in_mode: u16,
   current_line: u8,
   mode: Mode,
 }
 
-
 impl GPU {
 
   pub fn new() -> GPU {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem.window("rustGameboy", GB_SCREEN_WIDTH * 4, GB_SCREEN_HEIGHT * 4)
-        .position_centered()
-        .build()
-        .unwrap();
-    let canvas = window.into_canvas().present_vsync().build().unwrap();
-    let event_pump = sdl_context.event_pump().unwrap();
-    let pixels = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
     info!("GPU initialized");
     GPU {
-      events: event_pump,
-      texture_creator: Rc::new(canvas.texture_creator()),
-      canvas: canvas,
-      pixels,
       cycles_in_mode: 0,
       current_line: 0,
       mode: Mode::OAM,
@@ -104,13 +82,13 @@ impl GPU {
     self.mode = mode;
   }
 
-  fn write_px(&mut self, x: u8, y: u8, val: u8) {
+  fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
     let x = x as usize;
     let y = y as usize;
     let canvas_offset = (GB_SCREEN_WIDTH * 3) as usize * y;
-    self.pixels[(x * 3) + canvas_offset] = val;
-    self.pixels[(x * 3) + canvas_offset + 1] = val;
-    self.pixels[(x * 3) + canvas_offset + 2] = val;
+    pixels[(x * 3) + canvas_offset] = val;
+    pixels[(x * 3) + canvas_offset + 1] = val;
+    pixels[(x * 3) + canvas_offset + 2] = val;
   }
 
   fn fetch_tile(&self, addr: u16, mem: &mut Box<dyn MemoryChunk>) -> u16 {
@@ -130,7 +108,7 @@ impl GPU {
     mem.read_u8(SCY)
   }
 
-  fn render_line(&mut self, mem: &mut Box<dyn MemoryChunk>) {
+  fn render_line(&mut self, mem: &mut Box<dyn MemoryChunk>, pixels: &mut [u8]) {
     trace!("Rendering full line {}", self.current_line);
 
     let scy = self.scy(mem);
@@ -160,7 +138,7 @@ impl GPU {
       if val != 0 {
         info!("VAL NOT ZERO!");
       }
-      self.write_px(i, self.current_line, if val != 0 { 0 } else { 255 });
+      GPU::write_px(pixels, i, self.current_line, if val != 0 { 0 } else { 255 });
       x += 1;
       if x == 8 {
         x = 0;
@@ -175,7 +153,7 @@ impl GPU {
     info!("CURRENT SCANLINE: {}", mem.read_u8(CURRENT_SCANLINE));
   }
 
-  pub fn step(&mut self, cpu: &mut CPU, mem: &mut Box<dyn MemoryChunk>) {
+  pub fn step(&mut self, cpu: &mut CPU, mem: &mut Box<dyn MemoryChunk>, draw: &mut [u8]) -> GpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
     //trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
     let current_mode = self.mode;
@@ -184,12 +162,14 @@ impl GPU {
         if self.cycles_in_mode >= 80 {
           self.enter_mode(Mode::VRAM);
         }
+        GpuStepState::None
       },
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
-          self.render_line(mem);
+          self.render_line(mem, draw);
           self.enter_mode(Mode::HBLANK);
         }
+        GpuStepState::None
       },
       Mode::HBLANK => {
         if self.cycles_in_mode >= 204 {
@@ -201,6 +181,7 @@ impl GPU {
             self.enter_mode(Mode::OAM);
           }
         }
+        GpuStepState::HBlank
       },
       Mode::VBLANK => {
         if self.cycles_in_mode % 204 == 0 {
@@ -212,51 +193,11 @@ impl GPU {
           self.current_line = 0;
           //TODO: flip interrupt
           self.enter_mode(Mode::OAM);
-          self.redraw();
+          GpuStepState::VBlank
+        } else {
+          GpuStepState::None
         }
       },
-    };
-  }
-
-  fn redraw(&mut self) {
-    trace!("Redrawing screen");
-
-    for event in self.events.poll_iter() {
-      match event {
-        Event::Quit {..} | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
-          unimplemented!();
-        },
-        _ => {}
-      }
     }
-
-    let screen_dims = Rect::new(0, 0, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
-    let out_dims = Rect::new(0, 0, GB_SCREEN_WIDTH * 4, GB_SCREEN_HEIGHT * 4);
-
-    // Render the pixels to a texture
-    // TODO: Ideally we would cache a single texture
-    // and update pixels to it in a streaming format.
-    // Unfortunately, Rust SDL2 borrow checking is a POS
-    // and this is not easy.
-    let texture_creator = &self.texture_creator;
-
-    let mut texture = texture_creator.create_texture_static(
-      PixelFormatEnum::RGB24,
-      GB_SCREEN_WIDTH,
-      GB_SCREEN_HEIGHT
-    ).unwrap();
-
-    texture.update(
-      screen_dims,
-      &self.pixels,
-      BYTES_PER_ROW as usize
-    ).unwrap();
-
-    // Now render the texture to the canvas
-    self.canvas.set_draw_color(Color::RGB(255, 255, 255));
-    self.canvas.clear();
-    self.canvas.copy(&texture, screen_dims, out_dims).unwrap();
-    self.canvas.present();
   }
-
 }

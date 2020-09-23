@@ -362,36 +362,66 @@ fn sub_r8_n(registers: &mut Registers,
   registers.set_flags(result == 0, false, half_carry, carry);
 }
 
+/// The core of an AND operation
+fn core_and_values(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+  let result = v1 & v2;
+  registers.set_flags(result == 0, false, true, false);
+  result
+}
+
 /// And of two small registers
 fn and_r8_r8(
-  _registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let r1 = registers.read_r8(additional.small_reg_dst);
+  let r2 = registers.read_r8(additional.small_reg_one);
+  let result = core_and_values(r1, r2, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// And imm with small reg dst
 fn and_r8_n(
-  _registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  let r2 = memory.read_u8(registers.pc() + 1);
+  registers.inc_pc(2);
+  let r1 = registers.read_r8(additional.small_reg_dst);
+  let result = core_and_values(r1, r2, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+}
+
+/// The core of an OR operation
+fn core_or_values(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+  let result = v1 | v2;
+  registers.set_flags(result == 0, false, false, false);
+  result
 }
 
 /// or two small registers
 fn or_r8_r8(
-  _registers: &mut Registers,
+  registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let r1 = registers.read_r8(additional.small_reg_dst);
+  let r2 = registers.read_r8(additional.small_reg_one);
+  let result = core_or_values(r1, r2, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// bitwise or small reg dst with immediate
 fn or_r8_n(
-  _registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  let r2 = memory.read_u8(registers.pc() + 1);
+  registers.inc_pc(2);
+  let r1 = registers.read_r8(additional.small_reg_dst);
+  let result = core_or_values(r1, r2, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 fn cp_8_bit_core(origin: u8, add_v: u8, registers: &mut Registers) {
@@ -811,7 +841,7 @@ fn ldi_r8_mem_r16(registers: &mut Registers,
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
   registers.write_r8(additional.small_reg_dst, mem);
-  registers.write_r16(additional.wide_reg_dst, wide_reg + 1);
+  registers.write_r16(additional.wide_reg_one, wide_reg + 1);
 }
 
 /// Like ldi but decrement
@@ -1005,13 +1035,12 @@ fn jump_immediate(registers: &mut Registers,
   }
 }
 
-fn jump_indirect_wide_reg(registers: &mut Registers,
+fn jump_wide_reg(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
-  let reg_mem_addr = registers.read_r16(additional.wide_reg_dst);
   registers.inc_pc(1);
+  let target_address = registers.read_r16(additional.wide_reg_dst);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
-    let target_address = memory.read_u16(reg_mem_addr);
     registers.set_pc(target_address);
   }
 }
@@ -2724,7 +2753,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let jmp_indirect_hl = Instruction {
-    execute: jump_indirect_wide_reg,
+    execute: jump_wide_reg,
     timings: (1, 4),
     text: format!("jmp (HL)"),
     data: InstructionData::wide_dst(WideRegister::HL).with_flag(0, 0),
@@ -2977,10 +3006,14 @@ fn ext_sra_indirect_r16(
 
 /// SWAP in the extended set 
 fn ext_swap_r8(
-  _registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let r1 = registers.read_r8(additional.small_reg_dst);
+  let result = (r1 >> 4) | ((r1 & 0xF) << 4);
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.set_flags(result == 0, false, false, false);
 }
 
 fn ext_swap_indirect_r16(
@@ -3029,10 +3062,13 @@ fn ext_bit_indirect_r16(
 
 /// RES in the extended set 
 fn ext_res_r8(
-  _registers: &mut Registers,
+  registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let selected_bit = 1 << additional.bit;
+  let target = registers.read_r8(additional.small_reg_dst);
+  registers.write_r8(additional.small_reg_dst, target & !selected_bit);
 }
 
 fn ext_res_indirect_r16(

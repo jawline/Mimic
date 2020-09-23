@@ -1,5 +1,5 @@
 use crate::cpu::CPU;
-use crate::gpu::GPU;
+use crate::gpu::{GpuStepState, GPU};
 use crate::memory::MemoryChunk;
 
 /// Encapsulate the entire running state of the Gameboy
@@ -10,8 +10,8 @@ pub struct Machine {
 }
 
 impl Machine {
-  pub fn step(&mut self) {
+  pub fn step(&mut self, screen_buffer: &mut [u8]) -> GpuStepState {
     self.cpu.step(&mut self.memory);
-    self.gpu.step(&mut self.cpu, &mut self.memory);
+    self.gpu.step(&mut self.cpu, &mut self.memory, screen_buffer)
   }
 }
