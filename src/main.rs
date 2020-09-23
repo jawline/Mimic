@@ -15,22 +15,30 @@ fn main() -> io::Result<()> {
 
   let gpu = GPU::new();
 
-  let gb_test = RomChunk::from_file("/home/blake/gb/test2.gb");
-  let boot_rom = RomChunk::from_file("/home/blake/gb/bios.gb");
-  let high_ram = RamChunk::new(255);
+  let gb_test = RomChunk::from_file("/home/blake/gb/test2.gb")?;
+  let boot_rom = RomChunk::from_file("/home/blake/gb/bios.gb")?;
+  let high_ram = RamChunk::new(0x100);
 
   // Ram for the sprite buffers etc
+  let sprite_ram = RamChunk::new(0x100);
   let vram = RamChunk::new(0x2000);
+
+  // Work ram units
+  let work_ram_one = RamChunk::new(0x1000);
+  let work_ram_two = RamChunk::new(0x1000);
 
   // Cartridge might have RAM
   let cart_ram = RamChunk::new(0x2000);
 
   let root_map = MemoryMap::from(
     vec![
-      MemoryMapEntry::from(Box::new(boot_rom?), (0, 255)),
-      MemoryMapEntry::from(Box::new(gb_test?), (0, 0x7FFF)),
+      MemoryMapEntry::from(Box::new(boot_rom), (0, 0xFF)),
+      MemoryMapEntry::from(Box::new(gb_test), (0, 0x7FFF)),
       MemoryMapEntry::from(Box::new(vram), (0x8000, 0x9FFF)),
       MemoryMapEntry::from(Box::new(cart_ram), (0xA000, 0xBFFF)),
+      MemoryMapEntry::from(Box::new(sprite_ram), (0xFE00, 0xFEFF)),
+      MemoryMapEntry::from(Box::new(work_ram_one), (0xC000, 0xCFFF)),
+      MemoryMapEntry::from(Box::new(work_ram_two), (0xD000, 0xDFFF)),
       MemoryMapEntry::from(Box::new(high_ram), (0xFF00, 0xFFFF)),
     ]
   );

@@ -335,10 +335,11 @@ fn sub_r8_r8(registers: &mut Registers,
   let add_v = registers.read_r8(additional.small_reg_one);
   let result = origin - add_v;
 
-  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
-  let carry = origin > result;
+  let half_carry = add_v >> 4 > origin >> 4;
+  let carry = add_v > origin;
 
   registers.set_flags(result == 0, false, half_carry, carry);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// Subtract an immediate from a small dst register
@@ -393,12 +394,21 @@ fn or_r8_n(
   unimplemented!();
 }
 
+fn cp_8_bit_core(origin: u8, add_v: u8, registers: &mut Registers) {
+  let half_carry = (add_v >> 4) > (origin >> 4);
+  let carry = add_v > origin;
+  registers.set_flags(origin - add_v == 0, true, half_carry, carry);
+}
+
 /// cp two small registers
 fn cp_r8_r8(
-  _registers: &mut Registers,
+  registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let add_v = registers.read_r8(additional.small_reg_one);
+  cp_8_bit_core(origin, add_v, registers);
 }
 
 /// cp small reg dst against an immediate
@@ -406,17 +416,10 @@ fn cp_r8_n(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
   let add_v = memory.read_u8(registers.pc() + 1);
-
   // Increment the PC by one once finished
   registers.inc_pc(2);
-
-  let origin = registers.read_r8(additional.small_reg_dst); 
-  let result = origin - add_v;
-
-  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
-  let carry = origin > result;
-
-  registers.set_flags(result == 0, false, half_carry, carry);
+  let origin = registers.read_r8(additional.small_reg_dst);
+  cp_8_bit_core(origin, add_v, registers);
 }
 
 /// XOR two small registers
@@ -491,7 +494,7 @@ fn ld_ff00_r8_r8(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) { 
   registers.inc_pc(1);
-  let addr_offset: u16 = registers.read_r8(additional.small_reg_one).into();
+  let addr_offset: u16 = registers.read_r8(additional.small_reg_one) as u16;
   let rval = registers.read_r8(additional.small_reg_dst);
   memory.write_u8(0xFF00 + addr_offset, rval);
 }
@@ -611,10 +614,14 @@ fn and_r8_mem_r16(
 /// Cp memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
 fn cp_r8_mem_r16(
-  _registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let target_addr = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(target_addr);
+  let origin = registers.read_r8(additional.small_reg_dst);
+  cp_8_bit_core(origin, add_v, registers);
 }
 
 /// or memory at wide_register_one in memory to small_reg_dst
@@ -680,31 +687,6 @@ fn rotate_right_with_carry(registers: &mut Registers,
   let mut a = registers.read_r8(additional.small_reg_dst);
   let carry = a & (1) != 0;
   a = a.rotate_right(1);
-  registers.write_r8(additional.small_reg_dst, a);
-  registers.set_flags(a == 0, false, false, carry);
-
-  // Increment PC by one
-  registers.inc_pc(1);
-}
-
-/// Rotate 8-bit register left using the carry bit as an additional bit.
-/// In practice, store the current carry bit, set carry bit to value of bit 7
-/// then shift left everything by one bit and then replace bit 0 with the origin
-/// carry bit
-fn rotate_r8_left_through_carry(registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  additional: &InstructionData) {
-
-  let mut a = registers.read_r8(additional.small_reg_dst);
-  let origin_carry = registers.carry();
-  let carry = a & (1 << 7) != 0;
-
-  if origin_carry {
-    a |= 1;
-  } else {
-    a &= !1;
-  }
-
   registers.write_r8(additional.small_reg_dst, a);
   registers.set_flags(a == 0, false, false, carry);
 
@@ -1292,7 +1274,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let rla = Instruction {
-    execute:  rotate_r8_left_through_carry,
+    execute:  rl_r8,
     timings: (1, 4),
     text: format!("RLA"),
     data: InstructionData::small_dst(SmallWidthRegister::A)
@@ -2707,7 +2689,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let ld_ff00_c_a = Instruction {
-    execute: ld_ff00_r8_r8 ,
+    execute: ld_ff00_r8_r8,
     timings: (1, 8),
     text: format!("ld (FF00 + C), A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C)
@@ -2926,16 +2908,13 @@ fn ext_rrc_indirect_r16(
 }
 
 /// RL in the extended set 
-fn ext_rl_r8(
+fn rl_r8(
   registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
   additional: &InstructionData) {
-
   registers.inc_pc(1);
-
   let reg = registers.read_r8(additional.small_reg_dst);
   let new_reg = (reg << 1) | if registers.carry() { 1 } else { 0 };
-
   registers.write_r8(additional.small_reg_dst, new_reg);
   registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
@@ -2949,10 +2928,14 @@ fn ext_rl_indirect_r16(
 
 /// RR in the extended set 
 fn ext_rr_r8(
-  _registers: &mut Registers,
+  registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let reg = registers.read_r8(additional.small_reg_dst);
+  let new_reg = (reg >> 1) | if registers.carry() { 1 << 7 } else { 0 };
+  registers.write_r8(additional.small_reg_dst, new_reg);
+  registers.set_flags(new_reg == 0, false, false, reg & 1 != 0);
 }
 
 fn ext_rr_indirect_r16(
@@ -3158,7 +3141,7 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
 
   // RL
   let rl_r8_skeleton = Instruction {
-    execute: ext_rl_r8,
+    execute: rl_r8,
     timings: (1, 8),
     text: format!("RL "),
     data: InstructionData::default()

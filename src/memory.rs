@@ -36,10 +36,10 @@ pub struct RomChunk {
 
 impl MemoryChunk for RomChunk {
   fn write_u8(&mut self, address: u16, _: u8) {
-    warn!("tried to write to {} in RomChunk", address);
+    warn!("tried to write to {:x} in RomChunk", address);
   }
   fn read_u8(&self, address: u16) -> u8 {
-    trace!("read from {} in RomChunk", address);
+    //trace!("read from {:x} in RomChunk", address);
     self.bytes[address as usize]
   }
 }
@@ -64,11 +64,11 @@ pub struct RamChunk {
 
 impl MemoryChunk for RamChunk {
   fn write_u8(&mut self, address: u16, v: u8) {
-    trace!("write {} to {} in RamChunk", v, address);
+    //trace!("write {} to {:x} in RamChunk", v, address);
     self.bytes[address as usize] = v;
   }
   fn read_u8(&self, address: u16) -> u8 {
-    trace!("read from {} in RamChunk", address);
+    //trace!("read from {:x} in RamChunk", address);
     self.bytes[address as usize]
   }
 }
@@ -150,21 +150,21 @@ impl MemoryMap {
 impl MemoryChunk for MemoryMap {
   fn write_u8(&mut self, address: u16, val: u8) {
     if let Some(entry_idx) = self.find_entry(address) {
-      trace!("write to {} map entry {}", address, entry_idx);
+      trace!("write {:x} to {:x} map entry {}", val, address, entry_idx);
       let address = self.entries[entry_idx].address_offset(address);
       self.entries[entry_idx].write_u8(address, val);
     } else {
-      error!("write {} to unmapped address {}", val, address);
+      error!("write {} to unmapped address {:x}", val, address);
     }
   }
 
   fn read_u8(&self, address: u16) -> u8 {
     if let Some(entry_idx) = self.find_entry(address) {
-      trace!("read {} map entry {}", address, entry_idx);
+      trace!("read {:x} map entry {}", address, entry_idx);
       let address = self.entries[entry_idx].address_offset(address);
       self.entries[entry_idx].read_u8(address)
     } else {
-      panic!("read from unmapped address {}", address);
+      panic!("read from unmapped address {:x}", address);
     }
   }
 }

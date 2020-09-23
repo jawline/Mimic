@@ -21,13 +21,12 @@ const BYTES_PER_PIXEL: u32 = 3;
 const BYTES_PER_ROW: u32 = GB_SCREEN_WIDTH * BYTES_PER_PIXEL;
 
 const TILESET_ONE_ADDR: u16 = 0x8000;
-const TILESET_TWO_ADDR: u16 = 0x8800;
 
 const SCY: u16 = 0xFF42;
 const SCX: u16 = 0xFF43;
 const LCD_CONTROL: u16 = 0xFF40;
-const MAP: u16 = 0x1800;
-const BGMAP: u16 = 0x1C00;
+const MAP: u16 = 0x9800;
+const BGMAP: u16 = 0x9C00;
 
 const CURRENT_SCANLINE: u16 = 0xFF44;
 
@@ -45,7 +44,7 @@ pub struct GPU {
   texture_creator: Rc<TextureCreator<WindowContext>>,
   pixels: Vec<u8>,
   cycles_in_mode: u16,
-  current_line: usize,
+  current_line: u8,
   mode: Mode,
 }
 
@@ -55,7 +54,7 @@ impl GPU {
   pub fn new() -> GPU {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem.window("rustGameboy", GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT)
+    let window = video_subsystem.window("rustGameboy", GB_SCREEN_WIDTH * 4, GB_SCREEN_HEIGHT * 4)
         .position_centered()
         .build()
         .unwrap();
@@ -88,12 +87,16 @@ impl GPU {
     mem.read_u8(LCD_CONTROL)
   }
 
+  fn window(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
+    self.lcd_control(mem) & (1 << 5) != 0
+  }
+
   fn bgmap(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
-    self.lcd_control(mem) & 0x08 != 0
+    self.lcd_control(mem) & (1 << 3) != 0
   }
 
   fn bgtile(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
-    self.lcd_control(mem) & 0x10 != 0
+    self.lcd_control(mem) & (1 << 4) != 0
   }
 
   fn enter_mode(&mut self, mode: Mode) {
@@ -101,7 +104,9 @@ impl GPU {
     self.mode = mode;
   }
 
-  fn write_px(&mut self, x: usize, y: usize, val: u8) {
+  fn write_px(&mut self, x: u8, y: u8, val: u8) {
+    let x = x as usize;
+    let y = y as usize;
     let canvas_offset = (GB_SCREEN_WIDTH * 3) as usize * y;
     self.pixels[(x * 3) + canvas_offset] = val;
     self.pixels[(x * 3) + canvas_offset + 1] = val;
@@ -110,7 +115,7 @@ impl GPU {
 
   fn fetch_tile(&self, addr: u16, mem: &mut Box<dyn MemoryChunk>) -> u16 {
     let tile = mem.read_u8(addr) as u16;
-    if self.bgtile(mem) && tile < 128 {
+    if !self.bgtile(mem) && tile < 128 {
       tile + 256
     } else {
       tile
@@ -127,17 +132,34 @@ impl GPU {
 
   fn render_line(&mut self, mem: &mut Box<dyn MemoryChunk>) {
     trace!("Rendering full line {}", self.current_line);
+
     let scy = self.scy(mem);
     let scx = self.scx(mem);
-    let map_line = (scy as u16 + self.current_line as u16) & 255;
-    let map_offset = if self.bgmap(mem) { BGMAP } else { MAP };
-    let map_offset = map_offset + (map_line >> 3);
+    let window = self.window(mem);
+    let background_map_selected = self.bgmap(mem);
+
+    let map_line = scy + self.current_line;
+    let map_line_offset = ((map_line as u16) >> 3) * 32;
+
+    let map_offset = if background_map_selected {
+      BGMAP
+    } else {
+      MAP
+    } + map_line_offset;
+
+    info!("SCY: {} SCX: {} WINDOW: {} BGM: {} MAP_LINE: {:x} OFFSET: {:x} MO: {:x}", scy, scx, window, background_map_selected, map_line, map_line_offset, map_offset);
+
     let mut line_offset = (scx >> 3) as u16;
-    let y = (self.current_line as u16 + scy as u16) & 7;
-    let mut x = scx as u16 & 7;
     let mut tile = self.fetch_tile(map_offset + line_offset, mem);
+
+    let mut x = scx & 7;
+    let y = ((self.current_line + scy) & 7) as u16;
+
     for i in 0..160 {
       let val = self.tile_value(tile, x as u16, y as u16, mem);
+      if val != 0 {
+        info!("VAL NOT ZERO!");
+      }
       self.write_px(i, self.current_line, if val != 0 { 0 } else { 255 });
       x += 1;
       if x == 8 {
@@ -150,12 +172,12 @@ impl GPU {
 
   fn update_scanline(&mut self, mem: &mut Box<dyn MemoryChunk>) {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
-    trace!("CURRENT SCANLINE: {}", mem.read_u8(CURRENT_SCANLINE));
+    info!("CURRENT SCANLINE: {}", mem.read_u8(CURRENT_SCANLINE));
   }
 
   pub fn step(&mut self, cpu: &mut CPU, mem: &mut Box<dyn MemoryChunk>) {
     self.cycles_in_mode += cpu.registers.last_clock;
-    trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
+    //trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
     let current_mode = self.mode;
     match current_mode {
       Mode::OAM => {
@@ -166,7 +188,6 @@ impl GPU {
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
           self.render_line(mem);
-          self.redraw();
           self.enter_mode(Mode::HBLANK);
         }
       },
@@ -185,7 +206,6 @@ impl GPU {
         if self.cycles_in_mode % 204 == 0 {
           self.current_line += 1;
           self.update_scanline(mem);
-          trace!("TODO: Increment LY");
         }
 
         if self.cycles_in_mode > 4560 {
@@ -211,6 +231,7 @@ impl GPU {
     }
 
     let screen_dims = Rect::new(0, 0, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
+    let out_dims = Rect::new(0, 0, GB_SCREEN_WIDTH * 4, GB_SCREEN_HEIGHT * 4);
 
     // Render the pixels to a texture
     // TODO: Ideally we would cache a single texture
@@ -234,7 +255,7 @@ impl GPU {
     // Now render the texture to the canvas
     self.canvas.set_draw_color(Color::RGB(255, 255, 255));
     self.canvas.clear();
-    self.canvas.copy(&texture, screen_dims, screen_dims).unwrap();
+    self.canvas.copy(&texture, screen_dims, out_dims).unwrap();
     self.canvas.present();
   }
 

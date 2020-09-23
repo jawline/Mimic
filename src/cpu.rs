@@ -149,14 +149,12 @@ impl Registers {
   }
 
   pub fn write_r16(&mut self, reg: WideRegister, val: u16) {
-    trace!("Writing {} -> {:?}", val, reg);
+    trace!("Writing {:x} -> {:?}", val, reg);
     match reg {
       PC => {
-        trace!("-> PC");
         self.pc = val
       },
       SP => {
-        trace!("-> SP");
         self.sp = val;
       },
       BC => self.bc.write_u16(val),
@@ -197,6 +195,7 @@ impl Registers {
     negative: bool,
     half_carry: bool,
     carry: bool) {
+    trace!("Set flags to Z: {} N: {} H: {} C: {}", zero, negative, half_carry, carry);
     let mut current_flags = self.read_r8(SmallWidthRegister::F);
     current_flags = Registers::set_flag(current_flags, CARRY_FLAG, carry);
     current_flags = Registers::set_flag(current_flags, HALF_CARRY_FLAG, half_carry);
@@ -244,7 +243,7 @@ impl CPU {
 
     trace!("{} ({})", inst.text, opcode);
     (inst.execute)(&mut self.registers, memory, &inst.data);
-    trace!("post-step: {:?}", self.registers);
+    //trace!("post-step: {:?}", self.registers);
     self.registers.last_clock = inst.timings.1;
   }
 }
