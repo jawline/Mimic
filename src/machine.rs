@@ -1,12 +1,12 @@
 use crate::cpu::CPU;
 use crate::gpu::{GpuStepState, GPU};
-use crate::memory::MemoryChunk;
+use crate::memory::{GameboyState, MemoryChunk};
 
 /// Encapsulate the entire running state of the Gameboy
 pub struct Machine {
   pub cpu: CPU,
   pub gpu: GPU,
-  pub memory: Box<dyn MemoryChunk>
+  pub memory: GameboyState 
 }
 
 impl Machine {

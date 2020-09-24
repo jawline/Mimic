@@ -18,12 +18,36 @@ use memory::{RomChunk, RamChunk, GameboyState};
 use log::{info, trace};
 use gpu::{GPU, GpuStepState, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT, BYTES_PER_ROW};
 
-fn events(events: &mut EventPump) {
+fn events(state: &mut GameboyState, events: &mut EventPump) {
   for event in events.poll_iter() {
     match event {
       Event::Quit {..} | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
         unimplemented!();
       },
+      Event::KeyDown { keycode: Some(Keycode::A), ..} => {
+        state.a = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::A), ..} => {
+        state.a = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::B), ..} => {
+        state.b = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::B), ..} => {
+        state.b = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::N), ..} => {
+        state.start = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::N), ..} => {
+        state.start = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::M), ..} => {
+        state.select = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::M), ..} => {
+        state.select = false;
+      }
       _ => {}
     }
   }
@@ -52,7 +76,7 @@ fn main() -> io::Result<()> {
   let mut gameboy_state = machine::Machine {
     cpu: cpu::CPU::new(),
     gpu: GPU::new(),
-    memory: Box::new(root_map)
+    memory: root_map
   };
 
   info!("preparing screen");

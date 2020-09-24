@@ -51,7 +51,7 @@ impl GPU {
     }
   }
 
-  fn tile_value(&self, id: u16, x: u16, y: u16, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+  fn tile_value(&self, id: u16, x: u16, y: u16, mem: &mut dyn MemoryChunk) -> u8 {
     const TILE_SIZE: u16 = 16;
     let tile_addr = TILESET_ONE_ADDR + (TILE_SIZE * id);
     let y_addr = tile_addr + (y * 2);
@@ -61,19 +61,19 @@ impl GPU {
     low_bit + high_bit
   }
 
-  fn lcd_control(&self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+  fn lcd_control(&self, mem: &mut dyn MemoryChunk) -> u8 {
     mem.read_u8(LCD_CONTROL)
   }
 
-  fn window(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
+  fn window(&self, mem: &mut dyn MemoryChunk) -> bool {
     self.lcd_control(mem) & (1 << 5) != 0
   }
 
-  fn bgmap(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
+  fn bgmap(&self, mem: &mut dyn MemoryChunk) -> bool {
     self.lcd_control(mem) & (1 << 3) != 0
   }
 
-  fn bgtile(&self, mem: &mut Box<dyn MemoryChunk>) -> bool {
+  fn bgtile(&self, mem: &mut dyn MemoryChunk) -> bool {
     self.lcd_control(mem) & (1 << 4) != 0
   }
 
@@ -91,7 +91,7 @@ impl GPU {
     pixels[(x * 3) + canvas_offset + 2] = val;
   }
 
-  fn fetch_tile(&self, addr: u16, mem: &mut Box<dyn MemoryChunk>) -> u16 {
+  fn fetch_tile(&self, addr: u16, mem: &mut dyn MemoryChunk) -> u16 {
     let tile = mem.read_u8(addr) as u16;
     if !self.bgtile(mem) && tile < 128 {
       tile + 256
@@ -100,15 +100,15 @@ impl GPU {
     }
   }
 
-  fn scx(&self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+  fn scx(&self, mem: &mut dyn MemoryChunk) -> u8 {
     mem.read_u8(SCX)
   }
 
-  fn scy(&self, mem: &mut Box<dyn MemoryChunk>) -> u8 {
+  fn scy(&self, mem: &mut dyn MemoryChunk) -> u8 {
     mem.read_u8(SCY)
   }
 
-  fn render_line(&mut self, mem: &mut Box<dyn MemoryChunk>, pixels: &mut [u8]) {
+  fn render_line(&mut self, mem: &mut dyn MemoryChunk, pixels: &mut [u8]) {
     trace!("Rendering full line {}", self.current_line);
 
     let scy = self.scy(mem);
@@ -148,12 +148,12 @@ impl GPU {
     }
   }
 
-  fn update_scanline(&mut self, mem: &mut Box<dyn MemoryChunk>) {
+  fn update_scanline(&mut self, mem: &mut dyn MemoryChunk) {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
     info!("CURRENT SCANLINE: {}", mem.read_u8(CURRENT_SCANLINE));
   }
 
-  pub fn step(&mut self, cpu: &mut CPU, mem: &mut Box<dyn MemoryChunk>, draw: &mut [u8]) -> GpuStepState {
+  pub fn step(&mut self, cpu: &mut CPU, mem: &mut dyn MemoryChunk, draw: &mut [u8]) -> GpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
     //trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
     let current_mode = self.mode;

@@ -27,6 +27,8 @@ impl dyn MemoryChunk {
   }
 }
 
+pub type MemoryPtr = dyn MemoryChunk + 'static;
+
 /**
  * Read only chunk of memory loaded as bytes 
  */

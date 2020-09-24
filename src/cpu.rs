@@ -1,5 +1,5 @@
 use crate::instruction::{Instruction, instruction_set, extended_instruction_set};
-use crate::memory::MemoryChunk;
+use crate::memory::{MemoryChunk, MemoryPtr};
 use log::trace;
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
@@ -94,14 +94,14 @@ impl Registers {
   }
 
   /// Push a 16 bit value from the stack and return it
-  pub fn stack_push16(&mut self, value: u16, memory: &mut Box<dyn MemoryChunk>) {
+  pub fn stack_push16<'a>(&mut self, value: u16, memory: &mut MemoryPtr) {
     let new_sp = self.sp() - 2;
     memory.write_u16(new_sp, value);
     self.set_sp(new_sp);
   }
 
   /// Pop a 16 bit value from the stack and return it
-  pub fn stack_pop16(&mut self, memory: &mut Box<dyn MemoryChunk>) -> u16 {
+  pub fn stack_pop16<'a>(&mut self, memory: &mut MemoryPtr) -> u16 {
     let sp = self.sp();
     let rval = memory.read_u16(sp);
     self.set_sp(sp + 2);
@@ -235,13 +235,13 @@ impl CPU {
     }
   }
 
-  fn fire_interrupt(&mut self, location: u16, memory: &mut Box<dyn MemoryChunk>) {
+  fn fire_interrupt(&mut self, location: u16, memory: &mut MemoryPtr) {
     self.registers.ime = false;
     self.registers.stack_push16(self.registers.pc(), memory);
     self.registers.set_pc(location);
   }
 
-  pub fn check_interrupt(&mut self, memory: &mut Box<dyn MemoryChunk>) {
+  pub fn check_interrupt(&mut self, memory: &mut MemoryPtr) {
     if self.registers.ime {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
@@ -256,7 +256,7 @@ impl CPU {
     }
   }
 
-  pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
+  pub fn step(&mut self, memory: &mut MemoryPtr) {
     let opcode = memory.read_u8(self.registers.pc());
     trace!(
       "pre\nPC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x}",
