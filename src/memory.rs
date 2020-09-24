@@ -93,6 +93,15 @@ pub struct GameboyState {
   work_ram_two: RamChunk,
   high_ram: RamChunk,
   boot_enabled: bool,
+  pub a: bool,
+  pub b: bool,
+  pub start: bool,
+  pub select: bool,
+  pub left: bool,
+  pub right: bool,
+  pub up: bool,
+  pub down: bool,
+  gamepad_high: bool,
 }
 
 impl GameboyState {
@@ -107,6 +116,15 @@ impl GameboyState {
       work_ram_two: RamChunk::new(0x1000),
       high_ram: RamChunk::new(0x200),
       boot_enabled: true,
+      a: false,
+      b: false,
+      start: false,
+      select: false,
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      gamepad_high: false,
     } 
   }
 }
@@ -131,18 +149,18 @@ impl MemoryChunk for GameboyState {
     } else if address < 0xFE00 {
       // TODO: mirror ram, do I need?
       unimplemented!();
+    } else if address == 0xFF00 {
+      if val & (1 << 4) != 0 {
+        self.gamepad_high = false;
+      } else if val & (1 << 5) != 0 {
+        self.gamepad_high = true;
+      }
     } else {
       self.high_ram.write_u8(address - 0xFE00, val)
     }
   }
   fn read_u8(&self, address: u16) -> u8 {
     trace!("read {:x}", address);
-
-    if address == 0xFF80 {
-      /* TODO: Tetris wants a gamepad input but we currently don't support it with the magic registers. */
-      trace!("magic read!");
-      return 0x0;
-    }
 
     if address < 0x8000 {
       if self.boot_enabled && address <= 0x100 {
@@ -160,6 +178,38 @@ impl MemoryChunk for GameboyState {
     } else if address < 0xFE00 {
       // TODO: mirror ram, do I need?
       unimplemented!();
+    } else if address == 0xFF00 {
+      let mut pad_state = 0;
+      if self.gamepad_high {
+        //A, B, Select, Start
+        if !self.a {
+          pad_state |= 1;
+        }
+        if !self.b {
+          pad_state |= 2;
+        }
+        if !self.select {
+          pad_state |= 4;
+        }
+        if !self.start {
+          pad_state |= 8;
+        }
+      } else {
+        //Right left up down
+        if !self.left {
+          pad_state |= 1;
+        }
+        if !self.right {
+          pad_state |= 2;
+        }
+        if !self.up {
+          pad_state |= 4;
+        }
+        if !self.down {
+          pad_state |= 8;
+        }
+      }
+      pad_state
     } else {
       self.high_ram.read_u8(address - 0xFE00)
     }
