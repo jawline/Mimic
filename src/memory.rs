@@ -81,6 +81,93 @@ impl RamChunk {
   }
 }
 
+pub struct GameboyState {
+  boot: RomChunk,
+  cart: RomChunk,
+  cart_ram: RamChunk,
+  sprite_ram: RamChunk,
+  vram: RamChunk,
+  work_ram_one: RamChunk,
+  work_ram_two: RamChunk,
+  high_ram: RamChunk,
+  boot_enabled: bool,
+}
+
+impl GameboyState {
+  pub fn new(boot: RomChunk, cart: RomChunk) -> GameboyState {
+    GameboyState {
+      boot: boot,
+      cart: cart,
+      cart_ram: RamChunk::new(0x2000),
+      sprite_ram: RamChunk::new(0x100),
+      vram: RamChunk::new(0x2000),
+      work_ram_one: RamChunk::new(0x1000),
+      work_ram_two: RamChunk::new(0x1000),
+      high_ram: RamChunk::new(0x200),
+      boot_enabled: true,
+    } 
+  }
+}
+
+impl MemoryChunk for GameboyState {
+  fn write_u8(&mut self, address: u16, val: u8) {
+    trace!("write {:x} to {:x}", val, address);
+
+    if address < 0x8000 {
+      error!("Illegal write to ROM {}", address);
+    } else if address < 0xA000 {
+      self.vram.write_u8(address - 0x8000, val)
+    } else if address < 0xC000 {
+      self.cart_ram.write_u8(address - 0xA000, val)
+    } else if address < 0xD000 {
+      self.work_ram_one.write_u8(address - 0xC000, val)
+    } else if address < 0xE000 {
+      self.work_ram_two.write_u8(address - 0xD000, val)
+    } else if self.boot_enabled && address == 0xFF50 {
+      // Writing a 1 to this register disables the boot rom
+      self.boot_enabled = false;
+    } else if address < 0xFE00 {
+      // TODO: mirror ram, do I need?
+      unimplemented!();
+    } else {
+      self.high_ram.write_u8(address - 0xFE00, val)
+    }
+  }
+  fn read_u8(&self, address: u16) -> u8 {
+    trace!("read {:x}", address);
+
+    if address == 0xFF80 {
+      /* TODO: Tetris wants a gamepad input but we currently don't support it with the magic registers. */
+      trace!("magic read!");
+      return 0x0;
+    }
+
+    if address < 0x8000 {
+      if self.boot_enabled && address <= 0x100 {
+        return self.boot.read_u8(address);
+      }
+      self.cart.read_u8(address)
+    } else if address < 0xA000 {
+      self.vram.read_u8(address - 0x8000)
+    } else if address < 0xC000 {
+      self.cart_ram.read_u8(address - 0xA000)
+    } else if address < 0xD000 {
+      self.work_ram_one.read_u8(address - 0xC000)
+    } else if address < 0xE000 {
+      self.work_ram_two.read_u8(address - 0xD000)
+    } else if address < 0xFE00 {
+      // TODO: mirror ram, do I need?
+      unimplemented!();
+    } else {
+      self.high_ram.read_u8(address - 0xFE00)
+    }
+  }
+}
+
+/**
+ * This code was useful for prototyping but now is being phased out in favor of a more rigid structure
+ */
+
 pub type MemoryMapRegion = (u16, u16);
 
 pub struct MemoryMapEntry {

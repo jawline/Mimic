@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::cpu::CPU;
+use crate::cpu::{CPU, INTERRUPTS_HAPPENED_ADDRESS, VBLANK};
 use crate::memory::MemoryChunk;
 
 use log::{trace, info};
@@ -191,7 +191,10 @@ impl GPU {
 
         if self.cycles_in_mode > 4560 {
           self.current_line = 0;
-          //TODO: flip interrupt
+          mem.write_u8(
+            INTERRUPTS_HAPPENED_ADDRESS,
+            mem.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | VBLANK
+          );
           self.enter_mode(Mode::OAM);
           GpuStepState::VBlank
         } else {

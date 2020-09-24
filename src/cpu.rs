@@ -2,6 +2,10 @@ use crate::instruction::{Instruction, instruction_set, extended_instruction_set}
 use crate::memory::MemoryChunk;
 use log::trace;
 
+pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
+pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
+pub const VBLANK: u8 = 0x1;
+
 /// Gameboy clock state
 #[derive(Default, Debug)]
 pub struct Clock {
@@ -54,6 +58,9 @@ pub struct Registers {
   de: RegisterPair,
   hl: RegisterPair,
   clock: Clock,
+
+  /// Interrupts master enable flag
+  pub ime: bool,
 
   /// This indicates the last opcode processed was an escape opcode, triggering the extended instruction set
   pub escaped: bool,
@@ -227,6 +234,28 @@ impl CPU {
       ext_instructions: ext,
     }
   }
+
+  fn fire_interrupt(&mut self, location: u16, memory: &mut Box<dyn MemoryChunk>) {
+    self.registers.ime = false;
+    self.registers.stack_push16(self.registers.pc(), memory);
+    self.registers.set_pc(location);
+  }
+
+  pub fn check_interrupt(&mut self, memory: &mut Box<dyn MemoryChunk>) {
+    if self.registers.ime {
+      let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
+      let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
+      let interrupted = triggered & enabled;
+      if interrupted & VBLANK != 0 {
+        // VBLANK
+        trace!("VBLANK INTERRUPT");
+        memory.write_u8(INTERRUPTS_HAPPENED_ADDRESS, triggered & !VBLANK);
+        self.fire_interrupt(0x40, memory);
+        return;
+      }
+    }
+  }
+
   pub fn step(&mut self, memory: &mut Box<dyn MemoryChunk>) {
     let opcode = memory.read_u8(self.registers.pc());
     trace!(
@@ -253,9 +282,12 @@ impl CPU {
       inst = &self.instructions[opcode as usize];
     }
 
-    trace!("{} ({})", inst.text, opcode);
+    trace!("{} ({:x})", inst.text, opcode);
     (inst.execute)(&mut self.registers, memory, &inst.data);
     //trace!("post-step: {:?}", self.registers);
     self.registers.last_clock = inst.timings.1;
+
+    // if ime is flagged on and there is an interrupt waiting then trigger it
+    self.check_interrupt(memory);
   }
 }

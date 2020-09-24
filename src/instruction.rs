@@ -452,6 +452,12 @@ fn cp_r8_n(registers: &mut Registers,
   cp_8_bit_core(origin, add_v, registers);
 }
 
+fn xor_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+  let result = v1 ^ v2;
+  registers.set_flags(result == 0, false, false, false);
+  result
+}
+
 /// XOR two small registers
 fn xor_r8_r8(registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
@@ -459,17 +465,20 @@ fn xor_r8_r8(registers: &mut Registers,
   registers.inc_pc(1);
   let v_src = registers.read_r8(additional.small_reg_one);
   let v_dst = registers.read_r8(additional.small_reg_dst);
-  let result = v_dst ^ v_src;
-  registers.set_flags(result == 0, false, false, false);
+  let result = xor_core(v_dst, v_src, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// XOR small dst register with immediate
 fn xor_r8_n(
-  _registers: &mut Registers,
-  _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut Box<dyn MemoryChunk>,
+  additional: &InstructionData) {
+  let v_src = memory.read_u8(registers.pc() + 1);
+  registers.inc_pc(2);
+  let v_dst = registers.read_r8(additional.small_reg_dst);
+  let result = xor_core(v_dst, v_src, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
@@ -1004,7 +1013,7 @@ fn enable_interrupts(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   _additional: &InstructionData) {
   registers.inc_pc(1);
-  memory.write_u8(INTERRUPTS, 1);
+  registers.ime = true;
 }
 
 /// Disable interrupts
@@ -1012,16 +1021,16 @@ fn disable_interrupts(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   _additional: &InstructionData) {
   registers.inc_pc(1);
-  memory.write_u8(INTERRUPTS, 0);
+  registers.ime = false;
 }
 
 /// Return and enable interrupts 
 fn reti(registers: &mut Registers,
   memory: &mut Box<dyn MemoryChunk>,
   _additional: &InstructionData) {
+  registers.ime = true;
   let ret_pc = registers.stack_pop16(memory);
   registers.set_pc(ret_pc);
-  memory.write_u8(INTERRUPTS, 1);
 }
 
 /// Jump to destination if flags & mask == expected
@@ -2976,10 +2985,14 @@ fn ext_rr_indirect_r16(
 
 /// SLA in the extended set 
 fn ext_sla_r8(
-  _registers: &mut Registers,
+  registers: &mut Registers,
   _memory: &mut Box<dyn MemoryChunk>,
-  _additional: &InstructionData) {
-  unimplemented!();
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let reg = registers.read_r8(additional.small_reg_dst);
+  let new_reg = reg << 1;
+  registers.write_r8(additional.small_reg_dst, new_reg);
+  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
 
 fn ext_sla_indirect_r16(
