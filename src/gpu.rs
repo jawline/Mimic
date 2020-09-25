@@ -17,7 +17,7 @@ const SCX: u16 = 0xFF43;
 const LCD_CONTROL: u16 = 0xFF40;
 const MAP: u16 = 0x9800;
 const BGMAP: u16 = 0x9C00;
-
+const OAM: u16 = 0xFE00;
 const CURRENT_SCANLINE: u16 = 0xFF44;
 
 #[derive(Debug, Copy, Clone)]
@@ -39,6 +39,35 @@ pub struct GPU {
   current_line: u8,
   mode: Mode,
 }
+
+struct Sprite {
+  pub x: i16,
+  pub y: i16,
+  pub tile: u8,
+  pub palette: bool,
+  pub xflip: bool,
+  pub yflip: bool,
+  pub prio: bool
+}
+
+impl Sprite {
+  fn fetch(id: u16, mem: &mut dyn MemoryChunk) -> Self {
+    let address = OAM + (id * 4);
+    let y = (mem.read_u8(address) as i16) - 16;
+    let x = (mem.read_u8(address + 1) as i16) - 8;
+    let tile = mem.read_u8(address + 2);
+    let meta = mem.read_u8(address + 3);
+    Sprite {
+      x: x,
+      y: y,
+      tile: tile,
+      palette: meta & (1 << 4) != 0,
+      xflip: meta & (1 << 5) != 0,
+      yflip: meta & (1 << 6) != 0,
+      prio: meta & (1 << 7) == 0
+    }
+  }
+} 
 
 impl GPU {
 
@@ -65,16 +94,24 @@ impl GPU {
     mem.read_u8(LCD_CONTROL)
   }
 
-  fn window(&self, mem: &mut dyn MemoryChunk) -> bool {
-    self.lcd_control(mem) & (1 << 5) != 0
+  fn show_background(lcd: u8) -> bool {
+    lcd & 1 != 0
   }
 
-  fn bgmap(&self, mem: &mut dyn MemoryChunk) -> bool {
-    self.lcd_control(mem) & (1 << 3) != 0
+  fn show_sprites(lcd: u8) -> bool {
+    lcd & (1 << 1) != 0
   }
 
-  fn bgtile(&self, mem: &mut dyn MemoryChunk) -> bool {
-    self.lcd_control(mem) & (1 << 4) != 0
+  fn window(lcd: u8) -> bool {
+    lcd & (1 << 5) != 0
+  }
+
+  fn bgmap(lcd: u8) -> bool {
+    lcd & (1 << 3) != 0
+  }
+
+  fn bgtile(lcd: u8) -> bool {
+    lcd & (1 << 4) != 0
   }
 
   fn enter_mode(&mut self, mode: Mode) {
@@ -91,71 +128,118 @@ impl GPU {
     pixels[(x * 3) + canvas_offset + 2] = val;
   }
 
-  fn fetch_tile(&self, addr: u16, mem: &mut dyn MemoryChunk) -> u16 {
+  fn fetch_tile(&self, addr: u16, bgtile: bool, mem: &mut dyn MemoryChunk) -> u16 {
     let tile = mem.read_u8(addr) as u16;
-    if !self.bgtile(mem) && tile < 128 {
+    if !bgtile && tile < 128 {
       tile + 256
     } else {
       tile
     }
   }
 
-  fn scx(&self, mem: &mut dyn MemoryChunk) -> u8 {
+  fn scx(mem: &mut dyn MemoryChunk) -> u8 {
     mem.read_u8(SCX)
   }
 
-  fn scy(&self, mem: &mut dyn MemoryChunk) -> u8 {
+  fn scy(mem: &mut dyn MemoryChunk) -> u8 {
     mem.read_u8(SCY)
+  }
+
+  fn pal(v: u8) -> u8 {
+    match v {
+      0 => 255,
+      1 => 160,
+      2 => 80,
+      _ => 0,
+    }
   }
 
   fn render_line(&mut self, mem: &mut dyn MemoryChunk, pixels: &mut [u8]) {
     trace!("Rendering full line {}", self.current_line);
 
-    let scy = self.scy(mem);
-    let scx = self.scx(mem);
-    let window = self.window(mem);
-    let background_map_selected = self.bgmap(mem);
+    let lcd = self.lcd_control(mem);
+    let scy = GPU::scy(mem);
+    let scx = GPU::scx(mem);
+    let render_bg = GPU::show_background(lcd);
+    let render_sprites = GPU::show_background(lcd);
+    let bgtile = GPU::bgtile(lcd);
+    let window = GPU::window(lcd);
+    let background_map_selected = GPU::bgmap(lcd);
+    let mut hit = vec![false; GB_SCREEN_WIDTH as usize];
 
-    let map_line = scy + self.current_line;
-    let map_line_offset = ((map_line as u16) >> 3) * 32;
+    if render_bg {
+      let map_line = scy + self.current_line;
+      let map_line_offset = ((map_line as u16) >> 3) * 32;
 
-    let map_offset = if background_map_selected {
-      BGMAP
-    } else {
-      MAP
-    } + map_line_offset;
+      let map_offset = if background_map_selected {
+        BGMAP
+      } else {
+        MAP
+      } + map_line_offset;
 
-    info!("SCY: {} SCX: {} WINDOW: {} BGM: {} MAP_LINE: {:x} OFFSET: {:x} MO: {:x}", scy, scx, window, background_map_selected, map_line, map_line_offset, map_offset);
+      trace!("SCY: {} SCX: {} WINDOW: {} BGM: {} MAP_LINE: {:x} OFFSET: {:x} MO: {:x}", scy, scx, window, background_map_selected, map_line, map_line_offset, map_offset);
 
-    let mut line_offset = (scx >> 3) as u16;
-    let mut tile = self.fetch_tile(map_offset + line_offset, mem);
+      let mut line_offset = (scx >> 3) as u16;
+      let mut tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
 
-    let mut x = scx & 7;
-    let y = ((self.current_line + scy) & 7) as u16;
+      let mut x = scx & 7;
+      let y = ((self.current_line + scy) & 7) as u16;
 
-    for i in 0..160 {
-      let val = self.tile_value(tile, x as u16, y as u16, mem);
-      if val != 0 {
-        info!("VAL NOT ZERO!");
+      for i in 0..GB_SCREEN_WIDTH {
+        let val = self.tile_value(tile, x as u16, y as u16, mem);
+        if val != 0 {
+          hit[i as usize] = true;
+        }
+        GPU::write_px(pixels, i as u8, self.current_line, GPU::pal(val));
+        x += 1;
+        if x == 8 {
+          x = 0;
+          line_offset = (line_offset + 1) & 31;
+          tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
+        }
       }
-      GPU::write_px(pixels, i, self.current_line, if val != 0 { 0 } else { 255 });
-      x += 1;
-      if x == 8 {
-        x = 0;
-        line_offset = (line_offset + 1) & 31;
-        tile = self.fetch_tile(map_offset + line_offset, mem);
+    }
+
+    if render_sprites {
+      for i in 0..40 {
+        let sprite = Sprite::fetch(i, mem);
+
+        let hits_line_y =
+          sprite.y <= self.current_line as i16
+          && sprite.y + 8 > self.current_line as i16;
+
+        if hits_line_y {
+
+          let tile_y = if sprite.yflip {
+            7 - (self.current_line - sprite.y as u8)
+          } else {
+            self.current_line - sprite.y as u8
+          };
+
+          for x in 0..8 {
+            let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
+            let low_x = sprite.x + x as i16;
+            if
+              low_x >= 0 &&
+              low_x < 160 &&
+              color != 0 &&
+              (sprite.prio || !hit[low_x as usize]) {
+              let pval = GPU::pal(color);
+              GPU::write_px(pixels, low_x as u8, self.current_line, pval);
+            }
+          }
+        }
       }
     }
   }
 
   fn update_scanline(&mut self, mem: &mut dyn MemoryChunk) {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
-    info!("CURRENT SCANLINE: {}", mem.read_u8(CURRENT_SCANLINE));
   }
 
   pub fn step(&mut self, cpu: &mut CPU, mem: &mut dyn MemoryChunk, draw: &mut [u8]) -> GpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
-    //trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
+    trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
     let current_mode = self.mode;
     match current_mode {
       Mode::OAM => {

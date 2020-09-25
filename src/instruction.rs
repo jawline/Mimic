@@ -481,12 +481,35 @@ fn xor_r8_n(
   registers.write_r8(additional.small_reg_dst, result);
 }
 
+fn sbc_core(mut v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+
+  if registers.carry() {
+    v1 += 1;
+  }
+
+  let res = v1 - v2;
+  let half_carry = ((v1 & 0xF0) - (v2 & 0xF0)) & 0xF != 0;
+  let carry = v2 > v1;
+
+  registers.set_flags(
+    res == 0,
+    true,
+    half_carry,
+    carry
+  );
+  res
+}
+
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
 fn sbc_r8_r8(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let v_src = registers.read_r8(additional.small_reg_one);
+  let v_dst = registers.read_r8(additional.small_reg_dst);
+  let result = sbc_core(v_dst, v_src, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// Subtract immediate through carry
@@ -908,17 +931,12 @@ fn add_r16_r16(registers: &mut Registers,
 fn add_r16_n(registers: &mut Registers,
   memory: &mut MemoryPtr,
   additional: &InstructionData) {
-
   let add_v = memory.read_u8(registers.pc() + 1) as i8;
-  registers.inc_pc(2);
- 
+  registers.inc_pc(2); 
   let l = registers.read_r16(additional.wide_reg_dst);
-
-  info!("Unsure about this instruction! arr_r16_n");
-  error!("HALF CARRY NOT DELT WITH");
-
   let result = l.wrapping_add(add_v as u16);
-  let half_carry = false;
+  info!("l {} + add_v {} = {}", l, add_v, result);
+  let half_carry = (l & 0xFF).wrapping_add(add_v as u16) > 0xFF;
   let carry = if (add_v > 0 && result < l) || (add_v < 0 && result > l) { true } else { false };
 
   info!("{} + {} = {}", l, add_v, result);
@@ -2917,10 +2935,14 @@ pub fn instruction_set() -> Vec<Instruction> {
 
 /// RLC in the extended set 
 fn ext_rlc_r8(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData) {
-  unimplemented!();
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData) {
+  registers.inc_pc(1);
+  let reg = registers.read_r8(additional.small_reg_dst);
+  let new_reg = reg << 1 | reg >> 7;
+  registers.write_r8(additional.small_reg_dst, new_reg);
+  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
 
 fn ext_rlc_indirect_r16(

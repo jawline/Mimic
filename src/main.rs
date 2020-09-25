@@ -14,7 +14,7 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
-use memory::{RomChunk, RamChunk, GameboyState};
+use memory::{RomChunk, RamChunk, MemoryChunk, GameboyState};
 use log::{info, trace};
 use gpu::{GPU, GpuStepState, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT, BYTES_PER_ROW};
 
@@ -26,27 +26,59 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
       },
       Event::KeyDown { keycode: Some(Keycode::A), ..} => {
         state.a = true;
+        info!("A");
       },
       Event::KeyUp { keycode: Some(Keycode::A), ..} => {
         state.a = false;
       },
       Event::KeyDown { keycode: Some(Keycode::B), ..} => {
+        info!("B");
         state.b = true;
       },
       Event::KeyUp { keycode: Some(Keycode::B), ..} => {
         state.b = false;
       },
       Event::KeyDown { keycode: Some(Keycode::N), ..} => {
+        info!("START");
         state.start = true;
       },
       Event::KeyUp { keycode: Some(Keycode::N), ..} => {
         state.start = false;
       },
       Event::KeyDown { keycode: Some(Keycode::M), ..} => {
+        info!("SELECT");
         state.select = true;
       },
       Event::KeyUp { keycode: Some(Keycode::M), ..} => {
         state.select = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
+        info!("LEFT");
+        state.left = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::Left), ..} => {
+        state.left = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
+        info!("LEFT");
+        state.right = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::Right), ..} => {
+        state.right = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
+        info!("UP");
+        state.up = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::Up), ..} => {
+        state.up = false;
+      },
+      Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
+        info!("DOWN");
+        state.down = true;
+      },
+      Event::KeyUp { keycode: Some(Keycode::Down), ..} => {
+        state.down = false;
       }
       _ => {}
     }
@@ -78,6 +110,10 @@ fn main() -> io::Result<()> {
     gpu: GPU::new(),
     memory: root_map
   };
+
+  // Skip boot
+  gameboy_state.cpu.registers.set_pc(0x100);
+  gameboy_state.memory.write_u8(0xFF50, 1);
 
   info!("preparing screen");
 
