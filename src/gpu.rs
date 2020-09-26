@@ -166,7 +166,7 @@ impl GPU {
     let scy = GPU::scy(mem);
     let scx = GPU::scx(mem);
     let render_bg = GPU::show_background(lcd);
-    let render_sprites = GPU::show_background(lcd);
+    let render_sprites = GPU::show_sprites(lcd);
     let bgtile = GPU::bgtile(lcd);
     let window = GPU::window(lcd);
     let background_map_selected = GPU::bgmap(lcd);
