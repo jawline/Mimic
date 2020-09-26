@@ -1,9 +1,7 @@
-use std::rc::Rc;
-
 use crate::cpu::{CPU, INTERRUPTS_HAPPENED_ADDRESS, VBLANK};
 use crate::memory::MemoryChunk;
 
-use log::{trace, info};
+use log::{info, trace};
 
 pub const GB_SCREEN_WIDTH: u32 = 160;
 pub const GB_SCREEN_HEIGHT: u32 = 144;
@@ -47,7 +45,7 @@ struct Sprite {
   pub palette: bool,
   pub xflip: bool,
   pub yflip: bool,
-  pub prio: bool
+  pub prio: bool,
 }
 
 impl Sprite {
@@ -64,13 +62,12 @@ impl Sprite {
       palette: meta & (1 << 4) != 0,
       xflip: meta & (1 << 5) != 0,
       yflip: meta & (1 << 6) != 0,
-      prio: meta & (1 << 7) == 0
+      prio: meta & (1 << 7) == 0,
     }
   }
-} 
+}
 
 impl GPU {
-
   pub fn new() -> GPU {
     info!("GPU initialized");
     GPU {
@@ -85,8 +82,16 @@ impl GPU {
     let tile_addr = TILESET_ONE_ADDR + (TILE_SIZE * id);
     let y_addr = tile_addr + (y * 2);
     let mask_x = 1 << (7 - x);
-    let low_bit = if mem.read_u8(y_addr) & mask_x != 0 { 1 } else { 0 };
-    let high_bit = if mem.read_u8(y_addr + 1) & mask_x != 0 { 2 } else { 0 };
+    let low_bit = if mem.read_u8(y_addr) & mask_x != 0 {
+      1
+    } else {
+      0
+    };
+    let high_bit = if mem.read_u8(y_addr + 1) & mask_x != 0 {
+      2
+    } else {
+      0
+    };
     low_bit + high_bit
   }
 
@@ -171,13 +176,18 @@ impl GPU {
       let map_line = scy + self.current_line;
       let map_line_offset = ((map_line as u16) >> 3) * 32;
 
-      let map_offset = if background_map_selected {
-        BGMAP
-      } else {
-        MAP
-      } + map_line_offset;
+      let map_offset = if background_map_selected { BGMAP } else { MAP } + map_line_offset;
 
-      trace!("SCY: {} SCX: {} WINDOW: {} BGM: {} MAP_LINE: {:x} OFFSET: {:x} MO: {:x}", scy, scx, window, background_map_selected, map_line, map_line_offset, map_offset);
+      trace!(
+        "SCY: {} SCX: {} WINDOW: {} BGM: {} MAP_LINE: {:x} OFFSET: {:x} MO: {:x}",
+        scy,
+        scx,
+        window,
+        background_map_selected,
+        map_line,
+        map_line_offset,
+        map_offset
+      );
 
       let mut line_offset = (scx >> 3) as u16;
       let mut tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
@@ -205,11 +215,9 @@ impl GPU {
         let sprite = Sprite::fetch(i, mem);
 
         let hits_line_y =
-          sprite.y <= self.current_line as i16
-          && sprite.y + 8 > self.current_line as i16;
+          sprite.y <= self.current_line as i16 && sprite.y + 8 > self.current_line as i16;
 
         if hits_line_y {
-
           let tile_y = if sprite.yflip {
             7 - (self.current_line - sprite.y as u8)
           } else {
@@ -219,11 +227,7 @@ impl GPU {
           for x in 0..8 {
             let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
             let low_x = sprite.x + x as i16;
-            if
-              low_x >= 0 &&
-              low_x < 160 &&
-              color != 0 &&
-              (sprite.prio || !hit[low_x as usize]) {
+            if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
               let pval = GPU::pal(color);
               GPU::write_px(pixels, low_x as u8, self.current_line, pval);
             }
@@ -237,9 +241,19 @@ impl GPU {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
   }
 
-  pub fn step(&mut self, cpu: &mut CPU, mem: &mut dyn MemoryChunk, draw: &mut [u8]) -> GpuStepState {
+  pub fn step(
+    &mut self,
+    cpu: &mut CPU,
+    mem: &mut dyn MemoryChunk,
+    draw: &mut [u8],
+  ) -> GpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
-    trace!("GPU mode {:?} step by {} to {}", self.mode, cpu.registers.last_clock, self.cycles_in_mode);
+    trace!(
+      "GPU mode {:?} step by {} to {}",
+      self.mode,
+      cpu.registers.last_clock,
+      self.cycles_in_mode
+    );
     let current_mode = self.mode;
     match current_mode {
       Mode::OAM => {
@@ -247,14 +261,14 @@ impl GPU {
           self.enter_mode(Mode::VRAM);
         }
         GpuStepState::None
-      },
+      }
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
           self.render_line(mem, draw);
           self.enter_mode(Mode::HBLANK);
         }
         GpuStepState::None
-      },
+      }
       Mode::HBLANK => {
         if self.cycles_in_mode >= 204 {
           self.current_line += 1;
@@ -266,7 +280,7 @@ impl GPU {
           }
         }
         GpuStepState::HBlank
-      },
+      }
       Mode::VBLANK => {
         if self.cycles_in_mode % 204 == 0 {
           self.current_line += 1;
@@ -277,14 +291,14 @@ impl GPU {
           self.current_line = 0;
           mem.write_u8(
             INTERRUPTS_HAPPENED_ADDRESS,
-            mem.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | VBLANK
+            mem.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | VBLANK,
           );
           self.enter_mode(Mode::OAM);
           GpuStepState::VBlank
         } else {
           GpuStepState::None
         }
-      },
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
-use crate::instruction::{Instruction, instruction_set, extended_instruction_set};
-use crate::memory::{MemoryChunk, MemoryPtr};
+use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
+use crate::memory::MemoryPtr;
 use log::trace;
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
@@ -17,7 +17,7 @@ pub struct Clock {
 #[derive(Default, Debug)]
 pub struct RegisterPair {
   l: u8,
-  r: u8
+  r: u8,
 }
 
 impl RegisterPair {
@@ -36,13 +36,25 @@ impl RegisterPair {
 /// Enum to address all the 8-bit registers
 #[derive(Debug, Clone, Copy)]
 pub enum SmallWidthRegister {
-  B, C, A, F, D, E, H, L
+  B,
+  C,
+  A,
+  F,
+  D,
+  E,
+  H,
+  L,
 }
 
 /// Enum to address all the 16-bit wide registers
 #[derive(Debug, Clone, Copy)]
 pub enum WideRegister {
-  PC, SP, BC, AF, DE, HL
+  PC,
+  SP,
+  BC,
+  AF,
+  DE,
+  HL,
 }
 
 use SmallWidthRegister::*;
@@ -66,24 +78,30 @@ pub struct Registers {
   pub escaped: bool,
 
   /// How many cycles passed in the last CPU step
-  pub last_clock: u16, 
+  pub last_clock: u16,
 }
 
 pub const ZERO_FLAG: u8 = 0x1 << 6;
 pub const HALF_CARRY_FLAG: u8 = 0x1 << 4;
 pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
-pub const INTERRUPTS: u16 = 0xFFFF;
 
 /// The position of the CARRY bit in the F (flags) register
 pub const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
+  pub fn pc(&self) -> u16 {
+    self.read_r16(WideRegister::PC)
+  }
+  pub fn sp(&self) -> u16 {
+    self.read_r16(WideRegister::SP)
+  }
 
-  pub fn pc(&self) -> u16 { self.read_r16(WideRegister::PC) } 
-  pub fn sp(&self) -> u16 { self.read_r16(WideRegister::SP) }
-
-  pub fn set_pc(&mut self, pc: u16) { self.write_r16(WideRegister::PC, pc); }
-  pub fn set_sp(&mut self, sp: u16) { self.write_r16(WideRegister::SP, sp); }
+  pub fn set_pc(&mut self, pc: u16) {
+    self.write_r16(WideRegister::PC, pc);
+  }
+  pub fn set_sp(&mut self, sp: u16) {
+    self.write_r16(WideRegister::SP, sp);
+  }
 
   pub fn inc_pc(&mut self, by: u16) {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
@@ -108,16 +126,14 @@ impl Registers {
     rval
   }
 
+  /// Increase or decrease the program counter by a signed 8-bit integer.
   pub fn jump_relative(&mut self, by: i8) {
-    // TODO: I'm not sure if this is correct
-    // there must be a better way to do signed and unsigned addition in Rust
-    if by > 0 {
-      self.inc_pc(by as u16);
-    } else {
-      self.dec_pc(-by as u16);
-    }
+    let new_location = self.pc.wrapping_add(by as u16);
+    trace!("relative jump {} by {} -> {}", self.pc, by, new_location);
+    self.pc = new_location;
   }
 
+  /// Read an 8-bit register
   pub fn read_r8(&self, reg: SmallWidthRegister) -> u8 {
     match reg {
       B => self.bc.l,
@@ -127,10 +143,11 @@ impl Registers {
       D => self.de.l,
       E => self.de.r,
       H => self.hl.l,
-      L => self.hl.r
+      L => self.hl.r,
     }
   }
 
+  /// Write an 8-bit register
   pub fn write_r8(&mut self, reg: SmallWidthRegister, val: u8) {
     match reg {
       B => self.bc.l = val,
@@ -140,10 +157,11 @@ impl Registers {
       D => self.de.l = val,
       E => self.de.r = val,
       H => self.hl.l = val,
-      L => self.hl.r = val
+      L => self.hl.r = val,
     };
   }
 
+  /// Read a 16-bit register (BC, AF, DE, and HL are the joins of their 8-bit registers)
   pub fn read_r16(&self, reg: WideRegister) -> u16 {
     match reg {
       PC => self.pc,
@@ -151,45 +169,42 @@ impl Registers {
       BC => self.bc.as_u16(),
       AF => self.af.as_u16(),
       DE => self.de.as_u16(),
-      HL => self.hl.as_u16()
+      HL => self.hl.as_u16(),
     }
   }
 
+  /// Write a 16-bit register (BC, AF, DE, and HL are the joins of their 8-bit registers)
   pub fn write_r16(&mut self, reg: WideRegister, val: u16) {
     trace!("Writing {:x} -> {:?}", val, reg);
     match reg {
-      PC => {
-        self.pc = val
-      },
+      PC => self.pc = val,
       SP => {
         self.sp = val;
-      },
+      }
       BC => self.bc.write_u16(val),
       AF => self.af.write_u16(val),
       DE => self.de.write_u16(val),
-      HL => self.hl.write_u16(val)
+      HL => self.hl.write_u16(val),
     };
   }
 
+  /// Fetch the current processor flags
   pub fn flags(&self) -> u8 {
     self.read_r8(SmallWidthRegister::F)
   }
 
+  /// Return true if the zero flag is set
   pub fn zero(&self) -> bool {
     self.flags() & ZERO_FLAG != 0
   }
 
+  /// Return true of the carry flag is set
   pub fn carry(&self) -> bool {
     self.flags() & CARRY_FLAG != 0
   }
 
-  pub fn set_carry(&mut self, state: bool) {
-    let mut current_flags = self.read_r8(SmallWidthRegister::F);
-    current_flags = Registers::set_flag(current_flags, CARRY_FLAG, state);
-    self.write_r8(SmallWidthRegister::F, current_flags);
-  }
-
-  pub fn set_flag(flags: u8, flag: u8, set: bool) -> u8 {
+  /// Helper function to set or unset a given flag using it's bit mask
+  fn set_flag(flags: u8, flag: u8, set: bool) -> u8 {
     if set {
       flags | flag
     } else {
@@ -197,12 +212,15 @@ impl Registers {
     }
   }
 
-  pub fn set_flags(&mut self,
-    zero: bool,
-    negative: bool,
-    half_carry: bool,
-    carry: bool) {
-    trace!("Set flags to Z: {} N: {} H: {} C: {}", zero, negative, half_carry, carry);
+  /// Set the processor current flags to these states
+  pub fn set_flags(&mut self, zero: bool, negative: bool, half_carry: bool, carry: bool) {
+    trace!(
+      "Set flags to Z: {} N: {} H: {} C: {}",
+      zero,
+      negative,
+      half_carry,
+      carry
+    );
     let mut current_flags = self.read_r8(SmallWidthRegister::F);
     current_flags = Registers::set_flag(current_flags, CARRY_FLAG, carry);
     current_flags = Registers::set_flag(current_flags, HALF_CARRY_FLAG, half_carry);
