@@ -4,7 +4,11 @@ use log::trace;
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
+
+/// The bit set if the VBLANK interrupt has fired
 pub const VBLANK: u8 = 0x1;
+
+/// The location to jump to for a VBLANK interrupt
 pub const VBLANK_ADDRESS: u16 = 0x40;
 
 /// Gameboy clock state
@@ -199,23 +203,19 @@ impl Registers {
 
   /// Return true if the zero flag is set
   pub fn zero(&self) -> bool {
-    self.flags() & ZERO_FLAG != 0
+    isset8(self.flags(), ZERO_FLAG)
   }
 
   /// Return true of the carry flag is set
   pub fn carry(&self) -> bool {
-    self.flags() & CARRY_FLAG != 0
+    isset8(self.flags(), CARRY_FLAG)
   }
 
   /// Helper function to set or unset a given flag using it's bit mask
   fn set_flag(flags: u8, flag: u8, set: bool) -> u8 {
     match set {
-      true => {
-        set8(flags, flag)
-      },
-      false => {
-        unset8(flags, flag)
-      }
+      true => set8(flags, flag),
+      false => unset8(flags, flag),
     }
   }
 
@@ -254,12 +254,14 @@ impl CPU {
     }
   }
 
+  /// Trigger a specific interrupt (disable IME, push PC to stack and jump to interrupt handler)
   fn fire_interrupt(&mut self, location: u16, memory: &mut MemoryPtr) {
     self.registers.ime = false;
     self.registers.stack_push16(self.registers.pc(), memory);
     self.registers.set_pc(location);
   }
 
+  /// Check if there are any interrupts waiting to fire
   pub fn check_interrupt(&mut self, memory: &mut MemoryPtr) {
     if self.registers.ime {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);

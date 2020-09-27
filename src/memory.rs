@@ -122,7 +122,6 @@ pub struct GameboyState {
 }
 
 impl GameboyState {
-
   pub fn new(boot: RomChunk, cart: RomChunk) -> GameboyState {
     GameboyState {
       boot: boot,
@@ -147,7 +146,6 @@ impl GameboyState {
 
   /// Convert the current gamepad state into it's gameboy register representation (so that the running program can read it)
   fn gamepad_state(&self) -> u8 {
-
     const A_BUTTON: u8 = 1;
     const B_BUTTON: u8 = 1 << 1;
     const SELECT: u8 = 1 << 2;
@@ -213,9 +211,13 @@ impl MemoryChunk for GameboyState {
     } else if address < END_OF_CARTRIDGE_RAM {
       self.cart_ram.write_u8(address - END_OF_VRAM, val)
     } else if address < END_OF_WORK_RAM_ONE {
-      self.work_ram_one.write_u8(address - END_OF_CARTRIDGE_RAM, val)
+      self
+        .work_ram_one
+        .write_u8(address - END_OF_CARTRIDGE_RAM, val)
     } else if address < END_OF_WORK_RAM_TWO {
-      self.work_ram_two.write_u8(address - END_OF_WORK_RAM_ONE, val)
+      self
+        .work_ram_two
+        .write_u8(address - END_OF_WORK_RAM_ONE, val)
     } else if address < END_OF_ECHO_RAM {
       // TODO: mirror ram, do I need?
       unimplemented!();
