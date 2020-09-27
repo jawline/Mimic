@@ -113,7 +113,7 @@ impl Registers {
 
   /// Push a 16 bit value from the stack and return it
   pub fn stack_push16<'a>(&mut self, value: u16, memory: &mut MemoryPtr) {
-    let new_sp = self.sp() - 2;
+    let new_sp = self.sp().wrapping_sub(2);
     memory.write_u16(new_sp, value);
     self.set_sp(new_sp);
   }
@@ -122,7 +122,7 @@ impl Registers {
   pub fn stack_pop16<'a>(&mut self, memory: &mut MemoryPtr) -> u16 {
     let sp = self.sp();
     let rval = memory.read_u16(sp);
-    self.set_sp(sp + 2);
+    self.set_sp(sp.wrapping_add(2));
     rval
   }
 

@@ -5,6 +5,7 @@ mod machine;
 mod memory;
 
 use std::io;
+use std::env;
 use std::time::Instant;
 
 use sdl2;
@@ -154,10 +155,13 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
 
 fn main() -> io::Result<()> {
   env_logger::init();
+
+  let mut args = env::args();
+
   info!("preparing initial state");
 
-  let gb_test = RomChunk::from_file("/home/blake/gb/test2.gb")?;
-  let boot_rom = RomChunk::from_file("/home/blake/gb/bios.gb")?;
+  let boot_rom = RomChunk::from_file(&args.next().unwrap())?;
+  let gb_test = RomChunk::from_file(&args.next().unwrap())?;
   let root_map = GameboyState::new(boot_rom, gb_test);
 
   let mut gameboy_state = machine::Machine {
