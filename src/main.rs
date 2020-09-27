@@ -18,7 +18,7 @@ use sdl2::EventPump;
 
 use gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
 use log::{info, trace};
-use memory::{GameboyState, MemoryChunk, RomChunk};
+use memory::{GameboyState, RomChunk};
 
 fn events(state: &mut GameboyState, events: &mut EventPump) {
   for event in events.poll_iter() {
@@ -158,10 +158,21 @@ fn main() -> io::Result<()> {
 
   let mut args = env::args();
 
+  info!("ARGS: {:?}", args);
+
+  args.next();
+  let bios_file = args.next().unwrap();
+  let rom_file = args.next().unwrap();
+
+  info!("loading BIOS: {} TEST: {}",
+    bios_file,
+    rom_file);
+
   info!("preparing initial state");
 
-  let boot_rom = RomChunk::from_file(&args.next().unwrap())?;
-  let gb_test = RomChunk::from_file(&args.next().unwrap())?;
+  let boot_rom = RomChunk::from_file(&bios_file)?;
+  let gb_test = RomChunk::from_file(&rom_file)?;
+
   let root_map = GameboyState::new(boot_rom, gb_test);
 
   let mut gameboy_state = machine::Machine {
@@ -171,8 +182,8 @@ fn main() -> io::Result<()> {
   };
 
   // Skip boot
-  gameboy_state.cpu.registers.set_pc(0x100);
-  gameboy_state.memory.write_u8(0xFF50, 1);
+  //gameboy_state.cpu.registers.set_pc(0x100);
+  //gameboy_state.memory.write_u8(0xFF50, 1);
 
   info!("preparing screen");
 
@@ -212,7 +223,7 @@ fn main() -> io::Result<()> {
     steps += 1;
     if steps % 100000 == 0 {
       let time_running = now.elapsed().as_secs_f64();
-      println!(
+      info!(
         "Average step rate of {}/s with a redraw rate of {}/s",
         steps as f64 / time_running,
         redraws as f64 / time_running

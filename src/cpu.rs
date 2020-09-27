@@ -89,26 +89,30 @@ pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
 pub const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
+
+  /// Get the current program counter
   pub fn pc(&self) -> u16 {
     self.read_r16(WideRegister::PC)
   }
+
+  /// Get the current stack pointer
   pub fn sp(&self) -> u16 {
     self.read_r16(WideRegister::SP)
   }
 
+  /// Set the program counter to a given value
   pub fn set_pc(&mut self, pc: u16) {
     self.write_r16(WideRegister::PC, pc);
   }
+
+  /// Set the stack pointer to a given value
   pub fn set_sp(&mut self, sp: u16) {
     self.write_r16(WideRegister::SP, sp);
   }
 
+  /// Add a 16-bit value to the program counter
   pub fn inc_pc(&mut self, by: u16) {
     self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
-  }
-
-  pub fn dec_pc(&mut self, by: u16) {
-    self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) - by);
   }
 
   /// Push a 16 bit value from the stack and return it
@@ -240,12 +244,6 @@ impl CPU {
   pub fn new() -> CPU {
     let instructions = instruction_set();
     let ext = extended_instruction_set();
-    for i in 0..instructions.len() {
-      println!("{:x}:{}", i, instructions[i].text);
-    }
-    for i in 0..ext.len() {
-      println!("{:x}:{}", i, ext[i].text);
-    }
     CPU {
       registers: Registers::default(),
       instructions: instructions,
