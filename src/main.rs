@@ -4,8 +4,8 @@ mod instruction;
 mod machine;
 mod memory;
 
-use std::io;
 use std::env;
+use std::io;
 use std::time::Instant;
 
 use sdl2;
@@ -164,9 +164,7 @@ fn main() -> io::Result<()> {
   let bios_file = args.next().unwrap();
   let rom_file = args.next().unwrap();
 
-  info!("loading BIOS: {} TEST: {}",
-    bios_file,
-    rom_file);
+  info!("loading BIOS: {} TEST: {}", bios_file, rom_file);
 
   info!("preparing initial state");
 

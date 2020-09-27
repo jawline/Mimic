@@ -89,7 +89,6 @@ pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
 pub const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
-
   /// Get the current program counter
   pub fn pc(&self) -> u16 {
     self.read_r16(WideRegister::PC)
