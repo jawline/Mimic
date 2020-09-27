@@ -1,8 +1,10 @@
-use log::{error, trace, warn};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::vec::Vec;
+use std::num::Wrapping;
+
+use log::{error, trace, warn};
 
 const END_OF_BOOT: u16 = 0x101;
 const END_OF_CARTRIDGE: u16 = 0x8000;
@@ -15,14 +17,17 @@ const END_OF_ECHO_RAM: u16 = 0xFE00;
 const GAMEPAD_ADDRESS: u16 = 0xFF00;
 const BOOT_ROM_ADDRESS: u16 = 0xFF50;
 
+/// Returns an 8-bit bitvector with the specified flags set
 pub fn set8(val: u8, bit: u8) -> u8 {
   val | bit
 }
 
+/// Return a 8-bit bitvector with the specified flags
 pub fn unset8(val: u8, bit: u8) -> u8 {
   val & !bit
 }
 
+/// Check if an 8-bit value has a given bit set
 pub fn isset8(val: u8, bit: u8) -> bool {
   val & bit != 0
 }
