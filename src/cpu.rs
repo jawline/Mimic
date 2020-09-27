@@ -1,10 +1,11 @@
 use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
-use crate::memory::MemoryPtr;
+use crate::memory::{isset8, set8, unset8, MemoryPtr};
 use log::trace;
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
 pub const VBLANK: u8 = 0x1;
+pub const VBLANK_ADDRESS: u16 = 0x40;
 
 /// Gameboy clock state
 #[derive(Default, Debug)]
@@ -208,10 +209,13 @@ impl Registers {
 
   /// Helper function to set or unset a given flag using it's bit mask
   fn set_flag(flags: u8, flag: u8, set: bool) -> u8 {
-    if set {
-      flags | flag
-    } else {
-      flags & !flag
+    match set {
+      true => {
+        set8(flags, flag)
+      },
+      false => {
+        unset8(flags, flag)
+      }
     }
   }
 
@@ -261,11 +265,11 @@ impl CPU {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
       let interrupted = triggered & enabled;
-      if interrupted & VBLANK != 0 {
+      if isset8(interrupted, VBLANK) {
         // VBLANK
         trace!("VBLANK INTERRUPT");
         memory.write_u8(INTERRUPTS_HAPPENED_ADDRESS, triggered & !VBLANK);
-        self.fire_interrupt(0x40, memory);
+        self.fire_interrupt(VBLANK_ADDRESS, memory);
         return;
       }
     }

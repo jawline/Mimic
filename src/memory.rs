@@ -15,6 +15,18 @@ const END_OF_ECHO_RAM: u16 = 0xFE00;
 const GAMEPAD_ADDRESS: u16 = 0xFF00;
 const BOOT_ROM_ADDRESS: u16 = 0xFF50;
 
+pub fn set8(val: u8, bit: u8) -> u8 {
+  val | bit
+}
+
+pub fn unset8(val: u8, bit: u8) -> u8 {
+  val & !bit
+}
+
+pub fn isset8(val: u8, bit: u8) -> bool {
+  val & bit != 0
+}
+
 /**
  * A trait representing a addressable memory region (ROM or RAM) in the Gameboy.
  */
@@ -52,7 +64,6 @@ impl MemoryChunk for RomChunk {
     warn!("tried to write to {:x} in RomChunk", address);
   }
   fn read_u8(&self, address: u16) -> u8 {
-    //trace!("read from {:x} in RomChunk", address);
     self.bytes[address as usize]
   }
 }
@@ -75,11 +86,9 @@ pub struct RamChunk {
 
 impl MemoryChunk for RamChunk {
   fn write_u8(&mut self, address: u16, v: u8) {
-    //trace!("write {} to {:x} in RamChunk", v, address);
     self.bytes[address as usize] = v;
   }
   fn read_u8(&self, address: u16) -> u8 {
-    //trace!("read from {:x} in RamChunk", address);
     self.bytes[address as usize]
   }
 }
@@ -136,44 +145,65 @@ impl GameboyState {
     }
   }
 
+  /// Convert the current gamepad state into it's gameboy register representation (so that the running program can read it)
   fn gamepad_state(&self) -> u8 {
+
+    const A_BUTTON: u8 = 1;
+    const B_BUTTON: u8 = 1 << 1;
+    const SELECT: u8 = 1 << 2;
+    const START: u8 = 1 << 3;
+
+    const LEFT: u8 = 1;
+    const RIGHT: u8 = 1 << 1;
+    const UP: u8 = 1 << 2;
+    const DOWN: u8 = 1 << 3;
+
     let mut pad_state = 0;
     if self.gamepad_high {
       //A, B, Select, Start
       if !self.a {
-        pad_state |= 1;
+        pad_state = set8(pad_state, A_BUTTON);
       }
       if !self.b {
-        pad_state |= 2;
+        pad_state = set8(pad_state, B_BUTTON);
       }
       if !self.select {
-        pad_state |= 4;
+        pad_state = set8(pad_state, SELECT);
       }
       if !self.start {
-        pad_state |= 8;
+        pad_state = set8(pad_state, START);
       }
     } else {
       //Right left up down
       if !self.left {
-        pad_state |= 1;
+        pad_state = set8(pad_state, LEFT);
       }
       if !self.right {
-        pad_state |= 2;
+        pad_state = set8(pad_state, RIGHT);
       }
       if !self.up {
-        pad_state |= 4;
+        pad_state = set8(pad_state, UP);
       }
       if !self.down {
-        pad_state |= 8;
+        pad_state = set8(pad_state, DOWN);
       }
     }
     pad_state
   }
 
+  /// Convert a write to the gamepad register to an internal representation
+  fn gamepad_write(&mut self, val: u8) {
+    const DPAD_BIT: u8 = 1 << 4;
+    const BUTTONS_BIT: u8 = 1 << 5;
+    if isset8(val, DPAD_BIT) {
+      self.gamepad_high = false;
+    } else if isset8(val, BUTTONS_BIT) {
+      self.gamepad_high = true;
+    }
+  }
 }
 
 impl MemoryChunk for GameboyState {
-
   fn write_u8(&mut self, address: u16, val: u8) {
     trace!("write {:x} to {:x}", val, address);
     if address < END_OF_CARTRIDGE {
@@ -191,23 +221,18 @@ impl MemoryChunk for GameboyState {
       unimplemented!();
     } else {
       if address == GAMEPAD_ADDRESS {
-        if val & (1 << 4) != 0 {
-          self.gamepad_high = false;
-        } else if val & (1 << 5) != 0 {
-          self.gamepad_high = true;
-        }
+        self.gamepad_write(val);
       } else if address == BOOT_ROM_ADDRESS {
         // Writing a 1 to this register disables the boot rom
         self.boot_enabled = false;
       } else {
-        self.high_ram.write_u8(address - END_OF_ECHO_RAM, val)
+        self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
     }
   }
 
   fn read_u8(&self, address: u16) -> u8 {
     trace!("read {:x}", address);
-
     if address < END_OF_CARTRIDGE {
       if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);
@@ -232,5 +257,4 @@ impl MemoryChunk for GameboyState {
       }
     }
   }
-
 }
