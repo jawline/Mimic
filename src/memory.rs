@@ -4,6 +4,17 @@ use std::io;
 use std::io::prelude::*;
 use std::vec::Vec;
 
+const END_OF_BOOT: u16 = 0x101;
+const END_OF_CARTRIDGE: u16 = 0x8000;
+const END_OF_VRAM: u16 = 0xA000;
+const END_OF_CARTRIDGE_RAM: u16 = 0xC000;
+const END_OF_WORK_RAM_ONE: u16 = 0xD000;
+const END_OF_WORK_RAM_TWO: u16 = 0xE000;
+const END_OF_ECHO_RAM: u16 = 0xFE00;
+
+const GAMEPAD_ADDRESS: u16 = 0xFF00;
+const BOOT_ROM_ADDRESS: u16 = 0xFF50;
+
 /**
  * A trait representing a addressable memory region (ROM or RAM) in the Gameboy.
  */
@@ -102,6 +113,7 @@ pub struct GameboyState {
 }
 
 impl GameboyState {
+
   pub fn new(boot: RomChunk, cart: RomChunk) -> GameboyState {
     GameboyState {
       boot: boot,
@@ -123,95 +135,102 @@ impl GameboyState {
       gamepad_high: false,
     }
   }
+
+  fn gamepad_state(&self) -> u8 {
+    let mut pad_state = 0;
+    if self.gamepad_high {
+      //A, B, Select, Start
+      if !self.a {
+        pad_state |= 1;
+      }
+      if !self.b {
+        pad_state |= 2;
+      }
+      if !self.select {
+        pad_state |= 4;
+      }
+      if !self.start {
+        pad_state |= 8;
+      }
+    } else {
+      //Right left up down
+      if !self.left {
+        pad_state |= 1;
+      }
+      if !self.right {
+        pad_state |= 2;
+      }
+      if !self.up {
+        pad_state |= 4;
+      }
+      if !self.down {
+        pad_state |= 8;
+      }
+    }
+    pad_state
+  }
+
 }
 
 impl MemoryChunk for GameboyState {
+
   fn write_u8(&mut self, address: u16, val: u8) {
     trace!("write {:x} to {:x}", val, address);
-
-    if address < 0x8000 {
-      error!("Illegal write to ROM {}", address);
-    } else if address < 0xA000 {
-      self.vram.write_u8(address - 0x8000, val)
-    } else if address < 0xC000 {
-      self.cart_ram.write_u8(address - 0xA000, val)
-    } else if address < 0xD000 {
-      self.work_ram_one.write_u8(address - 0xC000, val)
-    } else if address < 0xE000 {
-      self.work_ram_two.write_u8(address - 0xD000, val)
-    } else if self.boot_enabled && address == 0xFF50 {
-      // Writing a 1 to this register disables the boot rom
-      self.boot_enabled = false;
-    } else if address < 0xFE00 {
+    if address < END_OF_CARTRIDGE {
+      error!("Illegal write {:x} to ROM {:x}", val, address);
+    } else if address < END_OF_VRAM {
+      self.vram.write_u8(address - END_OF_CARTRIDGE, val)
+    } else if address < END_OF_CARTRIDGE_RAM {
+      self.cart_ram.write_u8(address - END_OF_VRAM, val)
+    } else if address < END_OF_WORK_RAM_ONE {
+      self.work_ram_one.write_u8(address - END_OF_CARTRIDGE_RAM, val)
+    } else if address < END_OF_WORK_RAM_TWO {
+      self.work_ram_two.write_u8(address - END_OF_WORK_RAM_ONE, val)
+    } else if address < END_OF_ECHO_RAM {
       // TODO: mirror ram, do I need?
       unimplemented!();
     } else {
-      if address == 0xFF00 {
+      if address == GAMEPAD_ADDRESS {
         if val & (1 << 4) != 0 {
           self.gamepad_high = false;
         } else if val & (1 << 5) != 0 {
           self.gamepad_high = true;
         }
+      } else if address == BOOT_ROM_ADDRESS {
+        // Writing a 1 to this register disables the boot rom
+        self.boot_enabled = false;
       } else {
-        self.high_ram.write_u8(address - 0xFE00, val)
+        self.high_ram.write_u8(address - END_OF_ECHO_RAM, val)
       }
     }
   }
+
   fn read_u8(&self, address: u16) -> u8 {
     trace!("read {:x}", address);
 
-    if address < 0x8000 {
-      if self.boot_enabled && address <= 0x100 {
+    if address < END_OF_CARTRIDGE {
+      if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);
       }
       self.cart.read_u8(address)
-    } else if address < 0xA000 {
-      self.vram.read_u8(address - 0x8000)
-    } else if address < 0xC000 {
-      self.cart_ram.read_u8(address - 0xA000)
-    } else if address < 0xD000 {
-      self.work_ram_one.read_u8(address - 0xC000)
-    } else if address < 0xE000 {
-      self.work_ram_two.read_u8(address - 0xD000)
-    } else if address < 0xFE00 {
+    } else if address < END_OF_VRAM {
+      self.vram.read_u8(address - END_OF_CARTRIDGE)
+    } else if address < END_OF_CARTRIDGE_RAM {
+      self.cart_ram.read_u8(address - END_OF_VRAM)
+    } else if address < END_OF_WORK_RAM_ONE {
+      self.work_ram_one.read_u8(address - END_OF_CARTRIDGE_RAM)
+    } else if address < END_OF_WORK_RAM_TWO {
+      self.work_ram_two.read_u8(address - END_OF_WORK_RAM_ONE)
+    } else if address < END_OF_ECHO_RAM {
       // TODO: mirror ram, do I need?
       unimplemented!();
     } else {
-      if address == 0xFF00 {
-        let mut pad_state = 0;
-        if self.gamepad_high {
-          //A, B, Select, Start
-          if !self.a {
-            pad_state |= 1;
-          }
-          if !self.b {
-            pad_state |= 2;
-          }
-          if !self.select {
-            pad_state |= 4;
-          }
-          if !self.start {
-            pad_state |= 8;
-          }
-        } else {
-          //Right left up down
-          if !self.left {
-            pad_state |= 1;
-          }
-          if !self.right {
-            pad_state |= 2;
-          }
-          if !self.up {
-            pad_state |= 4;
-          }
-          if !self.down {
-            pad_state |= 8;
-          }
-        }
-        pad_state
+      if address == GAMEPAD_ADDRESS {
+        self.gamepad_state()
       } else {
-        self.high_ram.read_u8(address - 0xFE00)
+        self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }
     }
   }
+
 }
