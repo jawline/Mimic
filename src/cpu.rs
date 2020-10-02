@@ -76,6 +76,9 @@ pub struct Registers {
   hl: RegisterPair,
   clock: Clock,
 
+  /// Is the CPU halted
+  pub halted: bool,
+
   /// Interrupts master enable flag
   pub ime: bool,
 
@@ -266,6 +269,10 @@ impl CPU {
     if self.registers.ime {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
+
+      // If any interrupt is triggered then unhalt the processor.
+      self.registers.halted = false;
+
       let interrupted = triggered & enabled;
       if isset8(interrupted, VBLANK) {
         // VBLANK
@@ -278,35 +285,40 @@ impl CPU {
   }
 
   pub fn step(&mut self, memory: &mut MemoryPtr) {
-    let opcode = memory.read_u8(self.registers.pc());
-    trace!(
-      "pre\nPC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x}",
-      self.registers.pc(),
-      self.registers.sp(),
-      self.registers.read_r16(WideRegister::BC),
-      self.registers.read_r16(WideRegister::AF),
-      self.registers.read_r16(WideRegister::DE),
-      self.registers.read_r16(WideRegister::HL),
-      self.registers.bc.l, self.registers.bc.r,
-      self.registers.af.l, self.registers.af.r,
-      self.registers.de.l, self.registers.de.r,
-      self.registers.hl.l, self.registers.hl.r,
-    );
 
-    let inst;
+    if !self.registers.halted {
+      let opcode = memory.read_u8(self.registers.pc());
+      trace!(
+        "pre\nPC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x}",
+        self.registers.pc(),
+        self.registers.sp(),
+        self.registers.read_r16(WideRegister::BC),
+        self.registers.read_r16(WideRegister::AF),
+        self.registers.read_r16(WideRegister::DE),
+        self.registers.read_r16(WideRegister::HL),
+        self.registers.bc.l, self.registers.bc.r,
+        self.registers.af.l, self.registers.af.r,
+        self.registers.de.l, self.registers.de.r,
+        self.registers.hl.l, self.registers.hl.r,
+      );
 
-    if self.registers.escaped {
-      trace!("Selected opcode from extended set since escaped is set");
-      inst = &self.ext_instructions[opcode as usize];
-      self.registers.escaped = false;
+      let inst;
+
+      if self.registers.escaped {
+        trace!("Selected opcode from extended set since escaped is set");
+        inst = &self.ext_instructions[opcode as usize];
+        self.registers.escaped = false;
+      } else {
+        inst = &self.instructions[opcode as usize];
+      }
+
+      trace!("{} ({:x})", inst.text, opcode);
+      (inst.execute)(&mut self.registers, memory, &inst.data);
+      //trace!("post-step: {:?}", self.registers);
+      self.registers.last_clock = inst.timings.1;
     } else {
-      inst = &self.instructions[opcode as usize];
+      self.registers.last_clock = 4;
     }
-
-    trace!("{} ({:x})", inst.text, opcode);
-    (inst.execute)(&mut self.registers, memory, &inst.data);
-    //trace!("post-step: {:?}", self.registers);
-    self.registers.last_clock = inst.timings.1;
 
     // if ime is flagged on and there is an interrupt waiting then trigger it
     self.check_interrupt(memory);

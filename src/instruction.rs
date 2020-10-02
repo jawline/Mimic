@@ -1052,9 +1052,12 @@ fn pop_wide_register(
 }
 
 /// Halt the processor
+/// Stop doing anything until the next interrupt
 fn halt(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+  if registers.ime {
+    registers.halted = true;
+  }
   registers.inc_pc(1);
-  unimplemented!();
 }
 
 /// Sets the carry flag, resets negative and half carry flags, zero unaffected
