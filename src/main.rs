@@ -16,11 +16,13 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::EventPump;
 
+use cpu::{CPU, JOYPAD};
 use gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
 use log::{info, trace};
 use memory::{GameboyState, RomChunk};
 
 fn events(state: &mut GameboyState, events: &mut EventPump) {
+  let mut fired = false;
   for event in events.poll_iter() {
     match event {
       Event::Quit { .. }
@@ -34,6 +36,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::A),
         ..
       } => {
+        fired = true;
         state.a = true;
         info!("A");
       }
@@ -47,6 +50,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::B),
         ..
       } => {
+        fired = true;
         info!("B");
         state.b = true;
       }
@@ -60,6 +64,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::N),
         ..
       } => {
+        fired = true;
         info!("START");
         state.start = true;
       }
@@ -73,6 +78,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::M),
         ..
       } => {
+        fired = true;
         info!("SELECT");
         state.select = true;
       }
@@ -86,6 +92,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::Left),
         ..
       } => {
+        fired = true;
         info!("LEFT");
         state.left = true;
       }
@@ -99,7 +106,8 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::Right),
         ..
       } => {
-        info!("LEFT");
+        fired = true;
+        info!("RIGHT");
         state.right = true;
       }
       Event::KeyUp {
@@ -112,6 +120,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::Up),
         ..
       } => {
+        fired = true;
         info!("UP");
         state.up = true;
       }
@@ -125,6 +134,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::Down),
         ..
       } => {
+        fired = true;
         info!("DOWN");
         state.down = true;
       }
@@ -136,6 +146,11 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
       }
       _ => {}
     }
+  }
+
+  if fired {
+    println!("fire of interrupt");
+    CPU::set_interrupt_happened(state, JOYPAD);
   }
 }
 
@@ -174,15 +189,15 @@ fn main() -> io::Result<()> {
   let root_map = GameboyState::new(boot_rom, gb_test);
 
   let mut gameboy_state = machine::Machine {
-    cpu: cpu::CPU::new(),
+    cpu: CPU::new(),
     gpu: GPU::new(),
     memory: root_map,
   };
 
   // Skip boot
-  //use crate::memory::MemoryChunk;
-  //gameboy_state.cpu.registers.set_pc(0x100);
-  //gameboy_state.memory.write_u8(0xFF50, 1);
+  use crate::memory::MemoryChunk;
+  gameboy_state.cpu.registers.set_pc(0x100);
+  gameboy_state.memory.write_u8(0xFF50, 1);
 
   info!("preparing screen");
 

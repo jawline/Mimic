@@ -1,5 +1,5 @@
-use crate::cpu::{CPU, INTERRUPTS_HAPPENED_ADDRESS, VBLANK};
-use crate::memory::MemoryChunk;
+use crate::cpu::{CPU, VBLANK};
+use crate::memory::MemoryPtr;
 
 use log::{info, trace};
 
@@ -49,7 +49,7 @@ struct Sprite {
 }
 
 impl Sprite {
-  fn fetch(id: u16, mem: &mut dyn MemoryChunk) -> Self {
+  fn fetch(id: u16, mem: &mut MemoryPtr) -> Self {
     let address = OAM + (id * 4);
     let y = (mem.read_u8(address) as i16) - 16;
     let x = (mem.read_u8(address + 1) as i16) - 8;
@@ -77,7 +77,7 @@ impl GPU {
     }
   }
 
-  fn tile_value(&self, id: u16, x: u16, y: u16, mem: &mut dyn MemoryChunk) -> u8 {
+  fn tile_value(&self, id: u16, x: u16, y: u16, mem: &mut MemoryPtr) -> u8 {
     const TILE_SIZE: u16 = 16;
     let tile_addr = TILESET_ONE_ADDR + (TILE_SIZE * id);
     let y_addr = tile_addr + (y * 2);
@@ -95,7 +95,7 @@ impl GPU {
     low_bit + high_bit
   }
 
-  fn lcd_control(&self, mem: &mut dyn MemoryChunk) -> u8 {
+  fn lcd_control(&self, mem: &mut MemoryPtr) -> u8 {
     mem.read_u8(LCD_CONTROL)
   }
 
@@ -133,7 +133,7 @@ impl GPU {
     pixels[(x * 3) + canvas_offset + 2] = val;
   }
 
-  fn fetch_tile(&self, addr: u16, bgtile: bool, mem: &mut dyn MemoryChunk) -> u16 {
+  fn fetch_tile(&self, addr: u16, bgtile: bool, mem: &mut MemoryPtr) -> u16 {
     let tile = mem.read_u8(addr) as u16;
     if !bgtile && tile < 128 {
       tile + 256
@@ -142,11 +142,11 @@ impl GPU {
     }
   }
 
-  fn scx(mem: &mut dyn MemoryChunk) -> u8 {
+  fn scx(mem: &mut MemoryPtr) -> u8 {
     mem.read_u8(SCX)
   }
 
-  fn scy(mem: &mut dyn MemoryChunk) -> u8 {
+  fn scy(mem: &mut MemoryPtr) -> u8 {
     mem.read_u8(SCY)
   }
 
@@ -159,7 +159,7 @@ impl GPU {
     }
   }
 
-  fn render_line(&mut self, mem: &mut dyn MemoryChunk, pixels: &mut [u8]) {
+  fn render_line(&mut self, mem: &mut MemoryPtr, pixels: &mut [u8]) {
     trace!("Rendering full line {}", self.current_line);
 
     let lcd = self.lcd_control(mem);
@@ -237,14 +237,14 @@ impl GPU {
     }
   }
 
-  fn update_scanline(&mut self, mem: &mut dyn MemoryChunk) {
+  fn update_scanline(&mut self, mem: &mut MemoryPtr) {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
   }
 
   pub fn step(
     &mut self,
     cpu: &mut CPU,
-    mem: &mut dyn MemoryChunk,
+    mem: &mut MemoryPtr,
     draw: &mut [u8],
   ) -> GpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
@@ -289,10 +289,7 @@ impl GPU {
 
         if self.cycles_in_mode > 4560 {
           self.current_line = 0;
-          mem.write_u8(
-            INTERRUPTS_HAPPENED_ADDRESS,
-            mem.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | VBLANK,
-          );
+          CPU::set_interrupt_happened(mem, VBLANK);
           self.enter_mode(Mode::OAM);
           GpuStepState::VBlank
         } else {

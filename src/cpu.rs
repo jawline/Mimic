@@ -11,6 +11,12 @@ pub const VBLANK: u8 = 0x1;
 /// The location to jump to for a VBLANK interrupt
 pub const VBLANK_ADDRESS: u16 = 0x40;
 
+/// The bit set if the JOYPAD PRESSED interrupt has fired
+pub const JOYPAD: u8 = 0x1 << 4;
+
+/// The interrupt address for a joypad pressed interrupt
+pub const JOYPAD_ADDRESS: u16 = 0x60;
+
 /// Gameboy clock state
 #[derive(Default, Debug)]
 pub struct Clock {
@@ -270,6 +276,8 @@ impl CPU {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
+      println!("{} vs {}", enabled, triggered);
+
       // If any interrupt is triggered then unhalt the processor.
       self.registers.halted = false;
 
@@ -277,13 +285,37 @@ impl CPU {
       if isset8(interrupted, VBLANK) {
         // VBLANK
         trace!("VBLANK INTERRUPT");
-        memory.write_u8(INTERRUPTS_HAPPENED_ADDRESS, triggered & !VBLANK);
+        CPU::clear_interrupt_happened(memory, VBLANK);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
         return;
+      }
+
+      if isset8(interrupted, JOYPAD) {
+        // JOYPAD
+        println!("JOYPAD PRESSED");
+        CPU::clear_interrupt_happened(memory, JOYPAD);
+        self.fire_interrupt(JOYPAD_ADDRESS, memory);
       }
     }
   }
 
+  /// Clear an interrupt bit in the interrupts that have triggered register
+  pub fn clear_interrupt_happened(memory: &mut MemoryPtr, interrupt: u8) {
+    memory.write_u8(
+      INTERRUPTS_HAPPENED_ADDRESS,
+      memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) & !interrupt
+    );
+  }
+
+  /// Set an interrupt triggered bit in memory
+  pub fn set_interrupt_happened(memory: &mut MemoryPtr, interrupt: u8) {
+    memory.write_u8(
+      INTERRUPTS_HAPPENED_ADDRESS,
+      memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | interrupt,
+    );
+  }
+
+  /// Step the emulator by a single instruction
   pub fn step(&mut self, memory: &mut MemoryPtr) {
 
     if !self.registers.halted {

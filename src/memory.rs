@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::vec::Vec;
-use std::num::Wrapping;
 
 use log::{error, trace, warn, info};
 
@@ -228,6 +227,18 @@ impl GameboyState {
       self.gamepad_high = true;
     }
   }
+
+  /// Calculate the ROM bank that should be activated given a write to a ROM-bank set region of the memory.
+  fn set_rom_bank(&mut self, bank: u8) {
+    info!("Set rom bank to {}", bank);
+    let bank = (bank & 0x1F) as u16; // Truncate to 5 bits
+    let bank = if bank == 0 {
+      1
+    } else {
+      bank
+    };
+    self.rom_bank = bank;
+  }
 }
 
 impl MemoryChunk for GameboyState {
@@ -235,8 +246,8 @@ impl MemoryChunk for GameboyState {
     trace!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
       if address <= 0x2000 {
-        info!("Set rom bank to {}", val);
-        self.rom_bank = val as u16;
+        // Writes to this area of ROM memory trigger a bank change
+        self.set_rom_bank(val);
       } else {
         error!("Illegal write {:x} to ROM {:x}", val, address);
       }
@@ -288,8 +299,7 @@ impl MemoryChunk for GameboyState {
     } else if address < END_OF_WORK_RAM_TWO {
       self.work_ram_two.read_u8(address - END_OF_WORK_RAM_ONE)
     } else if address < END_OF_ECHO_RAM {
-      // TODO: mirror ram, do I need?
-      unimplemented!();
+      self.work_ram_one.read_u8(address - END_OF_WORK_RAM_TWO)
     } else {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_state()
