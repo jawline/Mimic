@@ -275,9 +275,7 @@ impl CPU {
     if self.registers.ime {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
-
-      println!("{} vs {}", enabled, triggered);
-
+ 
       // If any interrupt is triggered then unhalt the processor.
       self.registers.halted = false;
 
