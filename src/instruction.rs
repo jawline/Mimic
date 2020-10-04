@@ -13,11 +13,9 @@ pub struct InstructionData {
   pub bit: u8,
 
   pub small_reg_one: SmallWidthRegister,
-  pub small_reg_two: SmallWidthRegister,
   pub small_reg_dst: SmallWidthRegister,
 
   pub wide_reg_one: WideRegister,
-  pub wide_reg_two: WideRegister,
   pub wide_reg_dst: WideRegister,
 }
 
@@ -29,10 +27,8 @@ impl Default for InstructionData {
       flag_mask: 0,
       flag_expected: 0,
       small_reg_one: SmallWidthRegister::B,
-      small_reg_two: SmallWidthRegister::B,
       small_reg_dst: SmallWidthRegister::B,
       wide_reg_one: WideRegister::BC,
-      wide_reg_two: WideRegister::BC,
       wide_reg_dst: WideRegister::BC,
     }
   }
