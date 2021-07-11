@@ -615,13 +615,8 @@ fn cp_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 
 /// or memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn or_r8_mem_r16(
-  registers: &mut Registers,
-  memory: &mut MemoryPtr,
-  additional: &InstructionData,
-) {
+fn or_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
-
 
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
@@ -634,11 +629,7 @@ fn or_r8_mem_r16(
 
 /// XOR memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn xor_r8_mem_r16(
-  registers: &mut Registers,
-  memory: &mut MemoryPtr,
-  additional: &InstructionData,
-) {
+fn xor_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
@@ -1023,9 +1014,37 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
-fn daa(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn daa(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+  let target = registers.read_r8(additional.small_reg_dst);
+
+  // Not entirely sure what this does but the general process seems to be
+  // if A & 0xF > 0x9 or H then add $06 to A
+  // if A & 0xF0 > 0x99 or C then add $60 to A
+
+  let mut t = 0;
+
+  if target & 0xF > 0x9 {
+    t += 1;
+  }
+
+  let carry = if target & 0xF0 > 0x99 {
+    t += 2;
+    true
+  } else { false };
+
+  let result = match t {
+      0 => target,
+    1 => target + if registers.subtract() { 0xFA } else { 0x06 }, // -6 or +6
+    2 => target + if registers.subtract() { 0xA0 } else { 0x60 }, // -60 or +60
+    3 => target + if registers.subtract() { 0x9A } else { 0x66 }, // -66 or + 66
+    _ => panic!("impossible condition for DAA")
+  };
+
   // https://forums.nesdev.com/viewtopic.php?t=15944
-  unimplemented!();
+  // https://stackoverflow.com/questions/8119577/z80-daa-instruction
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.set_flags(result == 0, registers.subtract(), false, carry);
+  registers.inc_pc(1);
 }
 
 fn invalid_op(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {

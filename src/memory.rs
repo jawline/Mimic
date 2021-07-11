@@ -183,7 +183,8 @@ impl GameboyState {
     const DOWN: u8 = 1 << 3;
 
     let mut pad_state = 0;
-    if self.gamepad_high {
+
+    if !self.gamepad_high {
       //A, B, Select, Start
       if !self.a {
         pad_state = set8(pad_state, A_BUTTON);

@@ -215,6 +215,11 @@ impl Registers {
     isset8(self.flags(), ZERO_FLAG)
   }
 
+  /// Return true if the negative (subtract) flag is set
+  pub fn subtract(&self) -> bool {
+    isset8(self.flags(), SUBTRACT_FLAG)
+  }
+
   /// Return true of the carry flag is set
   pub fn carry(&self) -> bool {
     isset8(self.flags(), CARRY_FLAG)
