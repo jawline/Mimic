@@ -1030,14 +1030,16 @@ fn daa(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instructi
   let carry = if target & 0xF0 > 0x99 {
     t += 2;
     true
-  } else { false };
+  } else {
+    false
+  };
 
   let result = match t {
-      0 => target,
+    0 => target,
     1 => target + if registers.subtract() { 0xFA } else { 0x06 }, // -6 or +6
     2 => target + if registers.subtract() { 0xA0 } else { 0x60 }, // -60 or +60
     3 => target + if registers.subtract() { 0x9A } else { 0x66 }, // -66 or + 66
-    _ => panic!("impossible condition for DAA")
+    _ => panic!("impossible condition for DAA"),
   };
 
   // https://forums.nesdev.com/viewtopic.php?t=15944
