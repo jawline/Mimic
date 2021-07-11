@@ -38,6 +38,7 @@ pub struct GPU {
   mode: Mode,
 }
 
+#[derive(Debug)]
 struct Sprite {
   pub x: i16,
   pub y: i16,
@@ -49,10 +50,25 @@ struct Sprite {
 }
 
 impl Sprite {
-  fn fetch(id: u16, mem: &mut MemoryPtr) -> Self {
+  fn address(id: u16) -> u16 {
+    OAM + (id * 4)
+  }
+
+  fn pos(id: u16, mem: &mut MemoryPtr) -> (i16, i16) {
     let address = OAM + (id * 4);
-    let y = (mem.read_u8(address) as i16) - 16;
-    let x = (mem.read_u8(address + 1) as i16) - 8;
+    let y = (mem.read_u8(address) as i16);
+    let x = (mem.read_u8(address + 1) as i16);
+    (x, y)
+  }
+
+  fn visible(id: u16, mem: &mut MemoryPtr) -> bool {
+    let (x, y) = Sprite::pos(id, mem);
+    y != 0 && x != 0
+  }
+
+  fn fetch(id: u16, mem: &mut MemoryPtr) -> Self {
+    let address = Sprite::address(id);
+    let (x, y) = Sprite::pos(id, mem);
     let tile = mem.read_u8(address + 2);
     let meta = mem.read_u8(address + 3);
     Sprite {
@@ -212,24 +228,27 @@ impl GPU {
 
     if render_sprites {
       for i in 0..40 {
-        let sprite = Sprite::fetch(i, mem);
+        if Sprite::visible(i, mem) {
+          let sprite = Sprite::fetch(i, mem);
 
-        let hits_line_y =
-          sprite.y <= self.current_line as i16 && sprite.y + 8 > self.current_line as i16;
+          let hits_line_y =
+            sprite.y <= self.current_line as i16 && sprite.y + 8 > self.current_line as i16;
+          println!("Here {:?}\n", sprite);
 
-        if hits_line_y {
-          let tile_y = if sprite.yflip {
-            7 - (self.current_line - sprite.y as u8)
-          } else {
-            self.current_line - sprite.y as u8
-          };
+          if hits_line_y {
+            let tile_y = if sprite.yflip {
+              7 - (self.current_line - sprite.y as u8)
+            } else {
+              self.current_line - sprite.y as u8
+            };
 
-          for x in 0..8 {
-            let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
-            let low_x = sprite.x + x as i16;
-            if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
-              let pval = GPU::pal(color);
-              GPU::write_px(pixels, low_x as u8, self.current_line, pval);
+            for x in 0..8 {
+              let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
+              let low_x = sprite.x + x as i16;
+              if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
+                let pval = GPU::pal(color);
+                GPU::write_px(pixels, low_x as u8, self.current_line, pval);
+              }
             }
           }
         }
