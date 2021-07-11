@@ -233,7 +233,6 @@ impl GPU {
 
           let hits_line_y =
             sprite.y <= self.current_line as i16 && sprite.y + 8 > self.current_line as i16;
-          println!("Here {:?}\n", sprite);
 
           if hits_line_y {
             let tile_y = if sprite.yflip {
