@@ -3,7 +3,7 @@ use std::io;
 use std::io::prelude::*;
 use std::vec::Vec;
 
-use log::{error, trace, warn, info};
+use log::{error, info, trace, warn};
 
 const END_OF_BOOT: u16 = 0x101;
 const END_OF_FIXED_ROM: u16 = 0x4000;
@@ -126,7 +126,6 @@ pub struct GameboyState {
   /**
    * Values to track the gamepad state
    */
-
   pub a: bool,
   pub b: bool,
   pub start: bool,
@@ -159,7 +158,6 @@ impl GameboyState {
       /**
        * Gamepad default config
        */
-
       a: false,
       b: false,
       start: false,
@@ -232,11 +230,7 @@ impl GameboyState {
   fn set_rom_bank(&mut self, bank: u8) {
     info!("Set rom bank to {}", bank);
     let bank = (bank & 0x1F) as u16; // Truncate to 5 bits
-    let bank = if bank == 0 {
-      1
-    } else {
-      bank
-    };
+    let bank = if bank == 0 { 1 } else { bank };
     self.rom_bank = bank;
   }
 }

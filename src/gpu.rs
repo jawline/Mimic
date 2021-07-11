@@ -241,12 +241,7 @@ impl GPU {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
   }
 
-  pub fn step(
-    &mut self,
-    cpu: &mut CPU,
-    mem: &mut MemoryPtr,
-    draw: &mut [u8],
-  ) -> GpuStepState {
+  pub fn step(&mut self, cpu: &mut CPU, mem: &mut MemoryPtr, draw: &mut [u8]) -> GpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
     trace!(
       "GPU mode {:?} step by {} to {}",

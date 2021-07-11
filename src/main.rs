@@ -225,10 +225,12 @@ fn main() -> io::Result<()> {
   let mut redraws = 0;
 
   loop {
+    events(&mut gameboy_state.memory, &mut event_pump);
+
     let state = gameboy_state.step(&mut pixel_buffer);
+
     match state {
       GpuStepState::VBlank => {
-        events(&mut gameboy_state.memory, &mut event_pump);
         redraw(&mut canvas, &mut texture, &pixel_buffer);
         redraws += 1;
       }

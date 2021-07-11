@@ -275,7 +275,7 @@ impl CPU {
     if self.registers.ime {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
- 
+
       // If any interrupt is triggered then unhalt the processor.
       self.registers.halted = false;
 
@@ -301,7 +301,7 @@ impl CPU {
   pub fn clear_interrupt_happened(memory: &mut MemoryPtr, interrupt: u8) {
     memory.write_u8(
       INTERRUPTS_HAPPENED_ADDRESS,
-      memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) & !interrupt
+      memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) & !interrupt,
     );
   }
 
@@ -315,7 +315,6 @@ impl CPU {
 
   /// Step the emulator by a single instruction
   pub fn step(&mut self, memory: &mut MemoryPtr) {
-
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
       trace!(
