@@ -616,11 +616,20 @@ fn cp_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 /// or memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
 fn or_r8_mem_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+
+
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let address = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(address);
+
+  let result = origin | add_v;
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.set_flags(result == 0, false, false, false);
 }
 
 /// XOR memory at wide_register_one in memory to small_reg_dst
@@ -3186,8 +3195,12 @@ fn ext_swap_indirect_r16(
 }
 
 /// SRL in the extended set
-fn ext_srl_r8(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  unimplemented!();
+fn ext_srl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+  let r1 = registers.read_r8(additional.small_reg_dst);
+
+  registers.write_r8(additional.small_reg_dst, r1 >> 1);
+  registers.set_flags(r1 >> 1 == 0, false, false, r1 & 0x1 == 0x1);
+  registers.inc_pc(1);
 }
 
 fn ext_srl_indirect_r16(
