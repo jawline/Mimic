@@ -626,11 +626,19 @@ fn or_r8_mem_r16(
 /// XOR memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
 fn xor_r8_mem_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
+
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let address = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(address);
+
+  let result = xor_core(origin, add_v, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// Add value add wide_register_one in memory to small_reg_dst
