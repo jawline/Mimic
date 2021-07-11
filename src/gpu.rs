@@ -17,6 +17,7 @@ const MAP: u16 = 0x9800;
 const BGMAP: u16 = 0x9C00;
 const OAM: u16 = 0xFE00;
 const CURRENT_SCANLINE: u16 = 0xFF44;
+const PAL_REG: u16 = 0xFF47;
 
 #[derive(Debug, Copy, Clone)]
 enum Mode {
@@ -166,13 +167,22 @@ impl GPU {
     mem.read_u8(SCY)
   }
 
-  fn pal(v: u8) -> u8 {
-    match v {
-      0 => 255,
-      1 => 160,
-      2 => 80,
-      _ => 0,
+  fn pal(v: u8, mem: &mut MemoryPtr) -> u8 {
+    let mut palette = [255, 160, 96, 0];
+    // TODO: This is a horrible way, these could all be cached
+    let palette_register = mem.read_u8(PAL_REG);
+    
+    for i in 0..4 {
+      match palette_register >> (i * 2) & 0x3 {
+        0 => palette[i] = 255,
+        1 => palette[i] = 192,
+        2 => palette[i] = 96,
+        3 => palette[i] = 0,
+        _ => panic!("impossible condition")
+      }
     }
+
+    palette[v as usize]
   }
 
   fn render_line(&mut self, mem: &mut MemoryPtr, pixels: &mut [u8]) {
@@ -216,7 +226,7 @@ impl GPU {
         if val != 0 {
           hit[i as usize] = true;
         }
-        GPU::write_px(pixels, i as u8, self.current_line, GPU::pal(val));
+        GPU::write_px(pixels, i as u8, self.current_line, GPU::pal(val, mem));
         x += 1;
         if x == 8 {
           x = 0;
@@ -245,7 +255,7 @@ impl GPU {
               let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
               let low_x = sprite.x + x as i16;
               if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
-                let pval = GPU::pal(color);
+                let pval = GPU::pal(color, mem);
                 GPU::write_px(pixels, low_x as u8, self.current_line, pval);
               }
             }
