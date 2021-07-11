@@ -169,20 +169,21 @@ impl GPU {
 
   fn pal(v: u8, mem: &mut MemoryPtr) -> u8 {
     let mut palette = [255, 160, 96, 0];
+
     // TODO: This is a horrible way, these could all be cached
     let palette_register = mem.read_u8(PAL_REG);
-    
+
     for i in 0..4 {
       match palette_register >> (i * 2) & 0x3 {
         0 => palette[i] = 255,
         1 => palette[i] = 192,
         2 => palette[i] = 96,
         3 => palette[i] = 0,
-        _ => panic!("impossible condition")
+        _ => panic!("impossible condition"),
       }
     }
 
-    palette[v as usize]
+    palette[(v & 0x3) as usize]
   }
 
   fn render_line(&mut self, mem: &mut MemoryPtr, pixels: &mut [u8]) {
