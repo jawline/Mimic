@@ -3249,8 +3249,11 @@ fn ext_res_indirect_r16(
 }
 
 /// SET in the extended set
-fn ext_set_r8(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  unimplemented!();
+fn ext_set_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+  registers.inc_pc(1);
+  let selected_bit = 1 << additional.bit;
+  let target = registers.read_r8(additional.small_reg_dst);
+  registers.write_r8(additional.small_reg_dst, target | selected_bit);
 }
 
 fn ext_set_indirect_r16(
