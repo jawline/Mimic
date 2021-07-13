@@ -1,6 +1,6 @@
-use crate::cpu::{CPU, VBLANK};
+use crate::cpu::{CPU, STAT, VBLANK};
 use crate::memory::MemoryPtr;
-
+use crate::util;
 use log::{info, trace};
 
 pub const GB_SCREEN_WIDTH: u32 = 160;
@@ -17,7 +17,23 @@ const MAP: u16 = 0x9800;
 const BGMAP: u16 = 0x9C00;
 const OAM: u16 = 0xFE00;
 const CURRENT_SCANLINE: u16 = 0xFF44;
-const PAL_REG: u16 = 0xFF47;
+
+const PAL_BG_REG: u16 = 0xFF47;
+const PAL_OBJ0_REG: u16 = 0xFF48;
+const PAL_OBJ1_REG: u16 = 0xFF49;
+
+/// If these are set then the CPU should interrupt when the GPU does a state transition
+const STAT_INTERRUPT_LCY_EQUALS_LC: u8 = 0x1 << 6;
+const STAT_INTERRUPT_DURING_OAM: u8 = 0x1 << 5;
+const STAT_INTERRUPT_DURING_V_BLANK: u8 = 0x1 << 4;
+const STAT_INTERRUPT_DURING_H_BLANK: u8 = 0x1 << 3;
+
+/// Set when LYC=LCDC LY
+const STAT_COINCIDENCE_FLAG: u8 = 0x4;
+const STAT_H_BLANK: u8 = 0x0;
+const STAT_V_BLANK: u8 = 0x1;
+const STAT_OAM: u8 = 0x2;
+const STAT_TRANSFERRING_TO_LCD: u8 = 0x3;
 
 #[derive(Debug, Copy, Clone)]
 enum Mode {
@@ -136,9 +152,47 @@ impl GPU {
     lcd & (1 << 4) != 0
   }
 
-  fn enter_mode(&mut self, mode: Mode) {
+  fn try_fire_stat_interrupt(&mut self, mode: Mode, mem: &mut MemoryPtr) {
+    let stat = util::stat(mem);
+
+    fn try_fire(stat: u8, interrupt: u8, mem: &mut MemoryPtr) {
+      if stat & interrupt != 0 {
+        CPU::set_interrupt_happened(mem, STAT);
+      }
+    }
+
+    match mode {
+      Mode::OAM => {
+        try_fire(stat, STAT_INTERRUPT_DURING_OAM, mem);
+      }
+      Mode::VRAM => {}
+      Mode::HBLANK => {
+        try_fire(stat, STAT_INTERRUPT_DURING_H_BLANK, mem);
+      }
+      Mode::VBLANK => {
+        try_fire(stat, STAT_INTERRUPT_DURING_V_BLANK, mem);
+      }
+    }
+  }
+
+  fn update_stat_register(&mut self, mode: Mode, mem: &mut MemoryPtr) {
+    // TODO: Coincidence registers
+
+    let mode = match mode {
+      Mode::OAM => STAT_OAM,
+      Mode::VRAM => STAT_TRANSFERRING_TO_LCD,
+      Mode::HBLANK => STAT_H_BLANK,
+      Mode::VBLANK => STAT_V_BLANK,
+    };
+
+    util::update_stat_flags(mode, mem);
+  }
+
+  fn enter_mode(&mut self, mode: Mode, mem: &mut MemoryPtr) {
     self.cycles_in_mode = 0;
     self.mode = mode;
+    self.update_stat_register(mode, mem);
+    self.try_fire_stat_interrupt(mode, mem);
   }
 
   fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
@@ -167,11 +221,11 @@ impl GPU {
     mem.read_u8(SCY)
   }
 
-  fn pal(v: u8, mem: &mut MemoryPtr) -> u8 {
+  fn pal(v: u8, control_reg: u16, mem: &mut MemoryPtr) -> u8 {
     let mut palette = [255, 160, 96, 0];
 
     // TODO: This is a horrible way, these could all be cached
-    let palette_register = mem.read_u8(PAL_REG);
+    let palette_register = mem.read_u8(control_reg);
 
     for i in 0..4 {
       match palette_register >> (i * 2) & 0x3 {
@@ -227,7 +281,12 @@ impl GPU {
         if val != 0 {
           hit[i as usize] = true;
         }
-        GPU::write_px(pixels, i as u8, self.current_line, GPU::pal(val, mem));
+        GPU::write_px(
+          pixels,
+          i as u8,
+          self.current_line,
+          GPU::pal(val, PAL_BG_REG, mem),
+        );
         x += 1;
         if x == 8 {
           x = 0;
@@ -235,6 +294,8 @@ impl GPU {
           tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
         }
       }
+    } else {
+      trace!("BG disabled on line: {}", self.current_line);
     }
 
     if render_sprites {
@@ -256,7 +317,15 @@ impl GPU {
               let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
               let low_x = sprite.x + x as i16;
               if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
-                let pval = GPU::pal(color, mem);
+                let pval = GPU::pal(
+                  color,
+                  if sprite.palette {
+                    PAL_OBJ1_REG
+                  } else {
+                    PAL_OBJ0_REG
+                  },
+                  mem,
+                );
                 GPU::write_px(pixels, low_x as u8, self.current_line, pval);
               }
             }
@@ -282,14 +351,14 @@ impl GPU {
     match current_mode {
       Mode::OAM => {
         if self.cycles_in_mode >= 80 {
-          self.enter_mode(Mode::VRAM);
+          self.enter_mode(Mode::VRAM, mem);
         }
         GpuStepState::None
       }
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
           self.render_line(mem, draw);
-          self.enter_mode(Mode::HBLANK);
+          self.enter_mode(Mode::HBLANK, mem);
         }
         GpuStepState::None
       }
@@ -298,9 +367,9 @@ impl GPU {
           self.current_line += 1;
           self.update_scanline(mem);
           if self.current_line == 144 {
-            self.enter_mode(Mode::VBLANK);
+            self.enter_mode(Mode::VBLANK, mem);
           } else {
-            self.enter_mode(Mode::OAM);
+            self.enter_mode(Mode::OAM, mem);
           }
         }
         GpuStepState::HBlank
@@ -314,7 +383,7 @@ impl GPU {
         if self.cycles_in_mode > 4560 {
           self.current_line = 0;
           CPU::set_interrupt_happened(mem, VBLANK);
-          self.enter_mode(Mode::OAM);
+          self.enter_mode(Mode::OAM, mem);
           GpuStepState::VBlank
         } else {
           GpuStepState::None

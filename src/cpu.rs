@@ -8,8 +8,14 @@ pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
 /// The bit set if the VBLANK interrupt has fired
 pub const VBLANK: u8 = 0x1;
 
+/// The bit is set of the STAT interrupt has fired
+pub const STAT: u8 = 0x1 << 1;
+
 /// The location to jump to for a VBLANK interrupt
 pub const VBLANK_ADDRESS: u16 = 0x40;
+
+/// The location to jump to for a STAT interrupt
+pub const STAT_ADDRESS: u16 = 0x48;
 
 /// The bit set if the JOYPAD PRESSED interrupt has fired
 pub const JOYPAD: u8 = 0x1 << 4;
@@ -220,6 +226,11 @@ impl Registers {
     isset8(self.flags(), SUBTRACT_FLAG)
   }
 
+  /// Returns true if the half carry flag is set
+  pub fn half_carry(&self) -> bool {
+    isset8(self.flags(), HALF_CARRY_FLAG)
+  }
+
   /// Return true of the carry flag is set
   pub fn carry(&self) -> bool {
     isset8(self.flags(), CARRY_FLAG)
@@ -293,9 +304,15 @@ impl CPU {
         return;
       }
 
+      if isset8(interrupted, STAT) {
+        println!("STAT INTERRUPT");
+        CPU::clear_interrupt_happened(memory, STAT);
+        self.fire_interrupt(STAT_ADDRESS, memory);
+      }
+
       if isset8(interrupted, JOYPAD) {
         // JOYPAD
-        println!("JOYPAD PRESSED");
+        trace!("JOYPAD PRESSED");
         CPU::clear_interrupt_happened(memory, JOYPAD);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
       }
@@ -323,7 +340,7 @@ impl CPU {
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
       trace!(
-        "pre\nPC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x}",
+        "PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={}",
         self.registers.pc(),
         self.registers.sp(),
         self.registers.read_r16(WideRegister::BC),
@@ -334,6 +351,7 @@ impl CPU {
         self.registers.af.l, self.registers.af.r,
         self.registers.de.l, self.registers.de.r,
         self.registers.hl.l, self.registers.hl.r,
+        self.registers.zero(), self.registers.subtract(), self.registers.half_carry(), self.registers.carry()
       );
 
       let inst;

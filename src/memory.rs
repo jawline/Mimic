@@ -1,9 +1,9 @@
+use crate::util::STAT;
+use log::{error, info, trace, warn};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::vec::Vec;
-
-use log::{error, info, trace, warn};
 
 const END_OF_BOOT: u16 = 0x101;
 const END_OF_FIXED_ROM: u16 = 0x4000;
@@ -261,13 +261,18 @@ impl MemoryChunk for GameboyState {
         .write_u8(address - END_OF_WORK_RAM_ONE, val)
     } else if address < END_OF_ECHO_RAM {
       // TODO: mirror ram, do I need?
+      error!("illegal write to {:x}", address);
       unimplemented!();
     } else {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_write(val);
+      } else if address == 0xFF01 && val == 0x81 {
+        print!("LINE OUT: {}", self.read_u8(0xFF01));
       } else if address == BOOT_ROM_ADDRESS {
         // Writing a 1 to this register disables the boot rom
         self.boot_enabled = false;
+      } else if address == STAT && val > 0x4 {
+        println!("WRITE TO STAT {:x}", val);
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }

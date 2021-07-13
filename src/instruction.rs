@@ -964,6 +964,7 @@ fn enable_interrupts(
   _memory: &mut MemoryPtr,
   _additional: &InstructionData,
 ) {
+  trace!("Interrupts enabled");
   registers.inc_pc(1);
   registers.ime = true;
 }
@@ -974,6 +975,7 @@ fn disable_interrupts(
   _memory: &mut MemoryPtr,
   _additional: &InstructionData,
 ) {
+  trace!("Interrupts disabled");
   registers.inc_pc(1);
   registers.ime = false;
 }
@@ -1041,6 +1043,15 @@ fn daa(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instructi
     3 => target + if registers.subtract() { 0x9A } else { 0x66 }, // -66 or + 66
     _ => panic!("impossible condition for DAA"),
   };
+
+  trace!(
+    "DAA {} {} {} {} {}",
+    result,
+    result == 0,
+    registers.subtract(),
+    false,
+    carry
+  );
 
   // https://forums.nesdev.com/viewtopic.php?t=15944
   // https://stackoverflow.com/questions/8119577/z80-daa-instruction

@@ -3,6 +3,7 @@ mod gpu;
 mod instruction;
 mod machine;
 mod memory;
+mod util;
 
 use std::env;
 use std::io;
