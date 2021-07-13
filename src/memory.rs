@@ -1,5 +1,5 @@
 use crate::util::STAT;
-use log::{error, info, trace, warn};
+use log::{error, info, trace, warn, debug};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -238,7 +238,7 @@ impl GameboyState {
 
 impl MemoryChunk for GameboyState {
   fn write_u8(&mut self, address: u16, val: u8) {
-    trace!("write {:x} to {:x}", val, address);
+    debug!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
       if address <= 0x2000 {
         // Writes to this area of ROM memory trigger a bank change
@@ -304,6 +304,10 @@ impl MemoryChunk for GameboyState {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_state()
       } else {
+        if address == 0xFF04 || address == 0xFF05 || address == 0xFF06 || address == 0xFF07 {
+          //println!("CHECK TIMERS {:x} {:x}", address, self.high_ram.read_u8(address - END_OF_ECHO_RAM));
+      }
+        //debug!("{:x}", address);
         self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }
     }

@@ -1,6 +1,6 @@
 use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
 use crate::memory::{isset8, set8, unset8, MemoryPtr};
-use log::trace;
+use log::{trace, debug};
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
@@ -11,11 +11,17 @@ pub const VBLANK: u8 = 0x1;
 /// The bit is set of the STAT interrupt has fired
 pub const STAT: u8 = 0x1 << 1;
 
+/// The bit set if the TIMER interrupt has fired
+pub const TIMER: u8 = 0x1 << 2;
+
 /// The location to jump to for a VBLANK interrupt
 pub const VBLANK_ADDRESS: u16 = 0x40;
 
 /// The location to jump to for a STAT interrupt
 pub const STAT_ADDRESS: u16 = 0x48;
+
+/// The location to jump to for a TIMER interrupt
+pub const TIMER_ADDRESS: u16 = 0x50;
 
 /// The bit set if the JOYPAD PRESSED interrupt has fired
 pub const JOYPAD: u8 = 0x1 << 4;
@@ -292,6 +298,9 @@ impl CPU {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
+        trace!("ENABLED INTERRUPTS {:b}", enabled);
+        trace!("TRIGGERED INTERRUPTS {:b}", triggered);
+
       // If any interrupt is triggered then unhalt the processor.
       self.registers.halted = false;
 
@@ -305,9 +314,15 @@ impl CPU {
       }
 
       if isset8(interrupted, STAT) {
-        println!("STAT INTERRUPT");
+        trace!("STAT INTERRUPT");
         CPU::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
+      }
+
+      if isset8(interrupted, TIMER) {
+          trace!("TIMER INT");
+          CPU::clear_interrupt_happened(memory, TIMER);
+          self.fire_interrupt(TIMER_ADDRESS, memory);
       }
 
       if isset8(interrupted, JOYPAD) {
@@ -339,7 +354,7 @@ impl CPU {
   pub fn step(&mut self, memory: &mut MemoryPtr) {
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
-      trace!(
+      debug!(
         "PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={}",
         self.registers.pc(),
         self.registers.sp(),
@@ -364,7 +379,7 @@ impl CPU {
         inst = &self.instructions[opcode as usize];
       }
 
-      trace!("{} ({:x})", inst.text, opcode);
+      debug!("{} ({:x})", inst.text, opcode);
       (inst.execute)(&mut self.registers, memory, &inst.data);
       //trace!("post-step: {:?}", self.registers);
       self.registers.last_clock = inst.timings.1;

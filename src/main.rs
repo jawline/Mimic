@@ -4,6 +4,7 @@ mod instruction;
 mod machine;
 mod memory;
 mod util;
+mod clock;
 
 use std::env;
 use std::io;
@@ -19,6 +20,7 @@ use sdl2::EventPump;
 
 use cpu::{CPU, JOYPAD};
 use gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
+use clock::CLOCK;
 use log::{info, trace};
 use memory::{GameboyState, RomChunk};
 
@@ -192,6 +194,7 @@ fn main() -> io::Result<()> {
   let mut gameboy_state = machine::Machine {
     cpu: CPU::new(),
     gpu: GPU::new(),
+    clock: CLOCK::new(),
     memory: root_map,
   };
 
