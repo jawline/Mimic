@@ -317,12 +317,14 @@ impl CPU {
         trace!("STAT INTERRUPT");
         CPU::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
+        return;
       }
 
       if isset8(interrupted, TIMER) {
           trace!("TIMER INT");
           CPU::clear_interrupt_happened(memory, TIMER);
           self.fire_interrupt(TIMER_ADDRESS, memory);
+          return;
       }
 
       if isset8(interrupted, JOYPAD) {
@@ -330,6 +332,7 @@ impl CPU {
         trace!("JOYPAD PRESSED");
         CPU::clear_interrupt_happened(memory, JOYPAD);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
+        return;
       }
     }
   }
