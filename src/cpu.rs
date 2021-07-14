@@ -317,22 +317,18 @@ impl CPU {
         trace!("VBLANK INTERRUPT");
         CPU::clear_interrupt_happened(memory, VBLANK);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
-        return;
       } else if isset8(interrupted, STAT) {
         trace!("STAT INTERRUPT");
         CPU::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
-        return;
       } else if isset8(interrupted, TIMER) {
           trace!("TIMER INT");
           CPU::clear_interrupt_happened(memory, TIMER);
           self.fire_interrupt(TIMER_ADDRESS, memory);
-          return;
       } else if isset8(interrupted, JOYPAD) {
         trace!("JOYPAD PRESSED");
         CPU::clear_interrupt_happened(memory, JOYPAD);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
-        return;
       }
     }
   }
