@@ -1,5 +1,5 @@
 use crate::util::STAT;
-use log::{error, info, trace, warn, debug};
+use log::{debug, error, info, trace, warn};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -271,8 +271,6 @@ impl MemoryChunk for GameboyState {
       } else if address == BOOT_ROM_ADDRESS {
         // Writing a 1 to this register disables the boot rom
         self.boot_enabled = false;
-      } else if address == STAT && val > 0x4 {
-        println!("WRITE TO STAT {:x}", val);
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
@@ -306,7 +304,7 @@ impl MemoryChunk for GameboyState {
       } else {
         if address == 0xFF04 || address == 0xFF05 || address == 0xFF06 || address == 0xFF07 {
           //println!("CHECK TIMERS {:x} {:x}", address, self.high_ram.read_u8(address - END_OF_ECHO_RAM));
-      }
+        }
         //debug!("{:x}", address);
         self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }

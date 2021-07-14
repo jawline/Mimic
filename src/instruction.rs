@@ -1,5 +1,5 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
-use crate::memory::MemoryPtr;
+use crate::memory::{MemoryPtr, isset8};
 
 use log::{error, info, trace};
 
@@ -2523,7 +2523,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     execute: add_r8_n,
     timings: (2, 8),
     text: format!("add A, n"),
-    data: InstructionData::wide_dst(WideRegister::BC),
+    data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_0 = Instruction {
@@ -3197,8 +3197,12 @@ fn ext_sla_indirect_r16(
 }
 
 /// SRA in the extended set
-fn ext_sra_r8(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  unimplemented!();
+fn ext_sra_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+  registers.inc_pc(1);
+  let reg = registers.read_r8(additional.small_reg_dst);
+  let new_reg = reg >> 1;
+  registers.write_r8(additional.small_reg_dst, new_reg);
+  registers.set_flags(new_reg == 0, false, false, isset8(reg, 0x1));
 }
 
 fn ext_sra_indirect_r16(

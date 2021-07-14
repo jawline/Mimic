@@ -1,5 +1,5 @@
 use crate::cpu::{CPU, STAT, VBLANK};
-use crate::memory::MemoryPtr;
+use crate::memory::{isset8, MemoryPtr};
 use crate::util;
 use log::{info, trace};
 

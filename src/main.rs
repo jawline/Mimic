@@ -1,10 +1,10 @@
+mod clock;
 mod cpu;
 mod gpu;
 mod instruction;
 mod machine;
 mod memory;
 mod util;
-mod clock;
 
 use std::env;
 use std::io;
@@ -18,9 +18,9 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::EventPump;
 
+use clock::CLOCK;
 use cpu::{CPU, JOYPAD};
 use gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
-use clock::CLOCK;
 use log::{info, trace};
 use memory::{GameboyState, RomChunk};
 
@@ -41,7 +41,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
       } => {
         fired = true;
         state.a = true;
-        info!("A");
+        trace!("A");
       }
       Event::KeyUp {
         keycode: Some(Keycode::A),
@@ -53,8 +53,8 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         keycode: Some(Keycode::B),
         ..
       } => {
+        trace!("B");
         fired = true;
-        info!("B");
         state.b = true;
       }
       Event::KeyUp {
@@ -96,7 +96,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         ..
       } => {
         fired = true;
-        info!("LEFT");
+        trace!("LEFT");
         state.left = true;
       }
       Event::KeyUp {
@@ -152,7 +152,6 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
   }
 
   if fired {
-    println!("fire of interrupt");
     CPU::set_interrupt_happened(state, JOYPAD);
   }
 }

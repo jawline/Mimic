@@ -1,6 +1,6 @@
 use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
 use crate::memory::{isset8, set8, unset8, MemoryPtr};
-use log::{trace, debug};
+use log::{debug, trace};
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
@@ -94,14 +94,17 @@ pub struct Registers {
   hl: RegisterPair,
   clock: Clock,
 
+  /// This indicates the last opcode processed was an escape opcode, triggering the extended instruction set
+  /// While this flag is true we should not process interrupts
+  /// TODO: maybe it would be better to just immediately process the follow up instruction to avoid
+  /// the step?
+  pub escaped: bool,
+
   /// Is the CPU halted
   pub halted: bool,
 
   /// Interrupts master enable flag
   pub ime: bool,
-
-  /// This indicates the last opcode processed was an escape opcode, triggering the extended instruction set
-  pub escaped: bool,
 
   /// How many cycles passed in the last CPU step
   pub last_clock: u16,
@@ -115,7 +118,8 @@ pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
 pub const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
-  /// Get the current program counter
+
+    /// Get the current program counter
   pub fn pc(&self) -> u16 {
     self.read_r16(WideRegister::PC)
   }
@@ -137,7 +141,7 @@ impl Registers {
 
   /// Add a 16-bit value to the program counter
   pub fn inc_pc(&mut self, by: u16) {
-    self.write_r16(WideRegister::PC, self.read_r16(WideRegister::PC) + by);
+    self.set_pc(self.pc() + by);
   }
 
   /// Push a 16 bit value from the stack and return it
@@ -159,7 +163,7 @@ impl Registers {
   pub fn jump_relative(&mut self, by: i8) {
     let new_location = self.pc.wrapping_add(by as u16);
     trace!("relative jump {} by {} -> {}", self.pc, by, new_location);
-    self.pc = new_location;
+    self.set_pc(new_location);
   }
 
   /// Read an 8-bit register
@@ -287,6 +291,10 @@ impl CPU {
 
   /// Trigger a specific interrupt (disable IME, push PC to stack and jump to interrupt handler)
   fn fire_interrupt(&mut self, location: u16, memory: &mut MemoryPtr) {
+
+    // If any interrupt is triggered then unhalt the processor.
+    self.registers.halted = false;
+
     self.registers.ime = false;
     self.registers.stack_push16(self.registers.pc(), memory);
     self.registers.set_pc(location);
@@ -298,11 +306,8 @@ impl CPU {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
-        trace!("ENABLED INTERRUPTS {:b}", enabled);
-        trace!("TRIGGERED INTERRUPTS {:b}", triggered);
-
-      // If any interrupt is triggered then unhalt the processor.
-      self.registers.halted = false;
+      trace!("ENABLED INTERRUPTS {:b}", enabled);
+      trace!("TRIGGERED INTERRUPTS {:b}", triggered);
 
       let interrupted = triggered & enabled;
 
@@ -310,10 +315,9 @@ impl CPU {
       // When an interrupt fired we clear its interrupt bit in the IF
       // we then disable the interrupt enable flag and push the PC to the stack
       // finally we jump to the interrupt handler.
-      // The interrupt precedence is decided by the priority which is expressed in 
+      // The interrupt precedence is decided by the priority which is expressed in
       // the order of if-else statements.
       if isset8(interrupted, VBLANK) {
-        // VBLANK
         trace!("VBLANK INTERRUPT");
         CPU::clear_interrupt_happened(memory, VBLANK);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
@@ -322,9 +326,9 @@ impl CPU {
         CPU::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
       } else if isset8(interrupted, TIMER) {
-          trace!("TIMER INT");
-          CPU::clear_interrupt_happened(memory, TIMER);
-          self.fire_interrupt(TIMER_ADDRESS, memory);
+        trace!("TIMER INT");
+        CPU::clear_interrupt_happened(memory, TIMER);
+        self.fire_interrupt(TIMER_ADDRESS, memory);
       } else if isset8(interrupted, JOYPAD) {
         trace!("JOYPAD PRESSED");
         CPU::clear_interrupt_happened(memory, JOYPAD);
@@ -354,7 +358,7 @@ impl CPU {
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
       debug!(
-        "PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={}",
+        "PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={} IME={}",
         self.registers.pc(),
         self.registers.sp(),
         self.registers.read_r16(WideRegister::BC),
@@ -365,7 +369,7 @@ impl CPU {
         self.registers.af.l, self.registers.af.r,
         self.registers.de.l, self.registers.de.r,
         self.registers.hl.l, self.registers.hl.r,
-        self.registers.zero(), self.registers.subtract(), self.registers.half_carry(), self.registers.carry()
+        self.registers.zero(), self.registers.subtract(), self.registers.half_carry(), self.registers.carry(), self.registers.ime
       );
 
       let inst;
@@ -386,7 +390,9 @@ impl CPU {
       self.registers.last_clock = 4;
     }
 
-    // if ime is flagged on and there is an interrupt waiting then trigger it
-    self.check_interrupt(memory);
+    if !self.registers.escaped {
+        // if ime is flagged on and there is an interrupt waiting then trigger it
+        self.check_interrupt(memory);
+    }
   }
 }
