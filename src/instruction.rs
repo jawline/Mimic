@@ -1,5 +1,5 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
-use crate::memory::{MemoryPtr, isset8};
+use crate::memory::{isset8, MemoryPtr};
 
 use log::{error, info, trace};
 

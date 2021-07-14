@@ -177,8 +177,8 @@ impl GameboyState {
     const SELECT: u8 = 1 << 2;
     const START: u8 = 1 << 3;
 
-    const LEFT: u8 = 1;
-    const RIGHT: u8 = 1 << 1;
+    const RIGHT: u8 = 1;
+    const LEFT: u8 = 1 << 1;
     const UP: u8 = 1 << 2;
     const DOWN: u8 = 1 << 3;
 
@@ -268,9 +268,17 @@ impl MemoryChunk for GameboyState {
         self.gamepad_write(val);
       } else if address == 0xFF01 && val == 0x81 {
         print!("LINE OUT: {}", self.read_u8(0xFF01));
+      } else if address == 0xFF46 {
+        // OAM DMA Mode. TODO: Read up on this and do it better
+        for i in 0..160 {
+          let v = self.read_u8(((val as u16) << 8) + i);
+          self.high_ram.write_u8(i as u16, v);
+        }
       } else if address == BOOT_ROM_ADDRESS {
         // Writing a 1 to this register disables the boot rom
         self.boot_enabled = false;
+      } else if address >= 0xFE00 && address <= 0xFA00 {
+        error!("I CARE {} {}\n", address, val);
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
@@ -302,10 +310,6 @@ impl MemoryChunk for GameboyState {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_state()
       } else {
-        if address == 0xFF04 || address == 0xFF05 || address == 0xFF06 || address == 0xFF07 {
-          //println!("CHECK TIMERS {:x} {:x}", address, self.high_ram.read_u8(address - END_OF_ECHO_RAM));
-        }
-        //debug!("{:x}", address);
         self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }
     }

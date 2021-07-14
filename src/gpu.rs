@@ -75,7 +75,7 @@ impl Sprite {
     let address = OAM + (id * 4);
     let y = (mem.read_u8(address) as i16);
     let x = (mem.read_u8(address + 1) as i16);
-    (x, y)
+    (x - 8, y - 16)
   }
 
   fn visible(id: u16, mem: &mut MemoryPtr) -> bool {
@@ -305,7 +305,6 @@ impl GPU {
 
           let hits_line_y =
             sprite.y <= self.current_line as i16 && sprite.y + 8 > self.current_line as i16;
-
           if hits_line_y {
             let tile_y = if sprite.yflip {
               7 - (self.current_line - sprite.y as u8)

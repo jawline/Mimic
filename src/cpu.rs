@@ -118,8 +118,7 @@ pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
 pub const CARRY_FLAG: u8 = 0x1;
 
 impl Registers {
-
-    /// Get the current program counter
+  /// Get the current program counter
   pub fn pc(&self) -> u16 {
     self.read_r16(WideRegister::PC)
   }
@@ -291,7 +290,6 @@ impl CPU {
 
   /// Trigger a specific interrupt (disable IME, push PC to stack and jump to interrupt handler)
   fn fire_interrupt(&mut self, location: u16, memory: &mut MemoryPtr) {
-
     // If any interrupt is triggered then unhalt the processor.
     self.registers.halted = false;
 
@@ -391,8 +389,8 @@ impl CPU {
     }
 
     if !self.registers.escaped {
-        // if ime is flagged on and there is an interrupt waiting then trigger it
-        self.check_interrupt(memory);
+      // if ime is flagged on and there is an interrupt waiting then trigger it
+      self.check_interrupt(memory);
     }
   }
 }
