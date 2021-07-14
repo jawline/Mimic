@@ -1,4 +1,4 @@
-use crate::memory::MemoryPtr;
+use crate::memory::{MemoryPtr, isset8};
 use crate::cpu::{CPU, TIMER};
 
 const DIV_REGISTER: u16 = 0xFF04;
@@ -35,7 +35,7 @@ impl CLOCK {
 
         let tac = mem.read_u8(TAC_REGISTER);
 
-        if tac & 0x4 != 0 {
+        if isset8(tac, 0x4) {
             let threshold = match tac & 0x3 {
                 0 => 64, // TODO: Work out exactly how these intervals all conncet. Cloned from Imran Nazar http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-Timers
                 1 => 1,
