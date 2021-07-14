@@ -51,7 +51,6 @@ impl CLOCK {
 
                 // Overflow, fire the TIMER interrupt
                 if new_tima < tima {
-                    println!("TIMA overflow");
                     mem.write_u8(TIMA_REGISTER, mem.read_u8(MOD_REGISTER));
                     CPU::set_interrupt_happened(mem, TIMER);
                 } else {
