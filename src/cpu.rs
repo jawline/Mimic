@@ -305,30 +305,30 @@ impl CPU {
       self.registers.halted = false;
 
       let interrupted = triggered & enabled;
+
+      // We can only execute one interrupt at a time.
+      // When an interrupt fired we clear its interrupt bit in the IF
+      // we then disable the interrupt enable flag and push the PC to the stack
+      // finally we jump to the interrupt handler.
+      // The interrupt precedence is decided by the priority which is expressed in 
+      // the order of if-else statements.
       if isset8(interrupted, VBLANK) {
         // VBLANK
         trace!("VBLANK INTERRUPT");
         CPU::clear_interrupt_happened(memory, VBLANK);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
         return;
-      }
-
-      if isset8(interrupted, STAT) {
+      } else if isset8(interrupted, STAT) {
         trace!("STAT INTERRUPT");
         CPU::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
         return;
-      }
-
-      if isset8(interrupted, TIMER) {
+      } else if isset8(interrupted, TIMER) {
           trace!("TIMER INT");
           CPU::clear_interrupt_happened(memory, TIMER);
           self.fire_interrupt(TIMER_ADDRESS, memory);
           return;
-      }
-
-      if isset8(interrupted, JOYPAD) {
-        // JOYPAD
+      } else if isset8(interrupted, JOYPAD) {
         trace!("JOYPAD PRESSED");
         CPU::clear_interrupt_happened(memory, JOYPAD);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
