@@ -156,7 +156,7 @@ impl GPU {
     let stat = util::stat(mem);
 
     fn try_fire(stat: u8, interrupt: u8, mem: &mut MemoryPtr) {
-      if stat & interrupt != 0 {
+      if isset8(stat, interrupt) {
         CPU::set_interrupt_happened(mem, STAT);
       }
     }
