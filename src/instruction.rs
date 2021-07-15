@@ -311,7 +311,7 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   registers.write_r8(additional.small_reg_dst, result);
 }
 
-fn sub_core(origin : u8, sub_v : u8, registers : &mut Registers) -> u8 {
+fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
   let result = origin - sub_v;
 
   let half_carry = (origin & 0xF0) < (sub_v & 0xF0);
@@ -328,7 +328,7 @@ fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
   let origin = registers.read_r8(additional.small_reg_dst);
   let sub_v = registers.read_r8(additional.small_reg_one);
-  
+
   let result = sub_core(origin, sub_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
@@ -438,7 +438,6 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// The core logic for subtraction of 8-bit values through a carry
 fn sbc_core(v1: u8, mut v2: u8, registers: &mut Registers) -> u8 {
-
   if registers.carry() {
     v2 += 1;
   }
