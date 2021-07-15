@@ -3233,11 +3233,9 @@ fn ext_srl_indirect_r16(
   unimplemented!();
 }
 
-/// BIT in the extended set
-fn ext_bit_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  registers.inc_pc(1);
-  let selected_bit = 1 << additional.bit;
-  let target_register = registers.read_r8(additional.small_reg_dst);
+fn bit_core(current : u8, bit : u8, registers : &mut Registers) {
+  let selected_bit = 1 << bit;
+  let target_register = current;
   registers.set_flags(
     selected_bit & target_register == 0,
     false,
@@ -3246,44 +3244,73 @@ fn ext_bit_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
   );
 }
 
+/// BIT in the extended set
+fn ext_bit_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+  registers.inc_pc(1);
+  let current = registers.read_r8(additional.small_reg_dst);
+  bit_core(current, additional.bit, registers);
+}
+
 fn ext_bit_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  bit_core(current, additional.bit, registers);
+}
+
+fn res_core(current : u8, bit : u8, _registers : &mut Registers) -> u8 {
+  let selected_bit = 1 << bit;
+  current & (!selected_bit)
 }
 
 /// RES in the extended set
 fn ext_res_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
-  let selected_bit = 1 << additional.bit;
   let target = registers.read_r8(additional.small_reg_dst);
-  registers.write_r8(additional.small_reg_dst, target & !selected_bit);
+  let result = res_core(target, additional.bit, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 fn ext_res_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = res_core(current, additional.bit, registers);
+  memory.write_u8(address, result);
+}
+
+fn set_core(current : u8, bit : u8, _registers: &mut Registers) -> u8 {
+  let selected_bit = 1 << bit;
+  selected_bit | current
 }
 
 /// SET in the extended set
 fn ext_set_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
-  let selected_bit = 1 << additional.bit;
   let target = registers.read_r8(additional.small_reg_dst);
-  registers.write_r8(additional.small_reg_dst, target | selected_bit);
+  let result = set_core(target, additional.bit, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 }
 
 fn ext_set_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = set_core(current, additional.bit, registers);
+  memory.write_u8(address, result);
+  println!("{:?}", additional.wide_reg_dst);
 }
 
 /// Instruction list when generating a row
@@ -3311,14 +3338,15 @@ fn make_extended_row(
   let mut res = Vec::new();
   for i in 0..8 {
     if i == 6 {
-      let mut next_instr = normal_skeleton.clone();
+      let mut next_instr = indirect_skeleton.clone();
       next_instr.text = format!("{} (HL)", indirect_skeleton.text);
       next_instr.data.wide_reg_dst = WideRegister::HL;
       res.push(next_instr);
     } else {
       let mut next_instr = normal_skeleton.clone();
-      next_instr.text = format!("{} {:?}", indirect_skeleton.text, next_instr_register(i));
-      next_instr.data.small_reg_dst = next_instr_register(i);
+      let next_instr_reg = next_instr_register(i);
+      next_instr.text = format!("{} {:?}", indirect_skeleton.text, next_instr_reg);
+      next_instr.data.small_reg_dst = next_instr_reg;
       res.push(next_instr);
     }
   }
@@ -3475,6 +3503,7 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("BIT "),
     data: InstructionData::default(),
   };
+
   let bits_row = make_bit_set(bit_r8_skeleton, bit_indirect_skeleton);
 
   // RES
@@ -3505,6 +3534,7 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("SET "),
     data: InstructionData::default(),
   };
+
   let set_row = make_bit_set(set_r8_skeleton, set_indirect_skeleton);
 
   rlc_row
