@@ -611,10 +611,9 @@ fn or_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
+  let result = core_or_values(origin, add_v, registers);
 
-  let result = origin | add_v;
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, false, false);
 }
 
 /// XOR memory at wide_register_one in memory to small_reg_dst
@@ -641,13 +640,8 @@ fn adc_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
-  let result = origin + add_v + if registers.carry() { 1 } else { 0 };
-
-  let half_carry = (((origin & 0xF) + (add_v & 0xF)) & 0xF0) != 0;
-  let carry = origin as u16 + add_v as u16 & 0xFF00 != 0;
-
+  let result = adc_generic(origin, add_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, half_carry, carry);
 }
 
 /// Rotate 8-bit register left, placing whatever is in bit 7 in the carry bit before
