@@ -3233,7 +3233,7 @@ fn ext_srl_indirect_r16(
   unimplemented!();
 }
 
-fn bit_core(current : u8, bit : u8, registers : &mut Registers) {
+fn bit_core(current: u8, bit: u8, registers: &mut Registers) {
   let selected_bit = 1 << bit;
   let target_register = current;
   registers.set_flags(
@@ -3262,7 +3262,7 @@ fn ext_bit_indirect_r16(
   bit_core(current, additional.bit, registers);
 }
 
-fn res_core(current : u8, bit : u8, _registers : &mut Registers) -> u8 {
+fn res_core(current: u8, bit: u8, _registers: &mut Registers) -> u8 {
   let selected_bit = 1 << bit;
   current & (!selected_bit)
 }
@@ -3287,7 +3287,7 @@ fn ext_res_indirect_r16(
   memory.write_u8(address, result);
 }
 
-fn set_core(current : u8, bit : u8, _registers: &mut Registers) -> u8 {
+fn set_core(current: u8, bit: u8, _registers: &mut Registers) -> u8 {
   let selected_bit = 1 << bit;
   selected_bit | current
 }

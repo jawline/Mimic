@@ -282,7 +282,7 @@ impl CPU {
     let instructions = instruction_set();
     let ext = extended_instruction_set();
     for i in 0..ext.len() {
-        println!("{:x} {} {:?}", i, ext[i].text, ext[i].data.small_reg_dst);
+      println!("{:x} {} {:?}", i, ext[i].text, ext[i].data.small_reg_dst);
     }
     CPU {
       registers: Registers::default(),
