@@ -73,8 +73,8 @@ impl Sprite {
 
   fn pos(id: u16, mem: &mut MemoryPtr) -> (i16, i16) {
     let address = OAM + (id * 4);
-    let y = (mem.read_u8(address) as i16);
-    let x = (mem.read_u8(address + 1) as i16);
+    let y = mem.read_u8(address) as i16;
+    let x = mem.read_u8(address + 1) as i16;
     (x - 8, y - 16)
   }
 

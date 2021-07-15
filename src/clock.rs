@@ -23,11 +23,11 @@ impl CLOCK {
 
   pub fn step(&mut self, instruction_time: u8, mem: &mut MemoryPtr) {
     self.sub += instruction_time;
-    if (self.sub > 4) {
+    if self.sub > 4 {
       self.main += 1;
       self.sub -= 4;
       self.div += 1;
-      if (self.div == 16) {
+      if self.div == 16 {
         mem.write_u8(DIV_REGISTER, mem.read_u8(DIV_REGISTER) + 1);
       }
     }

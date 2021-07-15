@@ -1,7 +1,7 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset8, MemoryPtr};
 
-use log::{error, info, trace, debug};
+use log::{error, info, trace};
 
 /// We re-use some instruction functions for multiple register implementations
 /// This struct carries data for the single-implementation for many opcode instruction methods
@@ -571,21 +571,21 @@ fn sub_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// Subtract through carry value at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn sbc_r8_mem_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
-) {
-  unimplemented!();
+fn sbc_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let address = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(address);
+
+  let result = sbc_core(origin, add_v, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
 }
 
 /// And memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn and_r8_mem_r16(
-  registers: &mut Registers,
-  memory: &mut MemoryPtr,
-  additional: &InstructionData,
-) {
+fn and_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
@@ -795,7 +795,6 @@ fn ldi_mem_r16_val_r8(
 /// Place memory pointed to by the wide register into the small dst register
 /// then increment the wide register
 fn ldi_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
 
@@ -1008,7 +1007,7 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
-fn daa(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   let target = registers.read_r8(additional.small_reg_dst);
 
   // Not entirely sure what this does but the general process seems to be
@@ -3189,7 +3188,7 @@ fn ext_sla_indirect_r16(
 }
 
 /// SRA in the extended set
-fn ext_sra_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_sra_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
   let new_reg = reg >> 1;
@@ -3277,7 +3276,7 @@ fn ext_res_indirect_r16(
 }
 
 /// SET in the extended set
-fn ext_set_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_set_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let selected_bit = 1 << additional.bit;
   let target = registers.read_r8(additional.small_reg_dst);

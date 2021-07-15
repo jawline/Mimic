@@ -1,4 +1,4 @@
-use crate::util::STAT;
+use crate::util::{stat_interrupts_with_masked_flags, STAT};
 use log::{debug, error, info, trace, warn};
 use std::fs::File;
 use std::io;
@@ -279,6 +279,9 @@ impl MemoryChunk for GameboyState {
         self.boot_enabled = false;
       } else if address >= 0xFE00 && address <= 0xFA00 {
         error!("I CARE {} {}\n", address, val);
+      } else if address == STAT {
+        let new_stat = stat_interrupts_with_masked_flags(val, self);
+        self.high_ram.write_u8(address - END_OF_ECHO_RAM, new_stat);
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
