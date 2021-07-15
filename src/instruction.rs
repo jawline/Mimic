@@ -276,7 +276,7 @@ pub fn dec_mem_r16(
 }
 
 /// Add two 8-bit values and set flags
-fn add_8_bit_values(l: u8, r: u8, registers: &mut Registers) -> u8 {
+fn add_core(l: u8, r: u8, registers: &mut Registers) -> u8 {
   let half_carry = (((l & 0xF) + (r & 0xF)) & 0xF0) != 0;
   let carry = l as u16 + l as u16 & 0xFF00 != 0;
   let result = l + r;
@@ -294,7 +294,7 @@ fn add_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
   let origin = registers.read_r8(additional.small_reg_dst);
 
   // We calculate the registers here since its shared with other adds
-  let result = add_8_bit_values(origin, add_v, registers);
+  let result = add_core(origin, add_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -307,7 +307,7 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   let add_v = registers.read_r8(additional.small_reg_one);
 
   // We calculate the registers here since its shared with immediates
-  let result = add_8_bit_values(origin, add_v, registers);
+  let result = add_core(origin, add_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -546,7 +546,7 @@ fn add_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
 
-  let result = add_8_bit_values(origin, add_v, registers);
+  let result = add_core(origin, add_v, registers);
 
   registers.write_r8(additional.small_reg_dst, result);
 }
