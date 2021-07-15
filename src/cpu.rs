@@ -382,6 +382,7 @@ impl CPU {
 
       debug!("{} ({:x})", inst.text, opcode);
       (inst.execute)(&mut self.registers, memory, &inst.data);
+      debug!("Executed {}", inst.text);
       //trace!("post-step: {:?}", self.registers);
       self.registers.last_clock = inst.timings.1;
     } else {

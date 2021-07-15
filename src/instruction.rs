@@ -1,11 +1,11 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset8, MemoryPtr};
 
-use log::{error, info, trace};
+use log::{error, info, trace, debug};
 
 /// We re-use some instruction functions for multiple register implementations
 /// This struct carries data for the single-implementation for many opcode instruction methods
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InstructionData {
   pub code: u8,
   pub flag_mask: u8,
@@ -226,7 +226,7 @@ pub fn inc_small_register(
   registers.set_flags(
     result == 0,
     false,
-    ((l & 0xF) + 1) & (0x10) != 0,
+    ((l & 0xF) + 1) & (0xF0) != 0,
     registers.carry(),
   );
 }
@@ -247,7 +247,7 @@ pub fn inc_mem_r16(
   registers.set_flags(
     result == 0,
     false,
-    ((l & 0xF) + 1) & (0x10) != 0,
+    ((l & 0xF) + 1) & (0xF0) != 0,
     registers.carry(),
   );
 }
@@ -269,7 +269,7 @@ pub fn dec_mem_r16(
 
   registers.set_flags(
     result == 0,
-    false,
+    true,
     ((l & 0xF0) - 1) & (0x0F) != 0,
     registers.carry(),
   );
@@ -545,13 +545,10 @@ fn add_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
-  let result = origin + add_v;
 
-  let half_carry = (((origin & 0xF) + (add_v & 0xF)) & 0xF0) != 0;
-  let carry = origin as u16 + add_v as u16 & 0xFF00 != 0;
+  let result = add_8_bit_values(origin, add_v, registers);
 
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, half_carry, carry);
 }
 
 /// Subtract value add wide_register_one in memory to small_reg_dst
@@ -585,11 +582,19 @@ fn sbc_r8_mem_r16(
 /// And memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
 fn and_r8_mem_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let address = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(address);
+
+  let result = core_and_values(origin, add_v, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
 }
 
 /// Cp memory at wide_register_one in memory to small_reg_dst
@@ -790,11 +795,14 @@ fn ldi_mem_r16_val_r8(
 /// Place memory pointed to by the wide register into the small dst register
 /// then increment the wide register
 fn ldi_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  registers.inc_pc(1);
+
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
+
   registers.write_r8(additional.small_reg_dst, mem);
   registers.write_r16(additional.wide_reg_one, wide_reg + 1);
+
+  registers.inc_pc(1);
 }
 
 /// Like ldi but decrement
@@ -815,8 +823,9 @@ fn ldd_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   registers.inc_pc(1);
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
+
   registers.write_r8(additional.small_reg_dst, mem);
-  registers.write_r16(additional.wide_reg_dst, wide_reg - 1);
+  registers.write_r16(additional.wide_reg_one, wide_reg - 1);
 }
 
 /// Add a wide register to a wide register
@@ -1517,7 +1526,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   let ldd_a_hl = Instruction {
     execute: ldd_r8_mem_r16,
     timings: (1, 8),
-    text: format!("ldi A, (HL)"),
+    text: format!("ldd A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
