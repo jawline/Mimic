@@ -334,19 +334,14 @@ fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
 /// Subtract an immediate from a small dst register
 fn sub_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let add_v = memory.read_u8(registers.pc() + 1);
+  let sub_v = memory.read_u8(registers.pc() + 1);
 
   // Increment the PC by one once finished
   registers.inc_pc(2);
 
   let origin = registers.read_r8(additional.small_reg_dst);
-  let result = origin - add_v;
-
-  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
-  let carry = origin > result;
-
+  let result = sub_core(origin, sub_v);
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, half_carry, carry);
 }
 
 /// The core of an AND operation
@@ -399,27 +394,21 @@ fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instr
   registers.write_r8(additional.small_reg_dst, result);
 }
 
-fn cp_8_bit_core(origin: u8, add_v: u8, registers: &mut Registers) {
-  let half_carry = (add_v >> 4) > (origin >> 4);
-  let carry = add_v > origin;
-  registers.set_flags(origin - add_v == 0, true, half_carry, carry);
-}
-
 /// cp two small registers
 fn cp_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let origin = registers.read_r8(additional.small_reg_dst);
-  let add_v = registers.read_r8(additional.small_reg_one);
-  cp_8_bit_core(origin, add_v, registers);
+  let sub_v = registers.read_r8(additional.small_reg_one);
+  sub_core(origin, sub_v, registers);
 }
 
 /// cp small reg dst against an immediate
 fn cp_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let add_v = memory.read_u8(registers.pc() + 1);
+  let sub_v = memory.read_u8(registers.pc() + 1);
   // Increment the PC by one once finished
   registers.inc_pc(2);
   let origin = registers.read_r8(additional.small_reg_dst);
-  cp_8_bit_core(origin, add_v, registers);
+  sub_core(origin, sub_v, registers);
 }
 
 fn xor_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
