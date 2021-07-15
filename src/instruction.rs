@@ -595,11 +595,11 @@ fn and_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// Cp memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
 fn cp_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  registers.inc_pc(1);
   let target_addr = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(target_addr);
   let origin = registers.read_r8(additional.small_reg_dst);
   sub_core(origin, add_v, registers);
+  registers.inc_pc(1);
 }
 
 /// or memory at wide_register_one in memory to small_reg_dst
