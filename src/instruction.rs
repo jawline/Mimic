@@ -311,19 +311,24 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   registers.write_r8(additional.small_reg_dst, result);
 }
 
+fn sub_core(origin : u8, sub_v : u8, registers : & mut Registers) -> u8 {
+let result = origin - sub_v;
+
+  let half_carry = (origin >> 4) > (sub_v >> 4);
+  let carry = origin > sub_v;
+
+  registers.set_flags(result == 0, false, half_carry, carry);
+}
+
 /// Subtract two small registers (small_reg_one to small_reg_dst)
 fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
   let origin = registers.read_r8(additional.small_reg_dst);
-  let add_v = registers.read_r8(additional.small_reg_one);
-  let result = origin - add_v;
-
-  let half_carry = add_v >> 4 > origin >> 4;
-  let carry = add_v > origin;
-
-  registers.set_flags(result == 0, false, half_carry, carry);
+  let sub_v = registers.read_r8(additional.small_reg_one);
+  
+  let result = sub_core(origin, sub_v);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
