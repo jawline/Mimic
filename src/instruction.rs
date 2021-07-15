@@ -436,15 +436,15 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// The core logic for subtraction of 8-bit values through a carry
-fn sbc_core(mut v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+fn sbc_core(v1: u8, mut v2: u8, registers: &mut Registers) -> u8 {
   if registers.carry() {
-    v1 += 1;
+    v2 += 1;
   }
 
   let res = v1 - v2;
-  let half_carry = ((v1 & 0xF0) - (v2 & 0xF0)) & 0xF != 0;
-  let carry = v2 > v1;
-
+  let half_carry = ((v1 & 0xF0) - (v2 & 0xF0)) & 0xF == 0;
+  let carry = v1 > v2;
+ //TODO: Audit
   registers.set_flags(res == 0, true, half_carry, carry);
 
   res
