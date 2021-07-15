@@ -346,7 +346,7 @@ fn sub_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// The core of an AND operation
-fn core_and_values(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+fn and_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
   let result = v1 & v2;
   registers.set_flags(result == 0, false, true, false);
   result
@@ -357,7 +357,7 @@ fn and_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   registers.inc_pc(1);
   let r1 = registers.read_r8(additional.small_reg_dst);
   let r2 = registers.read_r8(additional.small_reg_one);
-  let result = core_and_values(r1, r2, registers);
+  let result = and_core(r1, r2, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -366,7 +366,7 @@ fn and_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
   let r2 = memory.read_u8(registers.pc() + 1);
   registers.inc_pc(2);
   let r1 = registers.read_r8(additional.small_reg_dst);
-  let result = core_and_values(r1, r2, registers);
+  let result = and_core(r1, r2, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -560,13 +560,8 @@ fn sub_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
-  let result = origin - add_v;
-
-  let half_carry = (((origin & 0xF0) - (add_v & 0xF0)) & 0xF) != 0;
-  let carry = origin > result; // TODO: Probably very wrong
-
+  let result = sub_core(origin, add_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, half_carry, carry);
 }
 
 /// Subtract through carry value at wide_register_one in memory to small_reg_dst
@@ -590,7 +585,7 @@ fn and_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
 
-  let result = core_and_values(origin, add_v, registers);
+  let result = and_core(origin, add_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
 
   // Increment the PC by one once finished
