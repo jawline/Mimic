@@ -311,13 +311,14 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   registers.write_r8(additional.small_reg_dst, result);
 }
 
-fn sub_core(origin : u8, sub_v : u8, registers : & mut Registers) -> u8 {
-let result = origin - sub_v;
+fn sub_core(origin : u8, sub_v : u8, registers : &mut Registers) -> u8 {
+  let result = origin - sub_v;
 
-  let half_carry = (origin >> 4) > (sub_v >> 4);
-  let carry = origin > sub_v;
+  let half_carry = (origin & 0xF0) < (sub_v & 0xF0);
+  let carry = origin < sub_v;
 
-  registers.set_flags(result == 0, false, half_carry, carry);
+  registers.set_flags(result == 0, true, half_carry, carry);
+  result
 }
 
 /// Subtract two small registers (small_reg_one to small_reg_dst)
@@ -328,7 +329,7 @@ fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   let origin = registers.read_r8(additional.small_reg_dst);
   let sub_v = registers.read_r8(additional.small_reg_one);
   
-  let result = sub_core(origin, sub_v);
+  let result = sub_core(origin, sub_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -340,7 +341,7 @@ fn sub_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
   registers.inc_pc(2);
 
   let origin = registers.read_r8(additional.small_reg_dst);
-  let result = sub_core(origin, sub_v);
+  let result = sub_core(origin, sub_v, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -437,17 +438,12 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// The core logic for subtraction of 8-bit values through a carry
 fn sbc_core(v1: u8, mut v2: u8, registers: &mut Registers) -> u8 {
+
   if registers.carry() {
     v2 += 1;
   }
 
-  let res = v1 - v2;
-  let half_carry = ((v1 & 0xF0) - (v2 & 0xF0)) & 0xF == 0;
-  let carry = v1 > v2;
- //TODO: Audit
-  registers.set_flags(res == 0, true, half_carry, carry);
-
-  res
+  sub_core(v1, v2, registers)
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
@@ -604,7 +600,7 @@ fn cp_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
   let target_addr = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(target_addr);
   let origin = registers.read_r8(additional.small_reg_dst);
-  cp_8_bit_core(origin, add_v, registers);
+  sub_core(origin, add_v, registers);
 }
 
 /// or memory at wide_register_one in memory to small_reg_dst
