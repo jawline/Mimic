@@ -57,8 +57,8 @@ pub struct GPU {
 
 #[derive(Debug)]
 struct Sprite {
-  pub x: i16,
-  pub y: i16,
+  pub x: u8,
+  pub y: u8,
   pub tile: u8,
   pub palette: bool,
   pub xflip: bool,
@@ -71,10 +71,10 @@ impl Sprite {
     OAM + (id * 4)
   }
 
-  fn pos(id: u16, mem: &mut MemoryPtr) -> (i16, i16) {
+  fn pos(id: u16, mem: &mut MemoryPtr) -> (u8, u8) {
     let address = OAM + (id * 4);
-    let y = mem.read_u8(address) as i16;
-    let x = mem.read_u8(address + 1) as i16;
+    let y = mem.read_u8(address);
+    let x = mem.read_u8(address + 1);
     (x - 8, y - 16)
   }
 
@@ -288,6 +288,7 @@ impl GPU {
           GPU::pal(val, PAL_BG_REG, mem),
         );
         x += 1;
+
         if x == 8 {
           x = 0;
           line_offset = (line_offset + 1) & 31;
@@ -303,8 +304,7 @@ impl GPU {
         if Sprite::visible(i, mem) {
           let sprite = Sprite::fetch(i, mem);
 
-          let hits_line_y =
-            sprite.y <= self.current_line as i16 && sprite.y + 8 > self.current_line as i16;
+          let hits_line_y = sprite.y <= self.current_line && sprite.y + 8 > self.current_line;
           if hits_line_y {
             let tile_y = if sprite.yflip {
               7 - (self.current_line - sprite.y as u8)
@@ -312,9 +312,11 @@ impl GPU {
               self.current_line - sprite.y as u8
             };
 
-            for x in 0..8 {
-              let color = self.tile_value(sprite.tile as u16, x, tile_y as u16, mem);
-              let low_x = sprite.x + x as i16;
+            for x in 0..8u8 {
+              let tile_x: u8 = if sprite.xflip { 7 - x } else { x };
+
+              let color = self.tile_value(sprite.tile as u16, tile_x as u16, tile_y as u16, mem);
+              let low_x = sprite.x + x;
               if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
                 let pval = GPU::pal(
                   color,

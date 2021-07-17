@@ -455,8 +455,13 @@ fn sbc_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 }
 
 /// Subtract immediate through carry
-fn sbc_r8_n(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  unimplemented!();
+fn sbc_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+  let origin = registers.read_r8(additional.small_reg_dst);
+  let sub_v = memory.read_u8(registers.pc() + 1);
+  let result = sbc_core(origin, sub_v, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+
+  registers.inc_pc(2);
 }
 
 /// Load small reg to 0xFF00 + n
@@ -3148,38 +3153,56 @@ fn ext_rl_indirect_r16(
   unimplemented!();
 }
 
+fn core_rr(reg: u8, registers: &mut Registers) -> u8 {
+  let new_reg = (reg >> 1) | if registers.carry() { 1 << 7 } else { 0 };
+  registers.set_flags(new_reg == 0, false, false, reg & 1 != 0);
+  new_reg
+}
+
 /// RR in the extended set
 fn ext_rr_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
-  let new_reg = (reg >> 1) | if registers.carry() { 1 << 7 } else { 0 };
+  let new_reg = core_rr(reg, registers);
   registers.write_r8(additional.small_reg_dst, new_reg);
-  registers.set_flags(new_reg == 0, false, false, reg & 1 != 0);
 }
 
 fn ext_rr_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = core_rr(current, registers);
+  memory.write_u8(address, result);
+}
+
+fn core_sla(reg: u8, registers: &mut Registers) -> u8 {
+  let new_reg = reg << 1;
+  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
+  new_reg
 }
 
 /// SLA in the extended set
 fn ext_sla_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
-  let new_reg = reg << 1;
+  let new_reg = core_sla(reg, registers);
   registers.write_r8(additional.small_reg_dst, new_reg);
-  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
 
 fn ext_sla_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = core_sla(current, registers);
+  memory.write_u8(address, result);
 }
 
 /// SRA in the extended set
@@ -3310,7 +3333,6 @@ fn ext_set_indirect_r16(
   let current = memory.read_u8(address);
   let result = set_core(current, additional.bit, registers);
   memory.write_u8(address, result);
-  println!("{:?}", additional.wide_reg_dst);
 }
 
 /// Instruction list when generating a row
