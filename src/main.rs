@@ -160,7 +160,7 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
   trace!("Redrawing screen");
 
   let screen_dims = Rect::new(0, 0, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
-  let out_dims = Rect::new(0, 0, GB_SCREEN_WIDTH * 4, GB_SCREEN_HEIGHT * 4);
+  let out_dims = Rect::new(0, 0, GB_SCREEN_WIDTH * 8, GB_SCREEN_HEIGHT * 8);
 
   // Now render the texture to the canvas
   texture
@@ -207,7 +207,7 @@ fn main() -> io::Result<()> {
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
   let window = video_subsystem
-    .window("rustGameboy", GB_SCREEN_WIDTH * 4, GB_SCREEN_HEIGHT * 4)
+    .window("rustGameboy", GB_SCREEN_WIDTH * 8, GB_SCREEN_HEIGHT * 8)
     .position_centered()
     .build()
     .unwrap();

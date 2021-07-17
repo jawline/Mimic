@@ -1,6 +1,6 @@
 use crate::cpu::{CPU, STAT, VBLANK};
 use crate::memory::{isset8, MemoryPtr};
-use crate::util;
+use crate::util::{self, stat};
 use log::{info, trace};
 
 pub const GB_SCREEN_WIDTH: u32 = 160;
@@ -34,6 +34,7 @@ const STAT_H_BLANK: u8 = 0x0;
 const STAT_V_BLANK: u8 = 0x1;
 const STAT_OAM: u8 = 0x2;
 const STAT_TRANSFERRING_TO_LCD: u8 = 0x3;
+const STAT_LCY_EQUALS_LCDC: u8 = 0x4;
 
 #[derive(Debug, Copy, Clone)]
 enum Mode {
@@ -152,25 +153,25 @@ impl GPU {
     lcd & (1 << 4) != 0
   }
 
+  fn try_fire(stat: u8, interrupt: u8, mem: &mut MemoryPtr) {
+    if isset8(stat, interrupt) {
+      CPU::set_interrupt_happened(mem, STAT);
+    }
+  }
+
   fn try_fire_stat_interrupt(&mut self, mode: Mode, mem: &mut MemoryPtr) {
     let stat = util::stat(mem);
 
-    fn try_fire(stat: u8, interrupt: u8, mem: &mut MemoryPtr) {
-      if isset8(stat, interrupt) {
-        CPU::set_interrupt_happened(mem, STAT);
-      }
-    }
-
     match mode {
       Mode::OAM => {
-        try_fire(stat, STAT_INTERRUPT_DURING_OAM, mem);
+        Self::try_fire(stat, STAT_INTERRUPT_DURING_OAM, mem);
       }
       Mode::VRAM => {}
       Mode::HBLANK => {
-        try_fire(stat, STAT_INTERRUPT_DURING_H_BLANK, mem);
+        Self::try_fire(stat, STAT_INTERRUPT_DURING_H_BLANK, mem);
       }
       Mode::VBLANK => {
-        try_fire(stat, STAT_INTERRUPT_DURING_V_BLANK, mem);
+        Self::try_fire(stat, STAT_INTERRUPT_DURING_V_BLANK, mem);
       }
     }
   }
@@ -185,7 +186,21 @@ impl GPU {
       Mode::VBLANK => STAT_V_BLANK,
     };
 
+    let mode = if self.current_line == GPU::scy(mem) { mode | STAT_LCY_EQUALS_LCDC  } else { mode };
+
     util::update_stat_flags(mode, mem);
+  }
+
+  fn update_stat_lcy(&self, mem: &mut MemoryPtr) {
+    let current_stat = stat(mem);
+    let coincidence_triggered = GPU::scy(mem) == self.current_line;
+
+    if coincidence_triggered  {
+     Self::try_fire(current_stat, STAT_INTERRUPT_LCY_EQUALS_LC, mem);
+    }
+
+    let new_stat = if coincidence_triggered { current_stat | STAT_LCY_EQUALS_LCDC } else { current_stat & (!STAT_LCY_EQUALS_LCDC) };
+    util::update_stat_flags(new_stat, mem);
   }
 
   fn enter_mode(&mut self, mode: Mode, mem: &mut MemoryPtr) {
@@ -193,6 +208,7 @@ impl GPU {
     self.mode = mode;
     self.update_stat_register(mode, mem);
     self.try_fire_stat_interrupt(mode, mem);
+    self.update_stat_lcy(mem);
   }
 
   fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
@@ -255,7 +271,7 @@ impl GPU {
 
     if render_bg {
       let map_line = scy + self.current_line;
-      let map_line_offset = ((map_line as u16) >> 3) * 32;
+      let map_line_offset = ((map_line as u16) >> 3) << 5;
 
       let map_offset = if background_map_selected { BGMAP } else { MAP } + map_line_offset;
 
@@ -278,15 +294,18 @@ impl GPU {
 
       for i in 0..GB_SCREEN_WIDTH {
         let val = self.tile_value(tile, x as u16, y as u16, mem);
+
         if val != 0 {
           hit[i as usize] = true;
         }
+
         GPU::write_px(
           pixels,
           i as u8,
           self.current_line,
           GPU::pal(val, PAL_BG_REG, mem),
         );
+
         x += 1;
 
         if x == 8 {

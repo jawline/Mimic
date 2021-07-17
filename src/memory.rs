@@ -277,8 +277,6 @@ impl MemoryChunk for GameboyState {
       } else if address == BOOT_ROM_ADDRESS {
         // Writing a 1 to this register disables the boot rom
         self.boot_enabled = false;
-      } else if address >= 0xFE00 && address <= 0xFA00 {
-        error!("I CARE {} {}\n", address, val);
       } else if address == STAT {
         let new_stat = stat_interrupts_with_masked_flags(val, self);
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, new_stat);
