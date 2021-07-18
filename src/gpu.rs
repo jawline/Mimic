@@ -17,13 +17,14 @@ const MAP: u16 = 0x9800;
 const BGMAP: u16 = 0x9C00;
 const OAM: u16 = 0xFE00;
 const CURRENT_SCANLINE: u16 = 0xFF44;
+const LYC_SCANLINE: u16 = 0xFF45;
 
 const PAL_BG_REG: u16 = 0xFF47;
 const PAL_OBJ0_REG: u16 = 0xFF48;
 const PAL_OBJ1_REG: u16 = 0xFF49;
 
 /// If these are set then the CPU should interrupt when the GPU does a state transition
-const STAT_INTERRUPT_LCY_EQUALS_LC: u8 = 0x1 << 6;
+const STAT_INTERRUPT_LYC_EQUALS_LC: u8 = 0x1 << 6;
 const STAT_INTERRUPT_DURING_OAM: u8 = 0x1 << 5;
 const STAT_INTERRUPT_DURING_V_BLANK: u8 = 0x1 << 4;
 const STAT_INTERRUPT_DURING_H_BLANK: u8 = 0x1 << 3;
@@ -34,7 +35,7 @@ const STAT_H_BLANK: u8 = 0x0;
 const STAT_V_BLANK: u8 = 0x1;
 const STAT_OAM: u8 = 0x2;
 const STAT_TRANSFERRING_TO_LCD: u8 = 0x3;
-const STAT_LCY_EQUALS_LCDC: u8 = 0x4;
+const STAT_LYC_EQUALS_LCDC: u8 = 0x4;
 
 #[derive(Debug, Copy, Clone)]
 enum Mode {
@@ -177,8 +178,6 @@ impl GPU {
   }
 
   fn update_stat_register(&mut self, mode: Mode, mem: &mut MemoryPtr) {
-    // TODO: Coincidence registers
-
     let mode = match mode {
       Mode::OAM => STAT_OAM,
       Mode::VRAM => STAT_TRANSFERRING_TO_LCD,
@@ -186,21 +185,8 @@ impl GPU {
       Mode::VBLANK => STAT_V_BLANK,
     };
 
-    let mode = if self.current_line == GPU::scy(mem) { mode | STAT_LCY_EQUALS_LCDC  } else { mode };
-
-    util::update_stat_flags(mode, mem);
-  }
-
-  fn update_stat_lcy(&self, mem: &mut MemoryPtr) {
-    let current_stat = stat(mem);
-    let coincidence_triggered = GPU::scy(mem) == self.current_line;
-
-    if coincidence_triggered  {
-     Self::try_fire(current_stat, STAT_INTERRUPT_LCY_EQUALS_LC, mem);
-    }
-
-    let new_stat = if coincidence_triggered { current_stat | STAT_LCY_EQUALS_LCDC } else { current_stat & (!STAT_LCY_EQUALS_LCDC) };
-    util::update_stat_flags(new_stat, mem);
+    let current_stat = stat(mem) & STAT_LYC_EQUALS_LCDC;
+    util::update_stat_flags(current_stat | mode, mem);
   }
 
   fn enter_mode(&mut self, mode: Mode, mem: &mut MemoryPtr) {
@@ -208,7 +194,6 @@ impl GPU {
     self.mode = mode;
     self.update_stat_register(mode, mem);
     self.try_fire_stat_interrupt(mode, mem);
-    self.update_stat_lcy(mem);
   }
 
   fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
@@ -235,6 +220,10 @@ impl GPU {
 
   fn scy(mem: &mut MemoryPtr) -> u8 {
     mem.read_u8(SCY)
+  }
+
+  fn lyc(mem: &mut MemoryPtr) -> u8 {
+    mem.read_u8(LYC_SCANLINE)
   }
 
   fn pal(v: u8, control_reg: u16, mem: &mut MemoryPtr) -> u8 {
@@ -355,8 +344,35 @@ impl GPU {
     }
   }
 
+  fn update_stat_lyc(&self, mem: &mut MemoryPtr) {
+    let lyc = GPU::lyc(mem);
+
+    let current_stat = stat(mem);
+    let coincidence_triggered = lyc == self.current_line;
+
+    if coincidence_triggered {
+      Self::try_fire(current_stat, STAT_INTERRUPT_LYC_EQUALS_LC, mem);
+    }
+
+    let new_stat = if coincidence_triggered {
+      current_stat | STAT_LYC_EQUALS_LCDC
+    } else {
+      current_stat & (!STAT_LYC_EQUALS_LCDC)
+    };
+
+    util::update_stat_flags(new_stat, mem);
+  }
+
   fn update_scanline(&mut self, mem: &mut MemoryPtr) {
     mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
+    self.update_stat_lyc(mem);
+  }
+
+  fn change_scanline(&mut self, new_scanline: u8, mem: &mut MemoryPtr) {
+    self.current_line = new_scanline;
+    if new_scanline <= 153 {
+      self.update_scanline(mem);
+    }
   }
 
   pub fn step(&mut self, cpu: &mut CPU, mem: &mut MemoryPtr, draw: &mut [u8]) -> GpuStepState {
@@ -367,6 +383,7 @@ impl GPU {
       cpu.registers.last_clock,
       self.cycles_in_mode
     );
+
     let current_mode = self.mode;
     match current_mode {
       Mode::OAM => {
@@ -384,8 +401,7 @@ impl GPU {
       }
       Mode::HBLANK => {
         if self.cycles_in_mode >= 204 {
-          self.current_line += 1;
-          self.update_scanline(mem);
+          self.change_scanline(self.current_line + 1, mem);
           if self.current_line == 144 {
             self.enter_mode(Mode::VBLANK, mem);
           } else {
@@ -395,13 +411,12 @@ impl GPU {
         GpuStepState::HBlank
       }
       Mode::VBLANK => {
-        if self.cycles_in_mode % 204 == 0 {
-          self.current_line += 1;
-          self.update_scanline(mem);
+        if self.cycles_in_mode >= 114 {
+          self.change_scanline(self.current_line + 1, mem);
         }
 
-        if self.cycles_in_mode > 4560 {
-          self.current_line = 0;
+        if self.current_line > 153 {
+          self.change_scanline(0, mem);
           CPU::set_interrupt_happened(mem, VBLANK);
           self.enter_mode(Mode::OAM, mem);
           GpuStepState::VBlank
