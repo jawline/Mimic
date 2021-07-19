@@ -355,8 +355,20 @@ impl CPU {
   pub fn step(&mut self, memory: &mut MemoryPtr) {
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
+
+      let inst;
+
+      if self.registers.escaped {
+        trace!("Selected opcode from extended set since escaped is set");
+        inst = &self.ext_instructions[opcode as usize];
+        self.registers.escaped = false;
+      } else {
+        inst = &self.instructions[opcode as usize];
+      }
+
       debug!(
-        "PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={} IME={}",
+        "INSTR={} PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={} IME={}",
+        inst.text,
         self.registers.pc(),
         self.registers.sp(),
         self.registers.read_r16(WideRegister::BC),
@@ -370,19 +382,8 @@ impl CPU {
         self.registers.zero(), self.registers.subtract(), self.registers.half_carry(), self.registers.carry(), self.registers.ime
       );
 
-      let inst;
-
-      if self.registers.escaped {
-        trace!("Selected opcode from extended set since escaped is set");
-        inst = &self.ext_instructions[opcode as usize];
-        self.registers.escaped = false;
-      } else {
-        inst = &self.instructions[opcode as usize];
-      }
-
-      debug!("{} ({:x})", inst.text, opcode);
+      trace!("{} ({:x})", inst.text, opcode);
       (inst.execute)(&mut self.registers, memory, &inst.data);
-      debug!("Executed {}", inst.text);
       //trace!("post-step: {:?}", self.registers);
       self.registers.last_clock = inst.timings.1;
     } else {

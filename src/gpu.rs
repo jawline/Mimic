@@ -178,6 +178,7 @@ impl GPU {
   }
 
   fn update_stat_register(&mut self, mode: Mode, mem: &mut MemoryPtr) {
+
     let mode = match mode {
       Mode::OAM => STAT_OAM,
       Mode::VRAM => STAT_TRANSFERRING_TO_LCD,
@@ -189,11 +190,21 @@ impl GPU {
     util::update_stat_flags(current_stat | mode, mem);
   }
 
+  fn try_fire_vblank_interrupt(&mut self, mode: Mode, mem: &mut MemoryPtr) {
+      match mode {
+        Mode::VBLANK => {
+            CPU::set_interrupt_happened(mem, VBLANK);
+        },
+        _ => {}
+      };
+  }
+
   fn enter_mode(&mut self, mode: Mode, mem: &mut MemoryPtr) {
     self.cycles_in_mode = 0;
     self.mode = mode;
     self.update_stat_register(mode, mem);
     self.try_fire_stat_interrupt(mode, mem);
+    self.try_fire_vblank_interrupt(mode, mem);
   }
 
   fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
@@ -411,14 +422,20 @@ impl GPU {
         GpuStepState::HBlank
       }
       Mode::VBLANK => {
+
         if self.cycles_in_mode >= 114 {
           self.change_scanline(self.current_line + 1, mem);
         }
 
-        if self.current_line > 153 {
+        // It seems that the LYC coincidence interrupt can first one full line before the line zero
+        // We hack this in by changing to line zero twice, but the first time staying in VBLANK
+        // mode and only moving to OAM the second time.
+        if self.current_line == 1 {
           self.change_scanline(0, mem);
-          CPU::set_interrupt_happened(mem, VBLANK);
           self.enter_mode(Mode::OAM, mem);
+          GpuStepState::None
+        } else if self.current_line == 153 {
+          self.change_scanline(0, mem);
           GpuStepState::VBlank
         } else {
           GpuStepState::None
