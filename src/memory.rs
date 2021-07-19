@@ -1,5 +1,5 @@
 use crate::util::{stat_interrupts_with_masked_flags, STAT};
-use log::{debug, error, info, trace, warn};
+use log::{error, info, trace, warn};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -238,12 +238,12 @@ impl MemoryChunk for GameboyState {
     trace!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
 
-      if address >= 0 && address <= 0x1FFF {
+      if address <= 0x1FFF {
           panic!("RAM ENABLE NOT IMPL");
       } else if address >= 0x2000 && address <= 0x3FFF {
-          panic!("SET ROM BANK");
         // Writes to this area of ROM memory trigger a bank change
         self.set_rom_bank(val);
+        panic!("SET ROM BANK");
       } else if address >= 0x4000 && address <= 0x5FFF {
           panic!("RAM BANKING UNIMPL");
       } else if address >= 6000 && address <= 0x7FFF {
@@ -307,7 +307,7 @@ impl MemoryChunk for GameboyState {
       self.work_ram.read_u8(address - END_OF_CARTRIDGE_RAM)
     } else if address < END_OF_ECHO_RAM {
       panic!("USUALLY THIS INDICATES A INSTRUCTION ERROR");
-      self.work_ram.read_u8(address - END_OF_WORK_RAM)
+      //self.work_ram.read_u8(address - END_OF_WORK_RAM)
     } else {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_state()

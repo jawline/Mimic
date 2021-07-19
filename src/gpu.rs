@@ -30,7 +30,6 @@ const STAT_INTERRUPT_DURING_V_BLANK: u8 = 0x1 << 4;
 const STAT_INTERRUPT_DURING_H_BLANK: u8 = 0x1 << 3;
 
 /// Set when LYC=LCDC LY
-const STAT_COINCIDENCE_FLAG: u8 = 0x4;
 const STAT_H_BLANK: u8 = 0x0;
 const STAT_V_BLANK: u8 = 0x1;
 const STAT_OAM: u8 = 0x2;
@@ -336,7 +335,7 @@ impl GPU {
 
               let color = self.tile_value(sprite.tile as u16, tile_x as u16, tile_y as u16, mem);
               let low_x = sprite.x + x;
-              if low_x >= 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
+              if low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
                 let pval = GPU::pal(
                   color,
                   if sprite.palette {
