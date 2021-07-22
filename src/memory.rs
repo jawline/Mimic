@@ -1,5 +1,5 @@
 use crate::util::{stat_interrupts_with_masked_flags, STAT};
-use log::{error, info, trace, warn};
+use log::{error, info, debug, trace, warn};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -114,6 +114,7 @@ pub struct GameboyState {
   work_ram: RamChunk,
   high_ram: RamChunk,
   boot_enabled: bool,
+  ram_enabled: bool,
 
   /**
    * Rom and Ram bank settings
@@ -145,6 +146,7 @@ impl GameboyState {
       work_ram: RamChunk::new(0x2000),
       high_ram: RamChunk::new(0x200),
       boot_enabled: true,
+      ram_enabled: false,
 
       /**
        * Rom bank defaults
@@ -228,7 +230,7 @@ impl GameboyState {
   fn set_rom_bank(&mut self, bank: u8) {
     info!("Set rom bank to {}", bank);
     let bank = (bank & 0x1F) as u16; // Truncate to 5 bits
-    let bank = if bank == 0 { 1 } else { bank };
+    let bank = bank + 1;
     self.rom_bank = bank;
   }
 }
@@ -239,11 +241,12 @@ impl MemoryChunk for GameboyState {
     if address < END_OF_BANKED_ROM {
 
       if address <= 0x1FFF {
-          panic!("RAM ENABLE NOT IMPL");
+          self.ram_enabled = val == 0x0A;
+          debug!("RAM EENABLED {}", self.ram_enabled);
       } else if address >= 0x2000 && address <= 0x3FFF {
         // Writes to this area of ROM memory trigger a bank change
         self.set_rom_bank(val);
-        panic!("SET ROM BANK");
+        //panic!("SET ROM BANK");
       } else if address >= 0x4000 && address <= 0x5FFF {
           panic!("RAM BANKING UNIMPL");
       } else if address >= 6000 && address <= 0x7FFF {
@@ -306,8 +309,8 @@ impl MemoryChunk for GameboyState {
     } else if address < END_OF_WORK_RAM {
       self.work_ram.read_u8(address - END_OF_CARTRIDGE_RAM)
     } else if address < END_OF_ECHO_RAM {
-      panic!("USUALLY THIS INDICATES A INSTRUCTION ERROR");
-      //self.work_ram.read_u8(address - END_OF_WORK_RAM)
+      //panic!("USUALLY THIS INDICATES A INSTRUCTION ERROR");
+      self.work_ram.read_u8(address - END_OF_WORK_RAM)
     } else {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_state()
