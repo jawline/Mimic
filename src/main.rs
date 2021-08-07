@@ -1,3 +1,4 @@
+mod sdl;
 mod clock;
 mod cpu;
 mod gpu;
@@ -5,6 +6,7 @@ mod instruction;
 mod machine;
 mod memory;
 mod util;
+mod terminal;
 
 use std::env;
 use std::io;
@@ -25,272 +27,31 @@ use log::{info, trace};
 use machine::Machine;
 use memory::{GameboyState, RomChunk};
 
-fn events(state: &mut GameboyState, events: &mut EventPump) {
-  let mut fired = false;
-  for event in events.poll_iter() {
-    match event {
-      Event::Quit { .. }
-      | Event::KeyDown {
-        keycode: Some(Keycode::Escape),
-        ..
-      } => {
-        unimplemented!();
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::A),
-        ..
-      } => {
-        fired = true;
-        state.a = true;
-        trace!("A");
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::A),
-        ..
-      } => {
-        state.a = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::B),
-        ..
-      } => {
-        trace!("B");
-        fired = true;
-        state.b = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::B),
-        ..
-      } => {
-        state.b = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::N),
-        ..
-      } => {
-        fired = true;
-        info!("START");
-        state.start = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::N),
-        ..
-      } => {
-        state.start = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::M),
-        ..
-      } => {
-        fired = true;
-        info!("SELECT");
-        state.select = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::M),
-        ..
-      } => {
-        state.select = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::Left),
-        ..
-      } => {
-        fired = true;
-        trace!("LEFT");
-        state.left = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::Left),
-        ..
-      } => {
-        state.left = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::Right),
-        ..
-      } => {
-        fired = true;
-        info!("RIGHT");
-        state.right = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::Right),
-        ..
-      } => {
-        state.right = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::Up),
-        ..
-      } => {
-        fired = true;
-        info!("UP");
-        state.up = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::Up),
-        ..
-      } => {
-        state.up = false;
-      }
-      Event::KeyDown {
-        keycode: Some(Keycode::Down),
-        ..
-      } => {
-        fired = true;
-        info!("DOWN");
-        state.down = true;
-      }
-      Event::KeyUp {
-        keycode: Some(Keycode::Down),
-        ..
-      } => {
-        state.down = false;
-      }
-      _ => {}
-    }
-  }
+use clap::{AppSettings, Clap};
 
-  if fired {
-    CPU::set_interrupt_happened(state, JOYPAD);
-  }
-}
-
-fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
-  trace!("Redrawing screen");
-
-  let screen_dims = Rect::new(0, 0, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
-  let out_dims = Rect::new(0, 0, GB_SCREEN_WIDTH * 8, GB_SCREEN_HEIGHT * 8);
-
-  // Now render the texture to the canvas
-  texture
-    .update(screen_dims, pixels, BYTES_PER_ROW as usize)
-    .unwrap();
-  canvas.copy(&texture, screen_dims, out_dims).unwrap();
-  canvas.present();
-}
-
-fn sdl2_mode(mut gameboy_state: Machine) -> io::Result<()> {
-  info!("preparing screen");
-
-  let sdl_context = sdl2::init().unwrap();
-  let video_subsystem = sdl_context.video().unwrap();
-  let window = video_subsystem
-    .window("rustGameboy", GB_SCREEN_WIDTH * 8, GB_SCREEN_HEIGHT * 8)
-    .position_centered()
-    .build()
-    .unwrap();
-  let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-  let mut event_pump = sdl_context.event_pump().unwrap();
-  let texture_creator = canvas.texture_creator();
-
-  let mut texture = texture_creator
-    .create_texture_static(PixelFormatEnum::RGB24, GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT)
-    .unwrap();
-
-  info!("starting core loop");
-
-  let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
-
-  let now = Instant::now();
-  let mut steps = 0;
-  let mut redraws = 0;
-
-  loop {
-    events(&mut gameboy_state.memory, &mut event_pump);
-
-    let state = gameboy_state.step(&mut pixel_buffer);
-
-    match state {
-      GpuStepState::VBlank => {
-        redraw(&mut canvas, &mut texture, &pixel_buffer);
-        redraws += 1;
-      }
-      _ => {}
-    }
-    steps += 1;
-    if steps % 100000 == 0 {
-      let time_running = now.elapsed().as_secs_f64();
-      info!(
-        "Average step rate of {}/s with a redraw rate of {}/s",
-        steps as f64 / time_running,
-        redraws as f64 / time_running
-      );
-    }
-  }
-
-  Ok(())
-}
-
-fn console_mode(mut gameboy_state: Machine) -> io::Result<()> {
-  use crossterm::{
-    cursor::{DisableBlinking, EnableBlinking, Hide, MoveTo, RestorePosition, SavePosition},
-    execute,
-    style::Print,
-    terminal::{size, Clear, ClearType, SetSize},
-    ExecutableCommand, Result,
-  };
-  use drawille::Canvas;
-  use std::io::stdout;
-  use std::{thread, time};
-
-  let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
-  let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
-
-  let (cols, rows) = size()?;
-  execute!(
-    stdout(),
-    Hide,
-    SetSize(GB_SCREEN_WIDTH as u16, GB_SCREEN_HEIGHT as u16),
-  )?;
-
-  loop {
-    let state = gameboy_state.step(&mut pixel_buffer);
-
-    match state {
-      GpuStepState::VBlank => {
-        canvas.clear();
-
-        for y in (0..GB_SCREEN_HEIGHT as usize) {
-          for x in (0..GB_SCREEN_WIDTH as usize) {
-            let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
-            let pixel_offset = pixel * 3;
-            let pval = pixel_buffer[pixel_offset];
-            if pval != 255 {
-              canvas.set(x as u32, y as u32);
-            }
-          }
-        }
-        execute!(
-          stdout(),
-          MoveTo(0, 0),
-          Clear(ClearType::All),
-          Print(canvas.frame())
-        )?;
-        let ten_millis = time::Duration::from_millis(10);
-        let now = time::Instant::now();
-
-        thread::sleep(ten_millis);
-      }
-      _ => {}
-    }
-  }
-  execute!(stdout(), SetSize(cols, rows))?;
-
-  Ok(())
+/// This doc string acts as a help message when the user runs '--help'
+/// as do all doc strings on fields
+#[derive(Clap)]
+#[clap(version = "1.0", author = "Blake Loring <blake@parsed.uk>")]
+#[clap(setting = AppSettings::ColoredHelp)]
+struct Opts {
+    /// Sets a custom config file. Could have been an Option<T> with no default too
+    #[clap(short, long)]
+    bios: String,
+    #[clap(short, long)]
+    rom: String,
+    #[clap(short, long)]
+    cli_mode: bool,
+    #[clap(short, long)]
+    skip_bios: bool,
 }
 
 fn main() -> io::Result<()> {
   env_logger::init();
+  let opts: Opts = Opts::parse();
 
-  let mut args = env::args();
-
-  info!("ARGS: {:?}", args);
-
-  args.next();
-  let bios_file = args.next().unwrap();
-  let rom_file = args.next().unwrap();
+  let bios_file = opts.bios;
+  let rom_file = opts.rom;
 
   info!("loading BIOS: {} TEST: {}", bios_file, rom_file);
 
@@ -308,11 +69,16 @@ fn main() -> io::Result<()> {
     memory: root_map,
   };
 
-  // Skip boot
-  use crate::memory::MemoryChunk;
-  gameboy_state.cpu.registers.set_pc(0x100);
-  gameboy_state.memory.write_u8(0xFF50, 1);
+  if opts.skip_bios {
+    // Skip boot
+    use crate::memory::MemoryChunk;
+    gameboy_state.cpu.registers.set_pc(0x100);
+    gameboy_state.memory.write_u8(0xFF50, 1);
+  }
 
-  //sdl2_mode(gameboy_state)
-  console_mode(gameboy_state)
+  if !opts.cli_mode {
+    sdl::run(gameboy_state)
+  } else {
+    terminal::run(gameboy_state)
+  }
 }
