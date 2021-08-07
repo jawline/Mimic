@@ -1,12 +1,12 @@
 ## RustGameboy
 
-A Gameboy emulator written in Rust. Can launch and play simple games.
+A Gameboy emulator written in Rust. Can launch and play simple games. Can use the terminal as an output device.
 
+![Screenshot](/screenshots/screenshot4.png?raw=true "Screenshot 4")
+![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
 ![Screenshot](/screenshots/screenshot1.png?raw=true "Screenshot 1")
 ![Screenshot](/screenshots/screenshot2.png?raw=true "Screenshot 2")
 ![Screenshot](/screenshots/screenshot3.png?raw=true "Screenshot 3")
-![Screenshot](/screenshots/screenshot4.png?raw=true "Screenshot 4")
-![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
 ![Screenshot](/screenshots/screenshot6.png?raw=true "Screenshot 6")
 
 ### Usage
