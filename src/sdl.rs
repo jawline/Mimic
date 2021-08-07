@@ -1,4 +1,3 @@
-use std::env;
 use std::io;
 use std::time::Instant;
 
@@ -10,12 +9,11 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::EventPump;
 
-use crate::clock::CLOCK;
 use crate::cpu::{CPU, JOYPAD};
-use crate::gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
+use crate::gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use log::{info, trace};
 use crate::machine::Machine;
-use crate::memory::{GameboyState, RomChunk};
+use crate::memory::{GameboyState};
 
 fn events(state: &mut GameboyState, events: &mut EventPump) {
   let mut fired = false;
@@ -209,7 +207,5 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
       );
     }
   }
-
-  Ok(())
 }
 

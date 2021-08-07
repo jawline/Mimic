@@ -1,24 +1,20 @@
 
   use crossterm::{
-    cursor::{DisableBlinking, EnableBlinking, Hide, MoveTo, RestorePosition, SavePosition},
+    cursor::{ Hide, MoveTo},
     execute,
     queue,
-    event::{poll, read, Event, KeyEvent, KeyCode},
+    event::{poll, read, Event, KeyCode},
     style::Print,
     terminal::{size, Clear, ClearType, SetSize, enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand, Result,
+    
   };
   use std::io::{self, stdout, Write};
   use std::time::Duration;
   use drawille::Canvas;
-  use std::{thread, time};
-
-use crate::clock::CLOCK;
+  
 use crate::cpu::{CPU, JOYPAD};
-use crate::gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
-use log::{info, trace};
+use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use crate::machine::Machine;
-use crate::memory::{GameboyState, RomChunk};
 
 pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
 
@@ -44,9 +40,6 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
 
     match state {
       GpuStepState::VBlank => {
-
-        let ten_millis = time::Duration::from_millis(10);
-        let now = time::Instant::now();
 
         let mut state = &mut gameboy_state.memory;
         state.left = false;
@@ -86,8 +79,8 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
 
         canvas.clear();
 
-        for y in (0..GB_SCREEN_HEIGHT as usize) {
-          for x in (0..GB_SCREEN_WIDTH as usize) {
+        for y in 0..GB_SCREEN_HEIGHT as usize {
+          for x in 0..GB_SCREEN_WIDTH as usize {
             let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
             let pixel_offset = pixel * 3;
             let pval = pixel_buffer[pixel_offset];

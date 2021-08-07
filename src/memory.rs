@@ -76,10 +76,15 @@ impl MemoryChunk for RomChunk {
 
 impl RomChunk {
   pub fn from_file(path: &str) -> io::Result<RomChunk> {
+    info!("Loading {}", path);
     let mut f = File::open(path)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
     Ok(RomChunk { bytes: buffer })
+  }
+
+  pub fn empty() -> RomChunk {
+    RomChunk { bytes: Vec::new() }
   }
 }
 

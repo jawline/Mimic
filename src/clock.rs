@@ -36,7 +36,7 @@ impl CLOCK {
 
     if isset8(tac, 0x4) {
       let threshold = match tac & 0x3 {
-        0 => 64, // TODO: Work out exactly how these intervals all conncet. Cloned from Imran Nazar http://imrannazar.com/GameBoy-Emulation-in-JavaScript:-Timers
+        0 => 64,
         1 => 1,
         2 => 4,
         3 => 16,
