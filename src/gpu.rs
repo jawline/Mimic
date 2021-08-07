@@ -177,7 +177,6 @@ impl GPU {
   }
 
   fn update_stat_register(&mut self, mode: Mode, mem: &mut MemoryPtr) {
-
     let mode = match mode {
       Mode::OAM => STAT_OAM,
       Mode::VRAM => STAT_TRANSFERRING_TO_LCD,
@@ -412,7 +411,6 @@ impl GPU {
         GpuStepState::HBlank
       }
       Mode::VBLANK => {
-
         if self.cycles_in_mode >= 114 {
           self.change_scanline(self.current_line + 1, mem);
         }

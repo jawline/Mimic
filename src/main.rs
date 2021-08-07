@@ -22,6 +22,7 @@ use clock::CLOCK;
 use cpu::{CPU, JOYPAD};
 use gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH, GPU};
 use log::{info, trace};
+use machine::Machine;
 use memory::{GameboyState, RomChunk};
 
 fn events(state: &mut GameboyState, events: &mut EventPump) {
@@ -170,38 +171,7 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
   canvas.present();
 }
 
-fn main() -> io::Result<()> {
-  env_logger::init();
-
-  let mut args = env::args();
-
-  info!("ARGS: {:?}", args);
-
-  args.next();
-  let bios_file = args.next().unwrap();
-  let rom_file = args.next().unwrap();
-
-  info!("loading BIOS: {} TEST: {}", bios_file, rom_file);
-
-  info!("preparing initial state");
-
-  let boot_rom = RomChunk::from_file(&bios_file)?;
-  let gb_test = RomChunk::from_file(&rom_file)?;
-
-  let root_map = GameboyState::new(boot_rom, gb_test);
-
-  let mut gameboy_state = machine::Machine {
-    cpu: CPU::new(),
-    gpu: GPU::new(),
-    clock: CLOCK::new(),
-    memory: root_map,
-  };
-
-  // Skip boot
-  use crate::memory::MemoryChunk;
-  gameboy_state.cpu.registers.set_pc(0x100);
-  gameboy_state.memory.write_u8(0xFF50, 1);
-
+fn sdl2_mode(mut gameboy_state: Machine) -> io::Result<()> {
   info!("preparing screen");
 
   let sdl_context = sdl2::init().unwrap();
@@ -249,4 +219,100 @@ fn main() -> io::Result<()> {
       );
     }
   }
+
+  Ok(())
+}
+
+fn console_mode(mut gameboy_state: Machine) -> io::Result<()> {
+  use crossterm::{
+    cursor::{DisableBlinking, EnableBlinking, Hide, MoveTo, RestorePosition, SavePosition},
+    execute,
+    style::Print,
+    terminal::{size, Clear, ClearType, SetSize},
+    ExecutableCommand, Result,
+  };
+  use drawille::Canvas;
+  use std::io::stdout;
+  use std::{thread, time};
+
+  let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
+  let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
+
+  let (cols, rows) = size()?;
+  execute!(
+    stdout(),
+    Hide,
+    SetSize(GB_SCREEN_WIDTH as u16, GB_SCREEN_HEIGHT as u16),
+  )?;
+
+  loop {
+    let state = gameboy_state.step(&mut pixel_buffer);
+
+    match state {
+      GpuStepState::VBlank => {
+        canvas.clear();
+
+        for y in (0..GB_SCREEN_HEIGHT as usize) {
+          for x in (0..GB_SCREEN_WIDTH as usize) {
+            let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
+            let pixel_offset = pixel * 3;
+            let pval = pixel_buffer[pixel_offset];
+            if pval != 255 {
+              canvas.set(x as u32, y as u32);
+            }
+          }
+        }
+        execute!(
+          stdout(),
+          MoveTo(0, 0),
+          Clear(ClearType::All),
+          Print(canvas.frame())
+        )?;
+        let ten_millis = time::Duration::from_millis(10);
+        let now = time::Instant::now();
+
+        thread::sleep(ten_millis);
+      }
+      _ => {}
+    }
+  }
+  execute!(stdout(), SetSize(cols, rows))?;
+
+  Ok(())
+}
+
+fn main() -> io::Result<()> {
+  env_logger::init();
+
+  let mut args = env::args();
+
+  info!("ARGS: {:?}", args);
+
+  args.next();
+  let bios_file = args.next().unwrap();
+  let rom_file = args.next().unwrap();
+
+  info!("loading BIOS: {} TEST: {}", bios_file, rom_file);
+
+  info!("preparing initial state");
+
+  let boot_rom = RomChunk::from_file(&bios_file)?;
+  let gb_test = RomChunk::from_file(&rom_file)?;
+
+  let root_map = GameboyState::new(boot_rom, gb_test);
+
+  let mut gameboy_state = Machine {
+    cpu: CPU::new(),
+    gpu: GPU::new(),
+    clock: CLOCK::new(),
+    memory: root_map,
+  };
+
+  // Skip boot
+  use crate::memory::MemoryChunk;
+  gameboy_state.cpu.registers.set_pc(0x100);
+  gameboy_state.memory.write_u8(0xFF50, 1);
+
+  //sdl2_mode(gameboy_state)
+  console_mode(gameboy_state)
 }
