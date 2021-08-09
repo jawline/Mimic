@@ -6,7 +6,10 @@ An open source Gameboy emulator written in Rust that can use a command line inte
 
 cargo run --release -- --rom PATH --cli-mode
 
-![Screenshot](/screenshots/screenshot4.png?raw=true "Screenshot 4") ![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
+<p float="left">
+  <img src="/screenshots/screenshot4.png" width="40%" />
+  <img src="/screenshots/screenshot5.png" width="40%" />
+</p>
 
 ### CPU
 
