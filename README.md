@@ -2,13 +2,11 @@
 
 An open source Gameboy emulator written in Rust that can use a command line interface as a screen and input device.
 
-![Screenshot](/screenshots/screenshot4.png?raw=true "Screenshot 4")
-
 ### Usage
 
 cargo run --release -- --rom PATH --cli-mode
 
-![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
+![Screenshot](/screenshots/screenshot4.png?raw=true "Screenshot 4") ![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
 
 ### CPU
 
