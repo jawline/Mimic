@@ -1,6 +1,6 @@
 ## Mimic
 
-An open source Gameboy emulator written in Rust that can use a command line interface as a screen and input device.
+An open source Gameboy emulator written in Rust that can use a command line interface as a screen and input device. The project is an attempt to make an approachable emulator for the Gameboy that can be used to explain the concepts required in emulating a system without overwhelming the reader. The core logic is all in safe Rust, there is no JIT recompiler, and screen / IO logic is kept separate from the emulation core to reduce complexity. As such, it does not perform ideally, but the Gameboy is such an old system that ideal performance is not necessary to run games at full framerates.
 
 ### Usage
 
@@ -13,7 +13,7 @@ cargo run --release -- --rom PATH --cli-mode
 
 ### CPU
 
-The Gameboy uses a modified Z80 Zilog processor, an 8-bit processor with a 16-bit address bus. The CPU has a complex instruction set with variable length opcodes. The first byte of every opcode indicates which of the instructions it is. Because there are more than 256 instructions there is also an extended opcode which swaps the CPU to a second instruction set for the next instruction.
+The Gameboy uses a modified CISC (complex instruction set computer) Z80 Zilog processor at a frequency of 4.19Mhz. It features an 8-bit instruction set with a 16-bit address bus and some limited support for 16 bit arithmetic. The CPU has a complex instruction set with variable length opcodes. The first byte of every opcode indicates which of the instructions it is. As there are more than 256 instructions, there is also an extended opcode which swaps the CPU to a second instruction set for an instruction starting at the next byte.
 
 The CPU is represented in Mimic through two jump tables that are constructed at startup, one for the main opcode set and one for the extended set. Each entry in the jump table contains a pointer to an execute function which takes the current registers and memory and implements the opcode. A secret register is used to keep track of whether the previous instruction executed was the extend instruction that moves execution to the extended opcode set. The processor steps (executes an instruction) by selecting the next execute function from either the main or extended table depending on the hidden register and then executing it.
 
