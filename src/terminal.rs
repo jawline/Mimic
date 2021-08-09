@@ -51,7 +51,7 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
         state.start = false;
         state.select = false;
 
-        if poll(Duration::from_millis(10))? {
+        if poll(Duration::from_millis(16))? {
             // It's guaranteed that the `read()` won't block when the `poll()`
             // function returns `true`
             match read()? {
