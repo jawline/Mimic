@@ -3,15 +3,12 @@
 An open source Gameboy emulator written in Rust that can use a command line interface as a screen and input device.
 
 ![Screenshot](/screenshots/screenshot4.png?raw=true "Screenshot 4")
-![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
-![Screenshot](/screenshots/screenshot1.png?raw=true "Screenshot 1")
-![Screenshot](/screenshots/screenshot2.png?raw=true "Screenshot 2")
-![Screenshot](/screenshots/screenshot3.png?raw=true "Screenshot 3")
-![Screenshot](/screenshots/screenshot6.png?raw=true "Screenshot 6")
 
 ### Usage
 
 cargo run --release -- --rom PATH --cli-mode
+
+![Screenshot](/screenshots/screenshot5.png?raw=true "Screenshot 5")
 
 ### CPU
 
@@ -38,6 +35,13 @@ Memory is represented in Mimic through a GameboyState structure which tracks the
 ### Clock
 
 The Gameboy clock interacts with the CPU through special memory registers or through CPU interrupts. There are two clocks, one which ticks at a constant frequency and another which can be configured through writes to a special register. Since the clock is tied to the cycle rate of the CPU, and not the actual time, we implement the clock in Mimic through a structure that tracks the number of cycles the CPU has performed and updates it's own values accordingly.
+
+### Screenshots
+
+![Screenshot](/screenshots/screenshot1.png?raw=true "Screenshot 1")
+![Screenshot](/screenshots/screenshot2.png?raw=true "Screenshot 2")
+![Screenshot](/screenshots/screenshot3.png?raw=true "Screenshot 3")
+![Screenshot](/screenshots/screenshot6.png?raw=true "Screenshot 6")
 
 ### Working
 
