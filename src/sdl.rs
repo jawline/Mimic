@@ -11,9 +11,9 @@ use sdl2::EventPump;
 
 use crate::cpu::{CPU, JOYPAD};
 use crate::gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
-use log::{info, trace};
 use crate::machine::Machine;
-use crate::memory::{GameboyState};
+use crate::memory::GameboyState;
+use log::{info, trace};
 
 fn events(state: &mut GameboyState, events: &mut EventPump) {
   let mut fired = false;
@@ -34,7 +34,9 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         state.a = true;
         trace!("A");
       }
-      Event::KeyUp { keycode: Some(Keycode::A), ..
+      Event::KeyUp {
+        keycode: Some(Keycode::A),
+        ..
       } => {
         state.a = false;
       }
@@ -208,4 +210,3 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
     }
   }
 }
-

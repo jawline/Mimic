@@ -1,23 +1,23 @@
 
-  use crossterm::{
-    cursor::{ Hide, MoveTo},
-    execute,
-    queue,
-    event::{poll, read, Event, KeyCode},
-    style::Print,
-    terminal::{size, Clear, ClearType, SetSize, enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    
-  };
-  use std::io::{self, stdout, Write};
-  use std::time::Duration;
-  use drawille::Canvas;
-  
+use crossterm::{
+  cursor::{Hide, MoveTo},
+  event::{poll, read, Event, KeyCode},
+  execute, queue,
+  style::Print,
+  terminal::{
+    disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen,
+    LeaveAlternateScreen, SetSize,
+  },
+};
+use drawille::Canvas;
+use std::io::{self, stdout, Write};
+use std::time::Duration;
+
 use crate::cpu::{CPU, JOYPAD};
 use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use crate::machine::Machine;
 
 pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
-
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
 
@@ -40,7 +40,6 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
 
     match state {
       GpuStepState::VBlank => {
-
         let mut state = &mut gameboy_state.memory;
         state.left = false;
         state.right = false;
@@ -50,31 +49,56 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
         state.b = false;
         state.start = false;
         state.select = false;
-
-        if poll(Duration::from_millis(16))? {
-            // It's guaranteed that the `read()` won't block when the `poll()`
-            // function returns `true`
-            match read()? {
-                Event::Key(event) => {
-                    let mut fired = false;
-                    match event.code {
-                        KeyCode::Left => { state.left = true; fired = true; },
-                        KeyCode::Right => { state.right = true; fired = true; },
-                        KeyCode::Up => { state.up = true; fired = true; },
-                        KeyCode::Down => { state.down = true; fired = true; },
-                        KeyCode::Char('a') => { state.a = true; fired = true;},
-                        KeyCode::Char('b') => { state.b = true; fired = true; },
-                        KeyCode::Char('n') => { state.start = true; fired = true;},
-                        KeyCode::Char('m') => { state.select = true; fired = true; },
-                        KeyCode::Char('q') => { break; }
-                        _ => {}
-                    }
-                    if fired {
-                        CPU::set_interrupt_happened(state, JOYPAD);
-                    }
-                },
+        if poll(Duration::from_millis(10))? {
+          // It's guaranteed that the `read()` won't block when the `poll()`
+          // function returns `true`
+          match read()? {
+            Event::Key(event) => {
+              let mut fired = false;
+              match event.code {
+                KeyCode::Left => {
+                  state.left = true;
+                  fired = true;
+                }
+                KeyCode::Right => {
+                  state.right = true;
+                  fired = true;
+                }
+                KeyCode::Up => {
+                  state.up = true;
+                  fired = true;
+                }
+                KeyCode::Down => {
+                  state.down = true;
+                  fired = true;
+                }
+                KeyCode::Char('a') => {
+                  state.a = true;
+                  fired = true;
+                }
+                KeyCode::Char('b') => {
+                  state.b = true;
+                  fired = true;
+                }
+                KeyCode::Char('n') => {
+                  state.start = true;
+                  fired = true;
+                }
+                KeyCode::Char('m') => {
+                  state.select = true;
+                  fired = true;
+                }
+                KeyCode::Char('q') => {
+                  break;
+                }
                 _ => {}
+              }
+              if fired {
+                CPU::set_interrupt_happened(state, JOYPAD);
+              }
             }
+            _ => {}
+          }
         }
 
         canvas.clear();
@@ -92,20 +116,16 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
 
         let frame = canvas.frame();
 
-        queue!(
-          stdout(),
-          MoveTo(0, 0),
-          Clear(ClearType::All))?;
+        queue!(stdout(), MoveTo(0, 0), Clear(ClearType::All))?;
 
         let mut idx = 0;
 
         for line in frame.lines() {
-            queue!(stdout(), MoveTo(0, idx), Print(line))?;
-            idx += 1;
+          queue!(stdout(), MoveTo(0, idx), Print(line))?;
+          idx += 1;
         }
 
         stdout().flush()?;
-
       }
       _ => {}
     }
@@ -116,4 +136,3 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
 
   Ok(())
 }
-

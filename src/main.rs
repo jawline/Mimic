@@ -1,19 +1,19 @@
-mod sdl;
 mod clock;
 mod cpu;
 mod gpu;
 mod instruction;
 mod machine;
 mod memory;
-mod util;
+mod sdl;
 mod terminal;
+mod util;
 
 use std::io;
 
 use clock::CLOCK;
-use cpu::{CPU};
-use gpu::{GPU};
-use log::{info};
+use cpu::CPU;
+use gpu::GPU;
+use log::info;
 use machine::Machine;
 use memory::{GameboyState, RomChunk};
 
@@ -25,15 +25,15 @@ use clap::{AppSettings, Clap};
 #[clap(version = "1.0", author = "Blake Loring <blake@parsed.uk>")]
 #[clap(setting = AppSettings::ColoredHelp)]
 struct Opts {
-    /// Sets a custom config file. Could have been an Option<T> with no default too
-    #[clap(short, long)]
-    bios: Option<String>,
-    #[clap(short, long)]
-    rom: String,
-    #[clap(short, long)]
-    cli_mode: bool,
-    #[clap(short, long)]
-    skip_bios: bool,
+  /// Sets a custom config file. Could have been an Option<T> with no default too
+  #[clap(short, long)]
+  bios: Option<String>,
+  #[clap(short, long)]
+  rom: String,
+  #[clap(short, long)]
+  cli_mode: bool,
+  #[clap(short, long)]
+  skip_bios: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -49,10 +49,10 @@ fn main() -> io::Result<()> {
   info!("preparing initial state");
 
   let boot_rom = if let Some(bios_file) = bios_file {
-      RomChunk::from_file(&bios_file)?
+    RomChunk::from_file(&bios_file)?
   } else {
-      skip_bios = true;
-      RomChunk::empty()
+    skip_bios = true;
+    RomChunk::empty()
   };
 
   info!("loaded BIOS");
