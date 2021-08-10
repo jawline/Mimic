@@ -19,6 +19,9 @@ pub struct InstructionData {
   pub wide_reg_dst: WideRegister,
 }
 
+/// When not in use fields get a default value. This can add some risk, if an instruction data is
+/// improperly configured it can be hard to debug, I should revisit this at some point and consider
+/// optional values with .unwrap, but it might not be worth it for the clarity.
 impl Default for InstructionData {
   fn default() -> InstructionData {
     InstructionData {
@@ -236,7 +239,9 @@ pub fn inc_mem_r16(
   memory: &mut MemoryPtr,
   additional: &InstructionData,
 ) {
+
   registers.inc_pc(1);
+
   let addr = registers.read_r16(additional.wide_reg_dst);
   let l = memory.read_u8(addr);
   let result = l + 1;
@@ -277,8 +282,15 @@ pub fn dec_mem_r16(
 
 /// Add two 8-bit values and set flags
 fn add_core(l: u8, r: u8, registers: &mut Registers) -> u8 {
+
+  // Half carry is set where the addition of the lower nibbles of each byte carries into the upper
+  // nibble.
   let half_carry = (((l & 0xF) + (r & 0xF)) & 0xF0) != 0;
-  let carry = l as u16 + l as u16 & 0xFF00 != 0;
+
+  // Carry is set when the addition of two 8-bit values is greater than can be held in an 8 bit
+  // register.
+  let carry = (l as u16 + r as u16) & 0xFF00 != 0;
+
   let result = l + r;
   registers.set_flags(result == 0, false, half_carry, carry);
   result
@@ -311,13 +323,21 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   registers.write_r8(additional.small_reg_dst, result);
 }
 
+/// This function forms the foundation for all common 8-bit subtractions
 fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
-  let result = origin - sub_v;
 
+  // Half carry when the upper nibble of the origin subtracted from the upper nibble of the sub
+  // carries (TODO: Check this logic, it doesn't seem right)
   let half_carry = (origin & 0xF0) < (sub_v & 0xF0);
+
+  // Carry when the origin is smaller than the value being subtracted
   let carry = origin < sub_v;
 
+  // The result is an 8-bit subtraction
+  let result = origin - sub_v;
+
   registers.set_flags(result == 0, true, half_carry, carry);
+
   result
 }
 
