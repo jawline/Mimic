@@ -1,6 +1,6 @@
 ## Mimic
 
-An open source Gameboy emulator written in Rust that can use a command line interface as a screen and input device. The project is an attempt to make an approachable emulator for the Gameboy that can be used to explain the concepts required in emulating a system without overwhelming the reader. The core logic is all in safe Rust, there is no JIT recompiler, and screen / IO logic is kept separate from the emulation core to reduce complexity. As such, it does not perform ideally, but the Gameboy is such an old system that ideal performance is not necessary to run games at full framerates.
+An open source Gameboy emulator written in Rust that can use a command line interface as a screen and input device. The project is an attempt to make an approachable emulator for the Gameboy that can be used to explain the concepts required in emulating a system without overwhelming the reader. The core logic is all in safe Rust, there is no JIT recompiler, and screen / IO logic is kept separate from the emulation core to reduce complexity. As such, it does not perform ideally, but the Gameboy is an old system so ideal performance is not necessary to run games at full speed.
 
 ### Usage
 
@@ -10,6 +10,18 @@ cargo run --release -- --rom PATH --cli-mode
   <img src="/screenshots/screenshot4.png" width="49%" />
   <img src="/screenshots/screenshot5.png" width="49%" />
 </p>
+
+### Overview
+
+We split our design into a set of components that roughly map to the physical components on the original hardware. These components are:
+- CPU: This structure models the fetch, decode, and execute cycle of the CPU and owns the machine registers. Hardware interrupts are also modelled in this structure.
+- Registers: A structure that stores the CPU registers and some hidden registers for emulation. This does not store the special memory registers.
+- Instructions: An implementation of each CPU opcode plus a table mapping opcodes to their implementation.
+- Clock: A structure that models the Gameboy clock.
+- PPU (Pixel-processing unit): A structure that models the Gameboy PPU, a component which takes sprite maps and data from memory and draws them to the screen. All video output on the Gameboy travels through the PPU.
+- Memory: An implementation of the hardware memory bus and cartridge emulation. Special memory registers are also stored here.
+
+In addition to these components we have the Machine structure which brings all of these components together under a single structure with a central step instruction that moves the emulation forward by precisely one instruction (meaning a single instruction is executed and then all other components are updated so that they are up to date with the new state). The remaining files in the project, main.rs, terminal.rs, and sdl.rs provide the launch sequence and screen / terminal backends for interacting with the emulated machine.
 
 ### CPU
 
@@ -32,6 +44,14 @@ Programs are read from cartridges that are physically connected to the device an
 The cartridge based design can be used to expand the available ROM and RAM though this increased the price of physical cartridges. Since the combined ROM and RAM of expanded cartridges cannot be addressed in 16 bits ROM banking where addressable parts of the cartridge ROM or RAM are remapped through writes to specific memory addresses. This requires careful programming since the program code being executed or some data required could be located in a bank that is remapped. This can be used to increase the ROM or RAM on system to 32kb.
 
 Memory is represented in Mimic through a GameboyState structure which tracks the memory map, plus a series of ROM or RAM structures. The special memory registers are hardcoded into the top level structure at their given addresses and with the given read/write rules. The GameboyState routes ROM/RAM read and writes to corresponding structures for processing. ROM banking is also tracked in the this top level structure.
+
+### Interrupts
+
+The Gameboy uses CPU interrupts to notify the running software of hardware events. These events include screen events, timer events, and input events. When an interrupt is raised, a bit in the interrupted memory register is set to indicate it. If interrupts are enabled (toggled with a dedicated instruction) then the CPU will check if the corresponding bit for that interrupt is set in the interrupts enabled memory register. If both bits are set then the current PC will be pushed to the stack and the PC will be set to a fixed interrupt-specific location and interrupts will be disabled. The code at that location is then run (similar to a call instruction) and interrupts are re-enabled upon return.
+
+### PPU
+
+The pixel processing unit (PPU) finds the sprites referenced in the sprite, window, and background maps and draws them to the device screen. The PPU operates concurrently with the CPU and is the only component that can draw to the screen. Interaction with the PPU comes only through updates to the sprite memory, sprite maps, or special memory registers. Feedback for the CPU comes through writes to special registers and hardware interrupts.
 
 ### Clock
 

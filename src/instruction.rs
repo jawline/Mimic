@@ -391,7 +391,7 @@ fn and_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// The core of an OR operation
-fn core_or_values(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
+fn or_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
   let result = v1 | v2;
   registers.set_flags(result == 0, false, false, false);
   result
@@ -402,7 +402,7 @@ fn or_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Ins
   registers.inc_pc(1);
   let r1 = registers.read_r8(additional.small_reg_dst);
   let r2 = registers.read_r8(additional.small_reg_one);
-  let result = core_or_values(r1, r2, registers);
+  let result = or_core(r1, r2, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -411,7 +411,7 @@ fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instr
   let r2 = memory.read_u8(registers.pc() + 1);
   registers.inc_pc(2);
   let r1 = registers.read_r8(additional.small_reg_dst);
-  let result = core_or_values(r1, r2, registers);
+  let result = or_core(r1, r2, registers);
   registers.write_r8(additional.small_reg_dst, result);
 }
 
@@ -458,6 +458,7 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// The core logic for subtraction of 8-bit values through a carry
 fn sbc_core(v1: u8, mut v2: u8, registers: &mut Registers) -> u8 {
+
   if registers.carry() {
     v2 += 1;
   }
@@ -486,7 +487,8 @@ fn sbc_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// Load small reg to 0xFF00 + n
 fn ld_ff00_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  // Fetch
+
+  // Fetch the immediate offset
   let add_v: u16 = memory.read_u8(registers.pc() + 1).into();
 
   // Increment the PC by two
@@ -635,7 +637,7 @@ fn or_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
-  let result = core_or_values(origin, add_v, registers);
+  let result = or_core(origin, add_v, registers);
 
   registers.write_r8(additional.small_reg_dst, result);
 }
