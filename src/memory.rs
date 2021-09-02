@@ -121,6 +121,8 @@ pub struct GameboyState {
   work_ram_two: RamChunk,
   high_ram: RamChunk,
   boot_enabled: bool,
+  ram_on: bool,
+  ram_mode: bool,
 
   /**
    * Rom and Ram bank settings
@@ -147,18 +149,20 @@ impl GameboyState {
     GameboyState {
       boot: boot,
       cart: cart,
-      cart_ram: RamChunk::new(0x2000),
+      cart_ram: RamChunk::new(0x8000),
       vram: RamChunk::new(0x2000),
       work_ram_one: RamChunk::new(0x1000),
       work_ram_two: RamChunk::new(0x1000),
       high_ram: RamChunk::new(0x200),
       boot_enabled: true,
+      ram_on: false,
+      ram_mode: false,
 
       /**
        * Rom bank defaults
        */
       rom_bank: 1,
-      ram_bank: 1,
+      ram_bank: 0,
 
       /**
        * Gamepad default config
@@ -239,23 +243,40 @@ impl GameboyState {
     let bank = if bank == 0 { 1 } else { bank };
     self.rom_bank = bank;
   }
+
+  fn set_rom_bank_upper(&mut self, bank: u8) {
+    info!("set rom bank upper 2 bits {}", bank);
+    let bank = ((bank & 0x3) << 5) as u16 + self.rom_bank;
+    self.rom_bank = bank;
+  }
 }
 
 impl MemoryChunk for GameboyState {
   fn write_u8(&mut self, address: u16, val: u8) {
     debug!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
-      if address >= 0x2000 && address < 0x4000 {
+      if address < 0x2000 {
+        self.ram_on = val == 0x0A;
+      } else if address >= 0x2000 && address < 0x4000 {
         // Writes to this area of ROM memory trigger a bank change
         self.set_rom_bank(val);
-      } else {
-        error!("Illegal write {:x} to ROM {:x}", val, address);
+      } else if address >= 0x4000 && address < 0x6000 {
+        if self.ram_mode {
+          self.ram_bank = (val & 0x3) as u16;
+        } else {
+          self.set_rom_bank_upper(val);
+        }
+      } else if address < 0x8000 {
+        info!("ram_mode");
+        self.ram_mode = val != 0;
       }
     } else if address < END_OF_VRAM {
       trace!("{}", address - END_OF_BANKED_ROM);
       self.vram.write_u8(address - END_OF_BANKED_ROM, val)
     } else if address < END_OF_CARTRIDGE_RAM {
-      self.cart_ram.write_u8(address - END_OF_VRAM, val)
+      self
+        .cart_ram
+        .write_u8((address - END_OF_VRAM) + (0x2000 * self.ram_bank), val)
     } else if address < END_OF_WORK_RAM_ONE {
       self
         .work_ram_one
@@ -305,7 +326,9 @@ impl MemoryChunk for GameboyState {
     } else if address < END_OF_VRAM {
       self.vram.read_u8(address - END_OF_BANKED_ROM)
     } else if address < END_OF_CARTRIDGE_RAM {
-      self.cart_ram.read_u8(address - END_OF_VRAM)
+      self
+        .cart_ram
+        .read_u8((address - END_OF_VRAM) + (0x2000 * self.ram_bank))
     } else if address < END_OF_WORK_RAM_ONE {
       self.work_ram_one.read_u8(address - END_OF_CARTRIDGE_RAM)
     } else if address < END_OF_WORK_RAM_TWO {
