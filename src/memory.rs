@@ -245,7 +245,7 @@ impl MemoryChunk for GameboyState {
   fn write_u8(&mut self, address: u16, val: u8) {
     debug!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
-      if address <= 0x2000 {
+      if address >= 0x2000 && address < 0x4000 {
         // Writes to this area of ROM memory trigger a bank change
         self.set_rom_bank(val);
       } else {

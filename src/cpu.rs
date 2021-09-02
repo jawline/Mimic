@@ -67,6 +67,7 @@ pub enum SmallWidthRegister {
   E,
   H,
   L,
+  SmallUnset // Used to identify errors in instructions
 }
 
 /// Enum to address all the 16-bit wide registers
@@ -78,6 +79,7 @@ pub enum WideRegister {
   AF,
   DE,
   HL,
+  WideUnset
 }
 
 use SmallWidthRegister::*;
@@ -176,6 +178,7 @@ impl Registers {
       E => self.de.r,
       H => self.hl.l,
       L => self.hl.r,
+      SmallUnset => panic!("read small unset")
     }
   }
 
@@ -190,6 +193,7 @@ impl Registers {
       E => self.de.r = val,
       H => self.hl.l = val,
       L => self.hl.r = val,
+      SmallUnset => panic!("write small unset")
     };
   }
 
@@ -202,6 +206,7 @@ impl Registers {
       AF => self.af.as_u16(),
       DE => self.de.as_u16(),
       HL => self.hl.as_u16(),
+      WideUnset => panic!("access bad wide register")
     }
   }
 
@@ -217,6 +222,7 @@ impl Registers {
       AF => self.af.write_u16(val),
       DE => self.de.write_u16(val),
       HL => self.hl.write_u16(val),
+      WideUnset => panic!("write bad wide register")
     };
   }
 

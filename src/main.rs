@@ -33,6 +33,8 @@ struct Opts {
   #[clap(short, long)]
   cli_mode: bool,
   #[clap(short, long)]
+  cli_greyscale: bool,
+  #[clap(short, long)]
   skip_bios: bool,
 }
 
@@ -80,6 +82,6 @@ fn main() -> io::Result<()> {
   if !opts.cli_mode {
     sdl::run(gameboy_state)
   } else {
-    terminal::run(gameboy_state)
+    terminal::run(gameboy_state, opts.cli_greyscale)
   }
 }

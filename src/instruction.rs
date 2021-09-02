@@ -29,10 +29,10 @@ impl Default for InstructionData {
       bit: 0,
       flag_mask: 0,
       flag_expected: 0,
-      small_reg_one: SmallWidthRegister::B,
-      small_reg_dst: SmallWidthRegister::B,
-      wide_reg_one: WideRegister::BC,
-      wide_reg_dst: WideRegister::BC,
+      small_reg_one: SmallWidthRegister::SmallUnset,
+      small_reg_dst: SmallWidthRegister::SmallUnset,
+      wide_reg_one: WideRegister::WideUnset,
+      wide_reg_dst: WideRegister::WideUnset,
     }
   }
 }
@@ -129,6 +129,7 @@ pub fn ld_imm_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   //Increment the PC by three once arguments are collected
   registers.inc_pc(3);
 
+  // Store the immediate value in the designated register
   registers.write_r16(additional.wide_reg_dst, imm_val);
 
   trace!(
@@ -226,20 +227,17 @@ pub fn inc_small_register(
   // Increment the destination register by one
   registers.write_r8(additional.small_reg_dst, result);
 
-  registers.set_flags(
-    result == 0,
-    false,
-    ((l & 0xF) + 1) & (0xF0) != 0,
-    registers.carry(),
-  );
+  let half_carry = ((l & 0xF) + 1) & 0xF0 != 0;
+
+  registers.set_flags(result == 0, false, half_carry, registers.carry());
 }
 
+// Increment an 8-bit value at a given memory address by one.
 pub fn inc_mem_r16(
   registers: &mut Registers,
   memory: &mut MemoryPtr,
   additional: &InstructionData,
 ) {
-
   registers.inc_pc(1);
 
   let addr = registers.read_r16(additional.wide_reg_dst);
@@ -249,12 +247,9 @@ pub fn inc_mem_r16(
   // Increment by one and modify memory
   memory.write_u8(addr, result);
 
-  registers.set_flags(
-    result == 0,
-    false,
-    ((l & 0xF) + 1) & (0xF0) != 0,
-    registers.carry(),
-  );
+  let half_carry = ((l & 0xF) + 1) & 0xF0 != 0;
+
+  registers.set_flags(result == 0, false, half_carry, registers.carry());
 }
 
 /// Decrement the value of memory pointed by a wide register by one
@@ -282,7 +277,6 @@ pub fn dec_mem_r16(
 
 /// Add two 8-bit values and set flags
 fn add_core(l: u8, r: u8, registers: &mut Registers) -> u8 {
-
   // Half carry is set where the addition of the lower nibbles of each byte carries into the upper
   // nibble.
   let half_carry = (((l & 0xF) + (r & 0xF)) & 0xF0) != 0;
@@ -325,7 +319,6 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
 /// This function forms the foundation for all common 8-bit subtractions
 fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
-
   // Half carry when the upper nibble of the origin subtracted from the upper nibble of the sub
   // carries (TODO: Check this logic, it doesn't seem right)
   let half_carry = (origin & 0xF0) < (sub_v & 0xF0);
@@ -432,6 +425,7 @@ fn cp_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instr
   sub_core(origin, sub_v, registers);
 }
 
+/// Implement the core xor logic for 8 bit values
 fn xor_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
   let result = v1 ^ v2;
   registers.set_flags(result == 0, false, false, false);
@@ -458,7 +452,6 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// The core logic for subtraction of 8-bit values through a carry
 fn sbc_core(v1: u8, mut v2: u8, registers: &mut Registers) -> u8 {
-
   if registers.carry() {
     v2 += 1;
   }
@@ -487,7 +480,6 @@ fn sbc_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// Load small reg to 0xFF00 + n
 fn ld_ff00_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   // Fetch the immediate offset
   let add_v: u16 = memory.read_u8(registers.pc() + 1).into();
 
