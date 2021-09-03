@@ -1,6 +1,6 @@
 use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
 use crate::memory::{isset8, set8, unset8, MemoryPtr};
-use log::{debug, trace};
+use log::{info, debug, trace};
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
@@ -310,8 +310,8 @@ impl CPU {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
-      trace!("ENABLED INTERRUPTS {:b}", enabled);
-      trace!("TRIGGERED INTERRUPTS {:b}", triggered);
+      debug!("ENABLED INTERRUPTS {:b}", enabled);
+      debug!("TRIGGERED INTERRUPTS {:b}", triggered);
 
       let interrupted = triggered & enabled;
 
@@ -322,19 +322,19 @@ impl CPU {
       // The interrupt precedence is decided by the priority which is expressed in
       // the order of if-else statements.
       if isset8(interrupted, VBLANK) {
-        trace!("VBLANK INTERRUPT");
+        debug!("VBLANK INTERRUPT");
         CPU::clear_interrupt_happened(memory, VBLANK);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
       } else if isset8(interrupted, STAT) {
-        trace!("STAT INTERRUPT");
+        debug!("STAT INTERRUPT");
         CPU::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
       } else if isset8(interrupted, TIMER) {
-        trace!("TIMER INT");
+        debug!("TIMER INT");
         CPU::clear_interrupt_happened(memory, TIMER);
         self.fire_interrupt(TIMER_ADDRESS, memory);
       } else if isset8(interrupted, JOYPAD) {
-        trace!("JOYPAD PRESSED");
+        debug!("JOYPAD PRESSED");
         CPU::clear_interrupt_happened(memory, JOYPAD);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
       }

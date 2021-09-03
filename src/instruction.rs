@@ -1001,6 +1001,7 @@ fn jump_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   }
 }
 
+/// Jump to the value stored in a wide register
 fn jump_wide_reg(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let target_address = registers.read_r16(additional.wide_reg_dst);

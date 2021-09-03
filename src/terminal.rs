@@ -104,9 +104,10 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool) -> io::Result<()> {
 
         pub const WHITE: u8 = 255;
         pub const MID: u8 = 128;
+        pub const LOW: u8 = 96;
 
         fn print_greyscale(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
-          if shade != WHITE {
+          if shade <= LOW {
             let shade = WHITE - shade;
             canvas.set_colored(
               x as u32,
