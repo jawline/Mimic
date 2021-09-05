@@ -281,15 +281,11 @@ impl MemoryChunk for GameboyState {
       trace!("{}", address - END_OF_BANKED_ROM);
       self.vram.write_u8(address - END_OF_BANKED_ROM, val)
     } else if address < END_OF_CARTRIDGE_RAM {
-        let address = (address - END_OF_VRAM) as usize;
-        let address = address + (0x2000 * self.ram_bank);
-      self
-        .cart_ram
-        .wide_write_u8(address, val)
+      let address = (address - END_OF_VRAM) as usize;
+      let address = address + (0x2000 * self.ram_bank);
+      self.cart_ram.wide_write_u8(address, val)
     } else if address < END_OF_INTERNAL_RAM {
-      self
-        .iram
-        .write_u8(address - END_OF_CARTRIDGE_RAM, val)
+      self.iram.write_u8(address - END_OF_CARTRIDGE_RAM, val)
     } else if address < END_OF_ECHO_RAM {
       // TODO: mirror ram, do I need?
       error!("illegal write to {:x}", address);
@@ -335,9 +331,7 @@ impl MemoryChunk for GameboyState {
       let address = (address - END_OF_VRAM) as usize;
       let address = address + (0x2000 * self.ram_bank);
       info!("CART RAM RD");
-      self
-        .cart_ram
-        .wide_read_u8(address)
+      self.cart_ram.wide_read_u8(address)
     } else if address < END_OF_INTERNAL_RAM {
       self.iram.read_u8(address - END_OF_CARTRIDGE_RAM)
     } else if address < END_OF_ECHO_RAM {
