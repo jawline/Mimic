@@ -393,7 +393,8 @@ impl CPU {
       (inst.execute)(&mut self.registers, memory, &inst.data);
       //trace!("post-step: {:?}", self.registers);
       // Some instructions mutate the last clock like JR
-      self.registers.last_clock = inst.cycles;
+      self.registers.last_clock += inst.cycles;
+      debug!("{} cycles", self.registers.last_clock);
     } else {
       self.registers.last_clock = 4;
     }

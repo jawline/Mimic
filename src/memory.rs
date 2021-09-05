@@ -260,7 +260,7 @@ impl GameboyState {
 
 impl MemoryChunk for GameboyState {
   fn write_u8(&mut self, address: u16, val: u8) {
-    debug!("write {:x} to {:x}", val, address);
+    trace!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
       if address < 0x2000 {
         self.ram_on = val == 0x0A;
@@ -314,7 +314,7 @@ impl MemoryChunk for GameboyState {
   }
 
   fn read_u8(&self, address: u16) -> u8 {
-    debug!("read {:x}", address);
+    trace!("read {:x}", address);
     if address < END_OF_FIXED_ROM {
       if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);

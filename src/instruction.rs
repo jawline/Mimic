@@ -2510,7 +2510,7 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let jmp = Instruction {
     execute: jump_immediate,
-    cycles: 12,
+    cycles: 8,
     text: format!("jmp NN"),
     data: InstructionData::default().with_flag(0, 0),
   };
@@ -2778,7 +2778,7 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let ld_a_ff00 = Instruction {
     execute: ld_r8_ff00_imm,
-    cycles: 12,
+    cycles: 8,
     text: format!("ld A, (FF00 + n)"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
