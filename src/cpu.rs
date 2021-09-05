@@ -1,6 +1,6 @@
 use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
 use crate::memory::{isset8, set8, unset8, MemoryPtr};
-use log::{info, debug, trace};
+use log::{debug, trace};
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
@@ -389,9 +389,11 @@ impl CPU {
       );
 
       trace!("{} ({:x})", inst.text, opcode);
+      self.registers.last_clock = 0;
       (inst.execute)(&mut self.registers, memory, &inst.data);
       //trace!("post-step: {:?}", self.registers);
-      self.registers.last_clock = inst.timings.1;
+      // Some instructions mutate the last clock like JR
+      self.registers.last_clock = inst.cycles;
     } else {
       self.registers.last_clock = 4;
     }

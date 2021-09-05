@@ -110,7 +110,7 @@ impl InstructionData {
 #[derive(Clone)]
 pub struct Instruction {
   pub execute: fn(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData),
-  pub timings: (u16, u16),
+  pub cycles: u16,
   pub text: String,
   pub data: InstructionData,
 }
@@ -931,7 +931,7 @@ fn load_r16_mem_to_r8(
 
 /// Stop the processor & screen until button press
 fn stop(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  registers.inc_pc(1);
+  registers.inc_pc(2);
   unimplemented!();
 }
 
@@ -950,6 +950,7 @@ fn jump_relative_signed_immediate(
   let byte = memory.read_u8(registers.pc() + 1) as i8;
   registers.inc_pc(2);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    registers.last_clock = 4;
     registers.jump_relative(byte);
   }
 }
@@ -958,6 +959,7 @@ fn jump_relative_signed_immediate(
 fn ret(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    registers.last_clock = 12;
     let ret_pc = registers.stack_pop16(memory);
     registers.set_pc(ret_pc);
   }
@@ -997,6 +999,7 @@ fn jump_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    registers.last_clock = 4;
     registers.set_pc(target_address);
   }
 }
@@ -1015,6 +1018,7 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
+    registers.last_clock = 12;
     registers.stack_push16(registers.pc(), memory);
     registers.set_pc(target_address);
   }
@@ -1133,952 +1137,952 @@ fn rst_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instruc
 pub fn instruction_set() -> Vec<Instruction> {
   let no_op = Instruction {
     execute: no_op,
-    timings: (1, 4),
+    cycles: 4,
     text: "NOP".to_string(),
     data: InstructionData::default(),
   };
 
   let load_imm_bc = Instruction {
     execute: ld_imm_r16,
-    timings: (3, 12),
+    cycles: 12,
     text: "ld BC, nn".to_string(),
     data: InstructionData::wide_dst(WideRegister::BC),
   };
 
   let load_bc_a = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (BC) A".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::BC, SmallWidthRegister::A),
   };
 
   let inc_bc = Instruction {
     execute: inc_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: "inc BC".to_string(),
     data: InstructionData::wide_dst(WideRegister::BC),
   };
 
   let inc_b = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc B"),
     data: InstructionData::small_dst(SmallWidthRegister::B),
   };
 
   let dec_b = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: "dec B".to_string(),
     data: InstructionData::small_dst(SmallWidthRegister::B),
   };
 
   let load_imm_b = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: "ld B, n".to_string(),
     data: InstructionData::small_dst(SmallWidthRegister::B),
   };
 
   let rlca = Instruction {
     execute: rotate_left_with_carry,
-    timings: (1, 1),
+    cycles: 4,
     text: format!("RLCA"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let ld_nn_sp = Instruction {
     execute: load_immediate_wide_register,
-    timings: (3, 20),
+    cycles: 20,
     text: format!("ld (NN), SP"),
     data: InstructionData::wide_src(WideRegister::SP),
   };
 
   let add_hl_bc = Instruction {
     execute: add_r16_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("add HL, BC"),
     data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::BC),
   };
 
   let ld_a_bc = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld A, (BC)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::BC),
   };
 
   let dec_bc = Instruction {
     execute: dec_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("dec BC"),
     data: InstructionData::wide_dst(WideRegister::BC),
   };
 
   let inc_c = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc C"),
     data: InstructionData::small_dst(SmallWidthRegister::C),
   };
 
   let dec_c = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("dec C"),
     data: InstructionData::small_dst(SmallWidthRegister::C),
   };
 
   let ld_c_n = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("ld C, n"),
     data: InstructionData::small_dst(SmallWidthRegister::C),
   };
 
   let rrca = Instruction {
     execute: rotate_right_with_carry,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("RRCA"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let stop = Instruction {
     execute: stop,
-    timings: (1, 4),
+    cycles: 2,
     text: format!("STOP"),
     data: InstructionData::default(),
   };
 
   let load_imm_de = Instruction {
     execute: ld_imm_r16,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("ld DE, nn"),
     data: InstructionData::wide_dst(WideRegister::DE),
   };
 
   let load_mem_de_a = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld (DE), A"),
     data: InstructionData::wide_dst_small_in(WideRegister::DE, SmallWidthRegister::A),
   };
 
   let inc_de = Instruction {
     execute: inc_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: "inc DE".to_string(),
     data: InstructionData::wide_dst(WideRegister::DE),
   };
 
   let inc_d = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc D"),
     data: InstructionData::small_dst(SmallWidthRegister::D),
   };
 
   let dec_d = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("dec D"),
     data: InstructionData::small_dst(SmallWidthRegister::D),
   };
 
   let ld_d_n = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("ld D, n"),
     data: InstructionData::small_dst(SmallWidthRegister::D),
   };
 
   let rla = Instruction {
     execute: rl_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("RLA"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let jr_n = Instruction {
     execute: jump_relative_signed_immediate,
-    timings: (2, 12),
+    cycles: 8, // This is always 12 but the remaining 4 are added by the instr itself
     text: format!("JR n"),
     data: InstructionData::default().with_flag(0, 0),
   };
 
   let add_hl_de = Instruction {
     execute: add_r16_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("add HL, DE"),
     data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::DE),
   };
 
   let ld_a_de = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld A, (DE)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::DE),
   };
 
   let dec_de = Instruction {
     execute: dec_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("dec DE"),
     data: InstructionData::wide_dst(WideRegister::DE),
   };
 
   let inc_e = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc E"),
     data: InstructionData::small_dst(SmallWidthRegister::E),
   };
 
   let dec_e = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("dec E"),
     data: InstructionData::small_dst(SmallWidthRegister::E),
   };
 
   let ld_e_n = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("ld E, n"),
     data: InstructionData::small_dst(SmallWidthRegister::E),
   };
 
   let rra = Instruction {
     execute: rotate_r8_right_through_carry,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("RRA"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let jr_nz_n = Instruction {
     execute: jump_relative_signed_immediate,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("JRNZ n"),
     data: InstructionData::default().with_flag(ZERO_FLAG, 0),
   };
 
   let load_imm_hl = Instruction {
     execute: ld_imm_r16,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("ld HL, nn"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let ldi_hl_a = Instruction {
     execute: ldi_mem_r16_val_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ldi (HL), A"),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A),
   };
 
   let inc_hl = Instruction {
     execute: inc_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("inc HL"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let inc_h = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc H"),
     data: InstructionData::small_dst(SmallWidthRegister::H),
   };
 
   let dec_h = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("dec H"),
     data: InstructionData::small_dst(SmallWidthRegister::H),
   };
 
   let ld_h_n = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("ld H, n"),
     data: InstructionData::small_dst(SmallWidthRegister::H),
   };
 
   let daa = Instruction {
     execute: daa,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("daa"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let jr_z_n = Instruction {
     execute: jump_relative_signed_immediate,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("JRZ n"),
     data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG),
   };
 
   let add_hl_hl = Instruction {
     execute: add_r16_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("add HL, HL"),
     data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::HL),
   };
 
   let ldi_a_hl = Instruction {
     execute: ldi_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ldi A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let dec_hl = Instruction {
     execute: dec_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("dec HL"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let inc_l = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc L"),
     data: InstructionData::small_dst(SmallWidthRegister::L),
   };
 
   let dec_l = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("dec L"),
     data: InstructionData::small_dst(SmallWidthRegister::L),
   };
 
   let ld_l_n = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("ld L, n"),
     data: InstructionData::small_dst(SmallWidthRegister::L),
   };
 
   let cpl = Instruction {
     execute: cpl_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cpl"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let jr_nc_n = Instruction {
     execute: jump_relative_signed_immediate,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("JRNC n"),
     data: InstructionData::default().with_flag(CARRY_FLAG, 0),
   };
 
   let load_imm_sp = Instruction {
     execute: ld_imm_r16,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("ld SP, nn"),
     data: InstructionData::wide_dst(WideRegister::SP),
   };
 
   let ldd_hl_a = Instruction {
     execute: ldd_mem_r16_val_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ldd (HL), A"),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A),
   };
 
   let inc_sp = Instruction {
     execute: inc_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("inc SP"),
     data: InstructionData::wide_dst(WideRegister::SP),
   };
 
   let inc_mem_hl = Instruction {
     execute: inc_mem_r16,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("inc (HL)"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let dec_mem_hl = Instruction {
     execute: dec_mem_r16,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("dec (HL)"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let ld_mem_hl_n = Instruction {
     execute: ld_mem_r16_immediate,
-    timings: (2, 12),
+    cycles: 12,
     text: format!("ld (HL), n"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let scf = Instruction {
     execute: scf,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("SCF"),
     data: InstructionData::default(),
   };
 
   let jr_c_n = Instruction {
     execute: jump_relative_signed_immediate,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("JRC n"),
     data: InstructionData::default().with_flag(CARRY_FLAG, CARRY_FLAG),
   };
 
   let add_hl_sp = Instruction {
     execute: add_r16_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("add HL, SP"),
     data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::SP),
   };
 
   let ldd_a_hl = Instruction {
     execute: ldd_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ldd A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let dec_sp = Instruction {
     execute: dec_wide_register,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("dec SP"),
     data: InstructionData::wide_dst(WideRegister::SP),
   };
 
   let inc_a = Instruction {
     execute: inc_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("inc A"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let dec_a = Instruction {
     execute: dec_small_register,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("dec A"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let ld_a_n = Instruction {
     execute: ld_imm_r8,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("ld A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let ccf = Instruction {
     execute: ccf,
-    timings: (2, 8),
+    cycles: 4,
     text: format!("CCF"),
     data: InstructionData::default(),
   };
 
   let ld_b_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 8,
     text: format!("ld B, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::B),
   };
 
   let ld_b_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld B, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::C),
   };
 
   let ld_b_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld B, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::D),
   };
 
   let ld_b_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld B, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::E),
   };
 
   let ld_b_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld B, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::H),
   };
 
   let ld_b_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld B, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::L),
   };
 
   let ld_b_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld B, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::B, WideRegister::HL),
   };
 
   let ld_b_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld B, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::A),
   };
 
   let ld_c_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::B),
   };
 
   let ld_c_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::C),
   };
 
   let ld_c_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::D),
   };
 
   let ld_c_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::E),
   };
 
   let ld_c_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::H),
   };
 
   let ld_c_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::L),
   };
 
   let ld_c_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld C, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::C, WideRegister::HL),
   };
 
   let ld_c_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld C, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::C, SmallWidthRegister::A),
   };
 
   let ld_d_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::B),
   };
 
   let ld_d_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::C),
   };
 
   let ld_d_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::D),
   };
 
   let ld_d_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::E),
   };
 
   let ld_d_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::H),
   };
 
   let ld_d_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::L),
   };
 
   let ld_d_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld D, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::D, WideRegister::HL),
   };
 
   let ld_d_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld D, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::D, SmallWidthRegister::A),
   };
 
   let ld_e_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::B),
   };
 
   let ld_e_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::C),
   };
 
   let ld_e_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::D),
   };
 
   let ld_e_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::E),
   };
 
   let ld_e_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::H),
   };
 
   let ld_e_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::L),
   };
 
   let ld_e_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld E, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::E, WideRegister::HL),
   };
 
   let ld_e_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld E, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::E, SmallWidthRegister::A),
   };
 
   let ld_h_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::B),
   };
 
   let ld_h_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::C),
   };
 
   let ld_h_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::D),
   };
 
   let ld_h_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::E),
   };
 
   let ld_h_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::H),
   };
 
   let ld_h_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::L),
   };
 
   let ld_h_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld H, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::H, WideRegister::HL),
   };
 
   let ld_h_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld H, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::H, SmallWidthRegister::A),
   };
 
   let ld_l_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::B),
   };
 
   let ld_l_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::C),
   };
 
   let ld_l_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::D),
   };
 
   let ld_l_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::E),
   };
 
   let ld_l_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::H),
   };
 
   let ld_l_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::L),
   };
 
   let ld_l_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld L, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::L, WideRegister::HL),
   };
 
   let ld_l_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld L, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::A),
   };
 
   let load_hl_b = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) B".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::B),
   };
 
   let load_hl_c = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) C".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::C),
   };
 
   let load_hl_d = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) D".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::D),
   };
 
   let load_hl_e = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) E".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::E),
   };
 
   let load_hl_h = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) H".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::H),
   };
 
   let load_hl_l = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) L".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::L),
   };
 
   let halt = Instruction {
     execute: halt,
-    timings: (1, 8),
+    cycles: 4,
     text: "HALT".to_string(),
     data: InstructionData::default(),
   };
 
   let load_hl_a = Instruction {
     execute: ld_reg8_mem_reg16,
-    timings: (1, 8),
+    cycles: 8,
     text: "ld (HL) A".to_string(),
     data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A),
   };
 
   let ld_a_b = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let ld_a_c = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let ld_a_d = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let ld_a_e = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let ld_a_h = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let ld_a_l = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let ld_a_hl = Instruction {
     execute: load_r16_mem_to_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let ld_a_a = Instruction {
     execute: ld_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("ld A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
 
   let add_a_b = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let add_a_c = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let add_a_d = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let add_a_e = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let add_a_h = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let add_a_l = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let add_a_hl = Instruction {
     execute: add_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("add A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let add_a_a = Instruction {
     execute: add_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("add A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2087,56 +2091,56 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let adc_a_b = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let adc_a_c = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let adc_a_d = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let adc_a_e = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let adc_a_h = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let adc_a_l = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let adc_a_hl = Instruction {
     execute: adc_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("adc A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let adc_a_a = Instruction {
     execute: adc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("adc A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2144,56 +2148,56 @@ pub fn instruction_set() -> Vec<Instruction> {
   // Subtract
   let sub_a_b = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let sub_a_c = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let sub_a_d = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let sub_a_e = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let sub_a_h = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let sub_a_l = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let sub_a_hl = Instruction {
     execute: sub_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("sub A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let sub_a_a = Instruction {
     execute: sub_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sub A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2201,56 +2205,56 @@ pub fn instruction_set() -> Vec<Instruction> {
   // Subtract with carry
   let sbc_a_b = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let sbc_a_c = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let sbc_a_d = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let sbc_a_e = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let sbc_a_h = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let sbc_a_l = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let sbc_a_hl = Instruction {
     execute: sbc_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("sbc A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let sbc_a_a = Instruction {
     execute: sbc_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("sbc A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2258,56 +2262,56 @@ pub fn instruction_set() -> Vec<Instruction> {
   // And
   let and_a_b = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let and_a_c = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let and_a_d = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let and_a_e = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let and_a_h = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let and_a_l = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let and_a_hl = Instruction {
     execute: and_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("and A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let and_a_a = Instruction {
     execute: and_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("and A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2315,56 +2319,56 @@ pub fn instruction_set() -> Vec<Instruction> {
   // Xor
   let xor_a_b = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let xor_a_c = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let xor_a_d = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let xor_a_e = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let xor_a_h = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let xor_a_l = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let xor_a_hl = Instruction {
     execute: xor_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("xor A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let xor_a_a = Instruction {
     execute: xor_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("xor A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2372,56 +2376,56 @@ pub fn instruction_set() -> Vec<Instruction> {
   // or
   let or_a_b = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let or_a_c = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let or_a_d = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let or_a_e = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let or_a_h = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let or_a_l = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let or_a_hl = Instruction {
     execute: or_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("or A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let or_a_a = Instruction {
     execute: or_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("or A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
@@ -2429,434 +2433,436 @@ pub fn instruction_set() -> Vec<Instruction> {
   // cp
   let cp_a_b = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, B"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::B),
   };
 
   let cp_a_c = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, C"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let cp_a_d = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, D"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::D),
   };
 
   let cp_a_e = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, E"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::E),
   };
 
   let cp_a_h = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, H"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::H),
   };
 
   let cp_a_l = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, L"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::L),
   };
 
   let cp_a_hl = Instruction {
     execute: cp_r8_mem_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("cp A, (HL)"),
     data: InstructionData::small_dst_wide_src(SmallWidthRegister::A, WideRegister::HL),
   };
 
   let cp_a_a = Instruction {
     execute: cp_r8_r8,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("cp A, A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::A),
   };
 
   let ret_n_z = Instruction {
     execute: ret,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("retnz"),
     data: InstructionData::default().with_flag(ZERO_FLAG, 0),
   };
 
   let pop_bc = Instruction {
     execute: pop_wide_register,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("pop BC"),
     data: InstructionData::wide_dst(WideRegister::BC),
   };
 
   let jnz = Instruction {
     execute: jump_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("jnz NN"),
     data: InstructionData::default().with_flag(ZERO_FLAG, 0),
   };
 
   let jmp = Instruction {
     execute: jump_immediate,
-    timings: (3, 16),
+    cycles: 12,
     text: format!("jmp NN"),
     data: InstructionData::default().with_flag(0, 0),
   };
 
   let callnz = Instruction {
     execute: call_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("callnz NN"),
     data: InstructionData::default().with_flag(ZERO_FLAG, 0),
   };
 
   let push_bc = Instruction {
     execute: push_wide_register,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("push BC"),
     data: InstructionData::wide_dst(WideRegister::BC),
   };
 
   let add_a_n = Instruction {
     execute: add_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("add A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_0 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 0"),
     data: InstructionData::rst_n(0),
   };
 
   let ret_z = Instruction {
     execute: ret,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("retz"),
     data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG),
   };
 
+  // TODO: RET AND JMP WITH NO COMPARISON TAKE A DIFFERENT NUMBER OF CYCLE
+
   let ret_from_fn = Instruction {
     execute: ret,
-    timings: (1, 16),
+    cycles: 4,
     text: format!("ret"),
     data: InstructionData::default().with_flag(0, 0),
   };
 
   let jz = Instruction {
     execute: jump_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("jz NN"),
     data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG),
   };
 
   let escape = Instruction {
     execute: escape,
-    timings: (1, 1),
+    cycles: 4,
     text: format!("ESCAPE"),
     data: InstructionData::default(),
   };
 
   let callz = Instruction {
     execute: call_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("callz NN"),
     data: InstructionData::default().with_flag(ZERO_FLAG, ZERO_FLAG),
   };
 
   let call = Instruction {
     execute: call_immediate,
-    timings: (3, 12),
+    cycles: 4,
     text: format!("call NN"),
     data: InstructionData::default().with_flag(0, 0),
   };
 
   let adc_a_n = Instruction {
     execute: adc_r8_imm,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("adc A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_8 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 8"),
     data: InstructionData::rst_n(0x8),
   };
 
   let ret_n_c = Instruction {
     execute: ret,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("retnc"),
     data: InstructionData::default().with_flag(CARRY_FLAG, 0),
   };
 
   let pop_de = Instruction {
     execute: pop_wide_register,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("pop DE"),
     data: InstructionData::wide_dst(WideRegister::DE),
   };
 
   let jnc = Instruction {
     execute: jump_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("jnc NN"),
     data: InstructionData::default().with_flag(CARRY_FLAG, 0),
   };
 
   let invalid = Instruction {
     execute: invalid_op,
-    timings: (1, 4),
+    cycles: 0,
     text: format!("INVALID"),
     data: InstructionData::default(),
   };
 
   let callnc = Instruction {
     execute: call_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("callnc NN"),
     data: InstructionData::default().with_flag(CARRY_FLAG, 0),
   };
 
   let push_de = Instruction {
     execute: push_wide_register,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("push DE"),
     data: InstructionData::wide_dst(WideRegister::DE),
   };
 
   let sub_a_imm = Instruction {
     execute: sub_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("sub A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_10 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 10H"),
     data: InstructionData::rst_n(0x10),
   };
 
   let ret_c = Instruction {
     execute: ret,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("retc"),
     data: InstructionData::default().with_flag(CARRY_FLAG, CARRY_FLAG),
   };
 
   let ret_i = Instruction {
     execute: reti,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("reti"),
     data: InstructionData::default(),
   };
 
   let jc = Instruction {
     execute: jump_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("jc NN"),
     data: InstructionData::default().with_flag(CARRY_FLAG, CARRY_FLAG),
   };
 
   let callc = Instruction {
     execute: call_immediate,
-    timings: (3, 12),
+    cycles: 12,
     text: format!("callc NN"),
     data: InstructionData::default().with_flag(CARRY_FLAG, CARRY_FLAG),
   };
 
   let sbc_a_n = Instruction {
     execute: sbc_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("sbc A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_18 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 18H"),
     data: InstructionData::rst_n(0x18),
   };
 
   let ld_ff00_a = Instruction {
     execute: ld_ff00_imm_r8,
-    timings: (2, 12),
+    cycles: 12,
     text: format!("ld (FF00 + n), A"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let pop_hl = Instruction {
     execute: pop_wide_register,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("pop HL"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let ld_ff00_c_a = Instruction {
     execute: ld_ff00_r8_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld (FF00 + C), A"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let push_hl = Instruction {
     execute: push_wide_register,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("push HL"),
     data: InstructionData::wide_dst(WideRegister::HL),
   };
 
   let and_a_n = Instruction {
     execute: and_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("and A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_20 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 20H"),
     data: InstructionData::rst_n(0x20),
   };
 
   let add_sp_d = Instruction {
     execute: add_r16_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("add SP, d"),
     data: InstructionData::wide_dst(WideRegister::SP),
   };
 
   let jmp_indirect_hl = Instruction {
     execute: jump_wide_reg,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("jmp (HL)"),
     data: InstructionData::wide_dst(WideRegister::HL).with_flag(0, 0),
   };
 
   let ld_nn_a = Instruction {
     execute: load_indirect_nn_small_register,
-    timings: (3, 16),
+    cycles: 16,
     text: format!("ld (NN), A"),
     data: InstructionData::small_src(SmallWidthRegister::A),
   };
 
   let xor_a_n = Instruction {
     execute: xor_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("xor A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_28 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 28H"),
     data: InstructionData::rst_n(0x28),
   };
 
   let ld_a_ff00 = Instruction {
     execute: ld_r8_ff00_imm,
-    timings: (2, 12),
+    cycles: 12,
     text: format!("ld A, (FF00 + n)"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let pop_af = Instruction {
     execute: pop_wide_register,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("pop AF"),
     data: InstructionData::wide_dst(WideRegister::AF),
   };
 
   let ld_a_ff00_c = Instruction {
     execute: ld_r8_ff00_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld A, (FF00 + C)"),
     data: InstructionData::small_dst_small_src(SmallWidthRegister::A, SmallWidthRegister::C),
   };
 
   let di = Instruction {
     execute: disable_interrupts,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("DI"),
     data: InstructionData::default(),
   };
 
   let push_af = Instruction {
     execute: push_wide_register,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("push AF"),
     data: InstructionData::wide_dst(WideRegister::AF),
   };
 
   let or_a_n = Instruction {
     execute: or_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("or A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_30 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 30H"),
     data: InstructionData::rst_n(0x30),
   };
 
   let ld_hl_sp_d = Instruction {
     execute: ld_r16_r16_plus_n,
-    timings: (1, 12),
+    cycles: 12,
     text: format!("ld HL, SP + d"),
     data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::SP),
   };
 
   let ld_hl_sp = Instruction {
     execute: ld_r16_r16,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("ld HL, SP"),
     data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::SP),
   };
 
   let ld_a_nn = Instruction {
     execute: ld_r8_indirect_imm,
-    timings: (3, 16),
+    cycles: 16,
     text: format!("ld A, (nn)"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let ei = Instruction {
     execute: enable_interrupts,
-    timings: (1, 4),
+    cycles: 4,
     text: format!("EI"),
     data: InstructionData::default(),
   };
 
   let cp_a_n = Instruction {
     execute: cp_r8_n,
-    timings: (2, 8),
+    cycles: 8,
     text: format!("cp A, n"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
   };
 
   let rst_38 = Instruction {
     execute: rst_n,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("rst 38H"),
     data: InstructionData::rst_n(0x38),
   };
@@ -3410,13 +3416,13 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // RLC
   let rlc_r8_skeleton = Instruction {
     execute: ext_rlc_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("RLC "),
     data: InstructionData::default(),
   };
   let rlc_indirect_skeleton = Instruction {
     execute: ext_rlc_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("RLC "),
     data: InstructionData::default(),
   };
@@ -3425,13 +3431,13 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // RRC
   let rrc_r8_skeleton = Instruction {
     execute: ext_rrc_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("RRC "),
     data: InstructionData::default(),
   };
   let rrc_indirect_skeleton = Instruction {
     execute: ext_rrc_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("RRC "),
     data: InstructionData::default(),
   };
@@ -3440,13 +3446,13 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // RL
   let rl_r8_skeleton = Instruction {
     execute: rl_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("RL "),
     data: InstructionData::default(),
   };
   let rl_indirect_skeleton = Instruction {
     execute: ext_rl_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("RL "),
     data: InstructionData::default(),
   };
@@ -3455,13 +3461,13 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // RR
   let rr_r8_skeleton = Instruction {
     execute: ext_rr_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("RR "),
     data: InstructionData::default(),
   };
   let rr_indirect_skeleton = Instruction {
     execute: ext_rr_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("RR "),
     data: InstructionData::default(),
   };
@@ -3470,13 +3476,13 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // SLA
   let sla_r8_skeleton = Instruction {
     execute: ext_sla_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("SLA "),
     data: InstructionData::default(),
   };
   let sla_indirect_skeleton = Instruction {
     execute: ext_sla_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("SLA "),
     data: InstructionData::default(),
   };
@@ -3485,13 +3491,13 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // SRA
   let sra_r8_skeleton = Instruction {
     execute: ext_sra_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("SRA "),
     data: InstructionData::default(),
   };
   let sra_indirect_skeleton = Instruction {
     execute: ext_sra_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("SRA "),
     data: InstructionData::default(),
   };
@@ -3500,43 +3506,48 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // SWAP
   let swap_r8_skeleton = Instruction {
     execute: ext_swap_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("SWAP "),
     data: InstructionData::default(),
   };
+
   let swap_indirect_skeleton = Instruction {
     execute: ext_swap_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("SWAP "),
     data: InstructionData::default(),
   };
+
   let swap_row = make_extended_row(swap_r8_skeleton, swap_indirect_skeleton);
 
   // SRL
   let srl_r8_skeleton = Instruction {
     execute: ext_srl_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("SRL "),
     data: InstructionData::default(),
   };
+
   let srl_indirect_skeleton = Instruction {
     execute: ext_srl_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("SRL "),
     data: InstructionData::default(),
   };
+
   let srl_row = make_extended_row(srl_r8_skeleton, srl_indirect_skeleton);
 
   // BIT
   let bit_r8_skeleton = Instruction {
     execute: ext_bit_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("BIT "),
     data: InstructionData::default(),
   };
+
   let bit_indirect_skeleton = Instruction {
     execute: ext_bit_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("BIT "),
     data: InstructionData::default(),
   };
@@ -3546,28 +3557,31 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
   // RES
   let res_r8_skeleton = Instruction {
     execute: ext_res_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("RES "),
     data: InstructionData::default(),
   };
+
   let res_indirect_skeleton = Instruction {
     execute: ext_res_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("RES "),
     data: InstructionData::default(),
   };
+
   let rst_row = make_bit_set(res_r8_skeleton, res_indirect_skeleton);
 
   // SET
   let set_r8_skeleton = Instruction {
     execute: ext_set_r8,
-    timings: (1, 8),
+    cycles: 8,
     text: format!("SET "),
     data: InstructionData::default(),
   };
+
   let set_indirect_skeleton = Instruction {
     execute: ext_set_indirect_r16,
-    timings: (1, 16),
+    cycles: 16,
     text: format!("SET "),
     data: InstructionData::default(),
   };

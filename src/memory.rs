@@ -86,9 +86,6 @@ impl RomChunk {
     RomChunk { bytes: Vec::new() }
   }
 
-  fn wide_write_u8(&mut self, address: usize, _: u8) {
-    warn!("tried to write to {:x} in RomChunk", address);
-  }
   fn wide_read_u8(&self, address: usize) -> u8 {
     self.bytes[address]
   }
@@ -250,7 +247,7 @@ impl GameboyState {
   fn set_rom_bank(&mut self, bank: u8) {
     let bank = (bank & 0x1F) as usize; // Truncate to 5 bits
     let bank = if bank == 0 { 1 } else { bank };
-    self.rom_bank = ((self.rom_bank & 0x60) + bank);
+    self.rom_bank = (self.rom_bank & 0x60) + bank;
     info!("Set rom bank to {}", self.rom_bank);
   }
 
@@ -321,7 +318,7 @@ impl MemoryChunk for GameboyState {
   }
 
   fn read_u8(&self, address: u16) -> u8 {
-    trace!("read {:x}", address);
+    debug!("read {:x}", address);
     if address < END_OF_FIXED_ROM {
       if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);
