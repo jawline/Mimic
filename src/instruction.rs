@@ -117,12 +117,12 @@ pub struct Instruction {
 
 /// No-op just increments the stack pointer
 pub fn no_op(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  trace!("NoOp!");
   registers.inc_pc(1);
 }
 
 /// Load immediate loads a 16 bit value following this instruction places it in a register
 pub fn ld_imm_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+
   //Load the 16 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u16(registers.pc() + 1);
 
@@ -153,8 +153,10 @@ pub fn ld_mem_r16_immediate(
 
 /// Load immediate loads a 8 bit value following this instruction places it in a small register
 pub fn ld_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+
   //Load the 8 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u8(registers.pc() + 1);
+
   registers.write_r8(additional.small_reg_dst, imm_val);
 
   //Increment the PC by three once finished
@@ -894,25 +896,27 @@ fn ld_r16_r16_plus_n(
   memory: &mut MemoryPtr,
   additional: &InstructionData,
 ) {
-  let add_v = memory.read_u8(registers.pc() + 1) as i8;
+  let add_v = memory.read_u8(registers.pc() + 1) as i16;
   registers.inc_pc(2);
 
-  let l = registers.read_r16(additional.wide_reg_one);
+  let l = registers.read_r16(additional.wide_reg_one) as i16;
 
-  info!("Unsure about this instruction! arr_r16_n");
-  error!("HALF CARRY NOT DELT WITH");
+  // TODO: I think the logic for adding a signed immediate to a wide register is actually unsigned
+  // Should address.
+  //TODO: Readdress later info!("Unsure about this instruction! arr_r16_n");
+  // error!("HALF CARRY NOT DELT WITH");
 
-  let result = l.wrapping_add(add_v as u16);
-  let half_carry = false;
+  let result = l + add_v;
+  let half_carry = if l & 0xFF + add_v > 0xFF { true } else { false };
   let carry = if (add_v > 0 && result < l) || (add_v < 0 && result > l) {
     true
   } else {
     false
   };
 
-  info!("{} + {} = {}", l, add_v, result);
+  // info!("{} ({}) + {} ({}) = {} ({})", l, l as u8, add_v, add_v as u8, result, result as u16);
 
-  registers.write_r16(additional.wide_reg_dst, result);
+  registers.write_r16(additional.wide_reg_dst, result as u16);
   registers.set_flags(false, false, half_carry, carry);
 }
 
@@ -3127,13 +3131,18 @@ pub fn instruction_set() -> Vec<Instruction> {
   ]
 }
 
+fn rlc_core(current: u8, registers: &mut Registers) -> u8 {
+  let new_reg = current << 1 | current >> 7;
+  registers.set_flags(new_reg == 0, false, false, current & (1 << 7) != 0);
+  new_reg
+}
+
 /// RLC in the extended set
 fn ext_rlc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+  let current = registers.read_r8(additional.small_reg_dst);
+  let result = rlc_core(current, registers);
+  registers.write_r8(additional.small_reg_dst, result);
   registers.inc_pc(1);
-  let reg = registers.read_r8(additional.small_reg_dst);
-  let new_reg = reg << 1 | reg >> 7;
-  registers.write_r8(additional.small_reg_dst, new_reg);
-  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
 
 fn ext_rlc_indirect_r16(
@@ -3144,17 +3153,30 @@ fn ext_rlc_indirect_r16(
   unimplemented!();
 }
 
+fn rrc_core(current: u8, registers: &mut Registers) -> u8 {
+  let new_reg = current << 7 | current >> 1;
+  registers.set_flags(new_reg == 0, false, false, current & 1 != 0);
+  new_reg
+}
+
 /// RRC in the extended set
-fn ext_rrc_r8(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  unimplemented!();
+fn ext_rrc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+  let current = registers.read_r8(additional.small_reg_dst);
+  let result = rrc_core(current, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+  registers.inc_pc(1);
 }
 
 fn ext_rrc_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = rrc_core(current, registers);
+  memory.write_u8(address, result);
 }
 
 /// RL in the extended set
@@ -3260,21 +3282,29 @@ fn ext_swap_indirect_r16(
   unimplemented!();
 }
 
+fn srl_core(current: u8, registers: &mut Registers) -> u8 {
+  registers.set_flags(current >> 1 == 0, false, false, current & 0x1 == 0x1);
+  current >> 1
+}
+
 /// SRL in the extended set
 fn ext_srl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  let r1 = registers.read_r8(additional.small_reg_dst);
-
-  registers.write_r8(additional.small_reg_dst, r1 >> 1);
-  registers.set_flags(r1 >> 1 == 0, false, false, r1 & 0x1 == 0x1);
+  let current = registers.read_r8(additional.small_reg_dst);
+  let result = srl_core(current, registers);
+  registers.write_r8(additional.small_reg_dst, result);
   registers.inc_pc(1);
 }
 
 fn ext_srl_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = srl_core(current, registers);
+  memory.write_u8(address, result);
+  registers.inc_pc(1);
 }
 
 fn bit_core(current: u8, bit: u8, registers: &mut Registers) {
@@ -3420,12 +3450,14 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("RLC "),
     data: InstructionData::default(),
   };
+
   let rlc_indirect_skeleton = Instruction {
     execute: ext_rlc_indirect_r16,
     cycles: 16,
     text: format!("RLC "),
     data: InstructionData::default(),
   };
+
   let rlc_row = make_extended_row(rlc_r8_skeleton, rlc_indirect_skeleton);
 
   // RRC
@@ -3435,12 +3467,14 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("RRC "),
     data: InstructionData::default(),
   };
+
   let rrc_indirect_skeleton = Instruction {
     execute: ext_rrc_indirect_r16,
     cycles: 16,
     text: format!("RRC "),
     data: InstructionData::default(),
   };
+
   let rrc_row = make_extended_row(rrc_r8_skeleton, rrc_indirect_skeleton);
 
   // RL
@@ -3450,12 +3484,14 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("RL "),
     data: InstructionData::default(),
   };
+
   let rl_indirect_skeleton = Instruction {
     execute: ext_rl_indirect_r16,
     cycles: 16,
     text: format!("RL "),
     data: InstructionData::default(),
   };
+
   let rl_row = make_extended_row(rl_r8_skeleton, rl_indirect_skeleton);
 
   // RR
@@ -3465,12 +3501,14 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("RR "),
     data: InstructionData::default(),
   };
+
   let rr_indirect_skeleton = Instruction {
     execute: ext_rr_indirect_r16,
     cycles: 16,
     text: format!("RR "),
     data: InstructionData::default(),
   };
+
   let rr_row = make_extended_row(rr_r8_skeleton, rr_indirect_skeleton);
 
   // SLA
@@ -3480,12 +3518,14 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("SLA "),
     data: InstructionData::default(),
   };
+
   let sla_indirect_skeleton = Instruction {
     execute: ext_sla_indirect_r16,
     cycles: 16,
     text: format!("SLA "),
     data: InstructionData::default(),
   };
+
   let sla_row = make_extended_row(sla_r8_skeleton, sla_indirect_skeleton);
 
   // SRA
@@ -3495,12 +3535,14 @@ pub fn extended_instruction_set() -> Vec<Instruction> {
     text: format!("SRA "),
     data: InstructionData::default(),
   };
+
   let sra_indirect_skeleton = Instruction {
     execute: ext_sra_indirect_r16,
     cycles: 16,
     text: format!("SRA "),
     data: InstructionData::default(),
   };
+
   let sra_row = make_extended_row(sra_r8_skeleton, sra_indirect_skeleton);
 
   // SWAP

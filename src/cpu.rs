@@ -310,8 +310,8 @@ impl CPU {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
       let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
-      debug!("ENABLED INTERRUPTS {:b}", enabled);
-      debug!("TRIGGERED INTERRUPTS {:b}", triggered);
+      trace!("ENABLED INTERRUPTS {:b}", enabled);
+      trace!("TRIGGERED INTERRUPTS {:b}", triggered);
 
       let interrupted = triggered & enabled;
 
@@ -394,7 +394,7 @@ impl CPU {
       //trace!("post-step: {:?}", self.registers);
       // Some instructions mutate the last clock like JR
       self.registers.last_clock += inst.cycles;
-      debug!("{} cycles", self.registers.last_clock);
+      trace!("{} cycles", self.registers.last_clock);
     } else {
       self.registers.last_clock = 4;
     }

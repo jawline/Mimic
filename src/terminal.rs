@@ -8,6 +8,7 @@ use crossterm::{
     LeaveAlternateScreen, SetSize,
   },
 };
+use std::time::SystemTime;
 use drawille::{Canvas, PixelColor};
 use std::io::{self, stdout, Write};
 use std::time::Duration;
@@ -16,7 +17,7 @@ use crate::cpu::{CPU, JOYPAD};
 use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use crate::machine::Machine;
 
-pub fn run(mut gameboy_state: Machine, greyscale: bool) -> io::Result<()> {
+pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool) -> io::Result<()> {
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
 
@@ -32,6 +33,24 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool) -> io::Result<()> {
     Hide,
   )?;
 
+  // Simulate long keypresses because the terminal does not send
+  // keyup and keydown events
+  let mut last_a = None;
+  let mut last_b = None;
+  let mut last_left = None;
+  let mut last_right = None;
+  let mut last_up = None;
+  let mut last_down = None;
+
+  let mut frame = 0;
+
+  fn is_key(key: Option<SystemTime>) -> bool {
+      match key {
+          Some(time) => SystemTime::now().duration_since(time).unwrap().as_millis() < 400,
+          None => false
+      }
+  }
+
   enable_raw_mode()?;
 
   loop {
@@ -40,15 +59,11 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool) -> io::Result<()> {
     match state {
       GpuStepState::VBlank => {
         let mut state = &mut gameboy_state.memory;
-        state.left = false;
-        state.right = false;
-        state.up = false;
-        state.down = false;
-        state.a = false;
-        state.b = false;
+
         state.start = false;
         state.select = false;
-        if poll(Duration::from_millis(16))? {
+
+        if poll(Duration::from_millis(20))? {
           // It's guaranteed that the `read()` won't block when the `poll()`
           // function returns `true`
           match read()? {
@@ -56,28 +71,28 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool) -> io::Result<()> {
               let mut fired = false;
               match event.code {
                 KeyCode::Left => {
-                  state.left = true;
-                  fired = true;
+                  fired = fired | !is_key(last_left);
+                  last_left = Some(SystemTime::now());
                 }
                 KeyCode::Right => {
-                  state.right = true;
-                  fired = true;
+                  fired = fired | !is_key(last_right);
+                  last_right = Some(SystemTime::now());
                 }
                 KeyCode::Up => {
-                  state.up = true;
-                  fired = true;
+                  fired = fired | !is_key(last_up);
+                  last_up = Some(SystemTime::now());
                 }
                 KeyCode::Down => {
-                  state.down = true;
-                  fired = true;
+                  fired = fired | !is_key(last_down);
+                  last_down = Some(SystemTime::now());
                 }
                 KeyCode::Char('a') => {
-                  state.a = true;
-                  fired = true;
+                  fired = fired | !is_key(last_a);
+                  last_a = Some(SystemTime::now());
                 }
                 KeyCode::Char('b') => {
-                  state.b = true;
-                  fired = true;
+                  fired = fired | !is_key(last_b);
+                  last_b = Some(SystemTime::now());
                 }
                 KeyCode::Char('n') => {
                   state.start = true;
@@ -100,59 +115,71 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool) -> io::Result<()> {
           }
         }
 
-        canvas.clear();
+        state.a = is_key(last_a);
+        state.b = is_key(last_b);
+        state.left = is_key(last_left);
+        state.right = is_key(last_right);
+        state.up = is_key(last_up);
+        state.down = is_key(last_down);
 
-        pub const WHITE: u8 = 255;
-        pub const MID: u8 = 128;
-        pub const LOW: u8 = 96;
+        // Redraw only every other frame to help with flashing
+        if frame % 3 == 0 {
+          canvas.clear();
 
-        fn print_greyscale(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
-          if shade <= LOW {
-            let shade = WHITE - shade;
-            canvas.set_colored(
-              x as u32,
-              y as u32,
-              PixelColor::TrueColor {
-                r: shade,
-                g: shade,
-                b: shade,
-              },
-            );
-          }
-        }
+          pub const WHITE: u8 = 255;
+          pub const MID: u8 = 128;
+          pub const LOW: u8 = 96;
 
-        fn print_black_or_white(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
-          if shade <= MID {
-            canvas.set(x as u32, y as u32);
-          }
-        }
-
-        for y in 0..GB_SCREEN_HEIGHT as usize {
-          for x in 0..GB_SCREEN_WIDTH as usize {
-            let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
-            let pixel_offset = pixel * 3;
-            let pval = pixel_buffer[pixel_offset];
-
-            if greyscale {
-              print_greyscale(&mut canvas, x, y, pval);
-            } else {
-              print_black_or_white(&mut canvas, x, y, pval);
+          fn print_greyscale(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
+            if shade >= LOW {
+              canvas.set_colored(
+                x as u32,
+                y as u32,
+                PixelColor::TrueColor {
+                  r: shade,
+                  g: shade,
+                  b: shade,
+                },
+              );
             }
           }
+
+          fn print_black_or_white(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
+            if shade <= MID {
+              canvas.set(x as u32, y as u32);
+            }
+          }
+
+          for y in 0..GB_SCREEN_HEIGHT as usize {
+            for x in 0..GB_SCREEN_WIDTH as usize {
+              let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
+              let pixel_offset = pixel * 3;
+              let pval = pixel_buffer[pixel_offset];
+
+              let shade = if invert { pval } else { WHITE - pval };
+              if greyscale {
+                print_greyscale(&mut canvas, x, y, shade);
+              } else {
+                print_black_or_white(&mut canvas, x, y, shade);
+              }
+            }
+          }
+
+          let frame = canvas.frame();
+
+          queue!(stdout(), MoveTo(0, 0), Clear(ClearType::All))?;
+
+          let mut idx = 0;
+
+          for line in frame.lines() {
+            queue!(stdout(), MoveTo(0, idx), Print(line))?;
+            idx += 1;
+          }
+
+          stdout().flush()?;
         }
 
-        let frame = canvas.frame();
-
-        queue!(stdout(), MoveTo(0, 0), Clear(ClearType::All))?;
-
-        let mut idx = 0;
-
-        for line in frame.lines() {
-          queue!(stdout(), MoveTo(0, idx), Print(line))?;
-          idx += 1;
-        }
-
-        stdout().flush()?;
+        frame += 1;
       }
       _ => {}
     }

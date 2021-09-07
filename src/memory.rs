@@ -108,16 +108,19 @@ impl MemoryChunk for RamChunk {
 }
 
 impl RamChunk {
+
   pub fn new(size: usize) -> RamChunk {
     RamChunk {
       bytes: vec![0; size],
     }
   }
+
   fn wide_write_u8(&mut self, address: usize, v: u8) {
-    self.bytes[address as usize] = v;
+    self.bytes[address] = v;
   }
+
   fn wide_read_u8(&self, address: usize) -> u8 {
-    self.bytes[address as usize]
+    self.bytes[address]
   }
 }
 
@@ -131,6 +134,7 @@ pub struct GameboyState {
   boot_enabled: bool,
   ram_on: bool,
   ram_mode: bool,
+  gamepad_high: bool,
 
   /**
    * Rom and Ram bank settings
@@ -149,7 +153,6 @@ pub struct GameboyState {
   pub right: bool,
   pub up: bool,
   pub down: bool,
-  gamepad_high: bool,
 }
 
 impl GameboyState {
@@ -188,6 +191,7 @@ impl GameboyState {
 
   /// Convert the current gamepad state into it's gameboy register representation (so that the running program can read it)
   fn gamepad_state(&self) -> u8 {
+
     const A_BUTTON: u8 = 1;
     const B_BUTTON: u8 = 1 << 1;
     const SELECT: u8 = 1 << 2;
@@ -252,7 +256,8 @@ impl GameboyState {
   }
 
   fn set_rom_bank_upper(&mut self, bank: u8) {
-    let bank = ((bank & 0x3) << 5) as usize + self.rom_bank;
+    let bank = (bank & 0x3) << 5;
+    let bank = bank as usize + self.rom_bank;
     self.rom_bank = bank;
     info!("set rom bank upper 2 bits {} {}", bank, self.rom_bank);
   }
@@ -323,19 +328,19 @@ impl MemoryChunk for GameboyState {
     } else if address < END_OF_BANKED_ROM {
       let address = (address - END_OF_FIXED_ROM) as usize;
       let bank_offset = self.rom_bank * ROM_BANK_SIZE;
-      info!("read offset {} {}", self.rom_bank, bank_offset);
+      trace!("banked read offset {} {}", self.rom_bank, bank_offset);
       self.cart.wide_read_u8(bank_offset + address)
     } else if address < END_OF_VRAM {
       self.vram.read_u8(address - END_OF_BANKED_ROM)
     } else if address < END_OF_CARTRIDGE_RAM {
       let address = (address - END_OF_VRAM) as usize;
       let address = address + (0x2000 * self.ram_bank);
-      info!("CART RAM RD");
+      trace!("cart ram: {}", address);
       self.cart_ram.wide_read_u8(address)
     } else if address < END_OF_INTERNAL_RAM {
       self.iram.read_u8(address - END_OF_CARTRIDGE_RAM)
     } else if address < END_OF_ECHO_RAM {
-      info!("ECHO RAM RD {} {}", address, address - END_OF_INTERNAL_RAM);
+      warn!("echo ram read: {} {}", address, address - END_OF_INTERNAL_RAM);
       self.iram.read_u8(address - END_OF_INTERNAL_RAM)
     } else {
       if address == GAMEPAD_ADDRESS {
