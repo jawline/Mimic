@@ -8,10 +8,10 @@ use crossterm::{
     LeaveAlternateScreen, SetSize,
   },
 };
-use std::time::SystemTime;
 use drawille::{Canvas, PixelColor};
 use std::io::{self, stdout, Write};
 use std::time::Duration;
+use std::time::SystemTime;
 
 use crate::cpu::{CPU, JOYPAD};
 use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
@@ -45,10 +45,10 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool) -> io::Res
   let mut frame = 0;
 
   fn is_key(key: Option<SystemTime>) -> bool {
-      match key {
-          Some(time) => SystemTime::now().duration_since(time).unwrap().as_millis() < 400,
-          None => false
-      }
+    match key {
+      Some(time) => SystemTime::now().duration_since(time).unwrap().as_millis() < 400,
+      None => false,
+    }
   }
 
   enable_raw_mode()?;

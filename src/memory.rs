@@ -108,7 +108,6 @@ impl MemoryChunk for RamChunk {
 }
 
 impl RamChunk {
-
   pub fn new(size: usize) -> RamChunk {
     RamChunk {
       bytes: vec![0; size],
@@ -191,7 +190,6 @@ impl GameboyState {
 
   /// Convert the current gamepad state into it's gameboy register representation (so that the running program can read it)
   fn gamepad_state(&self) -> u8 {
-
     const A_BUTTON: u8 = 1;
     const B_BUTTON: u8 = 1 << 1;
     const SELECT: u8 = 1 << 2;
@@ -340,7 +338,11 @@ impl MemoryChunk for GameboyState {
     } else if address < END_OF_INTERNAL_RAM {
       self.iram.read_u8(address - END_OF_CARTRIDGE_RAM)
     } else if address < END_OF_ECHO_RAM {
-      warn!("echo ram read: {} {}", address, address - END_OF_INTERNAL_RAM);
+      warn!(
+        "echo ram read: {} {}",
+        address,
+        address - END_OF_INTERNAL_RAM
+      );
       self.iram.read_u8(address - END_OF_INTERNAL_RAM)
     } else {
       if address == GAMEPAD_ADDRESS {

@@ -122,7 +122,6 @@ pub fn no_op(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &I
 
 /// Load immediate loads a 16 bit value following this instruction places it in a register
 pub fn ld_imm_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   //Load the 16 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u16(registers.pc() + 1);
 
@@ -153,7 +152,6 @@ pub fn ld_mem_r16_immediate(
 
 /// Load immediate loads a 8 bit value following this instruction places it in a small register
 pub fn ld_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   //Load the 8 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u8(registers.pc() + 1);
 
