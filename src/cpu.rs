@@ -112,12 +112,12 @@ pub struct Registers {
   pub last_clock: u16,
 }
 
-pub const ZERO_FLAG: u8 = 0x1 << 6;
-pub const HALF_CARRY_FLAG: u8 = 0x1 << 4;
-pub const SUBTRACT_FLAG: u8 = 0x1 << 2;
-
-/// The position of the CARRY bit in the F (flags) register
-pub const CARRY_FLAG: u8 = 0x1;
+/// The position of flags in the F register
+pub const ZERO_FLAG: u8 = 0x1 << 7;
+pub const HALF_CARRY_FLAG: u8 = 0x1 << 6;
+pub const SUBTRACT_FLAG: u8 = 0x1 << 5;
+pub const CARRY_FLAG: u8 = 0x1 << 4;
+pub const FLAGS_MASK: u8 = ZERO_FLAG | HALF_CARRY_FLAG | SUBTRACT_FLAG | CARRY_FLAG;
 
 impl Registers {
   /// Get the current program counter
@@ -188,7 +188,7 @@ impl Registers {
       B => self.bc.l = val,
       C => self.bc.r = val,
       A => self.af.l = val,
-      F => self.af.r = val,
+      F => self.af.r = val & FLAGS_MASK,
       D => self.de.l = val,
       E => self.de.r = val,
       H => self.hl.l = val,
@@ -219,7 +219,11 @@ impl Registers {
         self.sp = val;
       }
       BC => self.bc.write_u16(val),
-      AF => self.af.write_u16(val),
+      AF => {
+          self.af.write_u16(val);
+          // Mask the flags register because the other 4 bits are unusable
+          self.af.r = self.af.r & FLAGS_MASK
+      },
       DE => self.de.write_u16(val),
       HL => self.hl.write_u16(val),
       WideUnset => panic!("write bad wide register"),
