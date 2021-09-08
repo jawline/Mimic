@@ -17,7 +17,7 @@ use crate::cpu::{CPU, JOYPAD};
 use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use crate::machine::Machine;
 
-pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool) -> io::Result<()> {
+pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool, threshold: bool) -> io::Result<()> {
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
 
@@ -130,8 +130,8 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool) -> io::Res
           pub const MID: u8 = 128;
           pub const LOW: u8 = 96;
 
-          fn print_greyscale(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
-            if shade >= LOW {
+          fn print_greyscale(canvas: &mut Canvas, threshold: bool, x: usize, y: usize, shade: u8) {
+            if (!threshold & (shade > 0)) | (threshold & (shade >= MID)) {
               canvas.set_colored(
                 x as u32,
                 y as u32,
@@ -145,7 +145,7 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool) -> io::Res
           }
 
           fn print_black_or_white(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
-            if shade <= MID {
+            if shade >= MID {
               canvas.set(x as u32, y as u32);
             }
           }
@@ -156,9 +156,9 @@ pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool) -> io::Res
               let pixel_offset = pixel * 3;
               let pval = pixel_buffer[pixel_offset];
 
-              let shade = if invert { pval } else { WHITE - pval };
+              let shade = if invert { WHITE - pval } else { pval };
               if greyscale {
-                print_greyscale(&mut canvas, x, y, shade);
+                print_greyscale(&mut canvas, threshold, x, y, shade);
               } else {
                 print_black_or_white(&mut canvas, x, y, shade);
               }

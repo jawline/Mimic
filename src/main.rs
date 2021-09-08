@@ -33,11 +33,13 @@ struct Opts {
   #[clap(short, long)]
   cli_mode: bool,
   #[clap(short, long)]
-  greyscale: bool,
+  cli_midpoint_rendering: bool,
   #[clap(short, long)]
   invert: bool,
   #[clap(short, long)]
   skip_bios: bool,
+  #[clap(short, long)]
+  no_threshold: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -84,6 +86,6 @@ fn main() -> io::Result<()> {
   if !opts.cli_mode {
     sdl::run(gameboy_state)
   } else {
-    terminal::run(gameboy_state, opts.greyscale, opts.invert)
+    terminal::run(gameboy_state, !opts.cli_midpoint_rendering, opts.invert, !opts.no_threshold)
   }
 }

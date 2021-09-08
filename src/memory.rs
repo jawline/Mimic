@@ -296,8 +296,8 @@ impl MemoryChunk for GameboyState {
     } else {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_write(val);
-      } else if address == 0xFF01 && val == 0x81 {
-        print!("LINE OUT: {}", self.read_u8(0xFF01));
+      } else if address == 0xFF02 && val == 0x81 {
+        print!("{}", self.read_u8(0xFF01) as char);
       } else if address == 0xFF46 {
         // OAM DMA Mode. TODO: Read up on this and do it better
         for i in 0..160 {
