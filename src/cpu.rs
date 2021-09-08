@@ -220,10 +220,10 @@ impl Registers {
       }
       BC => self.bc.write_u16(val),
       AF => {
-          self.af.write_u16(val);
-          // Mask the flags register because the other 4 bits are unusable
-          self.af.r = self.af.r & FLAGS_MASK
-      },
+        self.af.write_u16(val);
+        // Mask the flags register because the other 4 bits are unusable
+        self.af.r = self.af.r & FLAGS_MASK
+      }
       DE => self.de.write_u16(val),
       HL => self.hl.write_u16(val),
       WideUnset => panic!("write bad wide register"),
@@ -300,9 +300,6 @@ impl CPU {
 
   /// Trigger a specific interrupt (disable IME, push PC to stack and jump to interrupt handler)
   fn fire_interrupt(&mut self, location: u16, memory: &mut MemoryPtr) {
-    // If any interrupt is triggered then unhalt the processor.
-    self.registers.halted = false;
-
     self.registers.ime = false;
     self.registers.stack_push16(self.registers.pc(), memory);
     self.registers.set_pc(location);
@@ -310,9 +307,15 @@ impl CPU {
 
   /// Check if there are any interrupts waiting to fire
   pub fn check_interrupt(&mut self, memory: &mut MemoryPtr) {
+    let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
+
+    // If any interrupt is triggered then unhalt the processor.
+    if triggered != 0 {
+      self.registers.halted = false;
+    }
+
     if self.registers.ime {
       let enabled = memory.read_u8(INTERRUPTS_ENABLED_ADDRESS);
-      let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
       trace!("ENABLED INTERRUPTS {:b}", enabled);
       trace!("TRIGGERED INTERRUPTS {:b}", triggered);
@@ -377,7 +380,7 @@ impl CPU {
       }
 
       debug!(
-        "INSTR={} PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={} IME={}",
+        "INSTR={} PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={} HALTED={} IME={}",
         inst.text,
         self.registers.pc(),
         self.registers.sp(),
@@ -389,7 +392,7 @@ impl CPU {
         self.registers.af.l, self.registers.af.r,
         self.registers.de.l, self.registers.de.r,
         self.registers.hl.l, self.registers.hl.r,
-        self.registers.zero(), self.registers.subtract(), self.registers.half_carry(), self.registers.carry(), self.registers.ime
+        self.registers.zero(), self.registers.subtract(), self.registers.half_carry(), self.registers.carry(), self.registers.halted, self.registers.ime
       );
 
       trace!("{} ({:x})", inst.text, opcode);

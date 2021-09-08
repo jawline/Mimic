@@ -17,7 +17,12 @@ use crate::cpu::{CPU, JOYPAD};
 use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use crate::machine::Machine;
 
-pub fn run(mut gameboy_state: Machine, greyscale: bool, invert: bool, threshold: bool) -> io::Result<()> {
+pub fn run(
+  mut gameboy_state: Machine,
+  greyscale: bool,
+  invert: bool,
+  threshold: bool,
+) -> io::Result<()> {
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
 

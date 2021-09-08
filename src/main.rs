@@ -86,6 +86,11 @@ fn main() -> io::Result<()> {
   if !opts.cli_mode {
     sdl::run(gameboy_state)
   } else {
-    terminal::run(gameboy_state, !opts.cli_midpoint_rendering, opts.invert, !opts.no_threshold)
+    terminal::run(
+      gameboy_state,
+      !opts.cli_midpoint_rendering,
+      opts.invert,
+      !opts.no_threshold,
+    )
   }
 }

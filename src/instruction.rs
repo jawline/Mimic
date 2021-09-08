@@ -861,22 +861,12 @@ fn add_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &
 
 /// Add an immediate byte (signed) to a wide register
 fn add_r16_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let add_v = memory.read_u8(registers.pc() + 1) as i8;
-  registers.inc_pc(2);
   let l = registers.read_r16(additional.wide_reg_dst);
-  let result = l.wrapping_add(add_v as u16);
-  info!("l {} + add_v {} = {}", l, add_v, result);
-  let half_carry = (l & 0xFF).wrapping_add(add_v as u16) > 0xFF;
-  let carry = if (add_v > 0 && result < l) || (add_v < 0 && result > l) {
-    true
-  } else {
-    false
-  };
-
-  info!("{} + {} = {}", l, add_v, result);
+  let add_v = memory.read_u8(registers.pc() + 1);
+  let result = register_plus_signed_8_bit_immediate(l, add_v, registers);
 
   registers.write_r16(additional.wide_reg_dst, result);
-  registers.set_flags(false, false, half_carry, carry);
+  registers.inc_pc(2);
 }
 
 /// Load wide_reg_one into wide reg dst  
@@ -888,34 +878,46 @@ fn ld_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
   );
 }
 
-/// Add an immediate byte (signed) to wide reg one and then save it to wide reg dst
-fn ld_r16_r16_plus_n(
+fn register_plus_signed_8_bit_immediate(
+  register: u16,
+  immediate: u8,
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
-  additional: &InstructionData,
-) {
-  let add_v = memory.read_u8(registers.pc() + 1) as i16;
-  registers.inc_pc(2);
+) -> u16 {
+  let add_v = immediate as i8;
+  let l = register as i16;
 
-  let l = registers.read_r16(additional.wide_reg_one) as i16;
+  // TODO: This seems like a really hacky way to go from u8 to i16 (we need to force the final bit
+  // to be moved to the 16th bit).
 
-  // TODO: I think the logic for adding a signed immediate to a wide register is actually unsigned
-  // Should address.
-  //TODO: Readdress later info!("Unsure about this instruction! arr_r16_n");
-  // error!("HALF CARRY NOT DELT WITH");
-
-  let result = l + add_v;
-  let half_carry = if l & 0xFF + add_v > 0xFF { true } else { false };
+  let result = l + add_v as i16;
+  println!("{} {} {} {}", l, add_v, add_v as i16, result);
+  let half_carry = if (l & 0xFF) + ((add_v as i16) & 0xFF) > 0xFF {
+    true
+  } else {
+    false
+  };
   let carry = if (add_v > 0 && result < l) || (add_v < 0 && result > l) {
     true
   } else {
     false
   };
 
-  // info!("{} ({}) + {} ({}) = {} ({})", l, l as u8, add_v, add_v as u8, result, result as u16);
-
-  registers.write_r16(additional.wide_reg_dst, result as u16);
   registers.set_flags(false, false, half_carry, carry);
+  result as u16
+}
+
+/// Add an immediate byte (signed) to wide reg one and then save it to wide reg dst
+fn ld_r16_r16_plus_n(
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
+) {
+  let l = registers.read_r16(additional.wide_reg_one);
+  let add_v = memory.read_u8(registers.pc() + 1);
+  let result = register_plus_signed_8_bit_immediate(l, add_v, registers);
+
+  registers.write_r16(additional.wide_reg_dst, result);
+  registers.inc_pc(2);
 }
 
 /// Load a value from memory to a small register
@@ -934,7 +936,6 @@ fn load_r16_mem_to_r8(
 /// Stop the processor & screen until button press
 fn stop(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
   registers.inc_pc(2);
-  unimplemented!();
 }
 
 /// Escape
@@ -1111,9 +1112,7 @@ fn pop_wide_register(
 /// Halt the processor
 /// Stop doing anything until the next interrupt
 fn halt(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
-  if registers.ime {
-    registers.halted = true;
-  }
+  registers.halted = true;
   registers.inc_pc(1);
 }
 
@@ -2746,7 +2745,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   let add_sp_d = Instruction {
     execute: add_r16_n,
     cycles: 16,
-    text: format!("add SP, d"),
+    text: format!("add SP, n"),
     data: InstructionData::wide_dst(WideRegister::SP),
   };
 
@@ -3144,11 +3143,15 @@ fn ext_rlc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 }
 
 fn ext_rlc_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = rlc_core(current, registers);
+  memory.write_u8(address, result);
 }
 
 fn rrc_core(current: u8, registers: &mut Registers) -> u8 {
@@ -3177,21 +3180,30 @@ fn ext_rrc_indirect_r16(
   memory.write_u8(address, result);
 }
 
+fn core_rl(reg: u8, registers: &mut Registers) -> u8 {
+  let new_reg = (reg << 1) | if registers.carry() { 1 } else { 0 };
+  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
+  new_reg
+}
+
 /// RL in the extended set
 fn rl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
-  let new_reg = (reg << 1) | if registers.carry() { 1 } else { 0 };
+  let new_reg = core_rl(reg, registers);
   registers.write_r8(additional.small_reg_dst, new_reg);
-  registers.set_flags(new_reg == 0, false, false, reg & (1 << 7) != 0);
 }
 
 fn ext_rl_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = core_rl(current, registers);
+  memory.write_u8(address, result);
 }
 
 fn core_rr(reg: u8, registers: &mut Registers) -> u8 {
@@ -3246,38 +3258,56 @@ fn ext_sla_indirect_r16(
   memory.write_u8(address, result);
 }
 
+fn core_sra(reg: u8, registers: &mut Registers) -> u8 {
+  let new_reg = reg >> 1;
+  registers.set_flags(new_reg == 0, false, false, isset8(reg, 0x1));
+  new_reg
+}
+
 /// SRA in the extended set
 fn ext_sra_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
-  let new_reg = reg >> 1;
+  let new_reg = core_sra(reg, registers);
   registers.write_r8(additional.small_reg_dst, new_reg);
-  registers.set_flags(new_reg == 0, false, false, isset8(reg, 0x1));
 }
 
 fn ext_sra_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = core_sra(current, registers);
+  memory.write_u8(address, result);
+}
+
+fn core_swap(reg: u8, registers: &mut Registers) -> u8 {
+  let result = (reg >> 4) | ((reg & 0xF) << 4);
+  registers.set_flags(result == 0, false, false, false);
+  result
 }
 
 /// SWAP in the extended set
 fn ext_swap_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
   registers.inc_pc(1);
   let r1 = registers.read_r8(additional.small_reg_dst);
-  let result = (r1 >> 4) | ((r1 & 0xF) << 4);
+  let result = core_swap(r1, registers);
   registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, false, false, false);
 }
 
 fn ext_swap_indirect_r16(
-  _registers: &mut Registers,
-  _memory: &mut MemoryPtr,
-  _additional: &InstructionData,
+  registers: &mut Registers,
+  memory: &mut MemoryPtr,
+  additional: &InstructionData,
 ) {
-  unimplemented!();
+  registers.inc_pc(1);
+  let address = registers.read_r16(additional.wide_reg_dst);
+  let current = memory.read_u8(address);
+  let result = core_swap(current, registers);
+  memory.write_u8(address, result);
 }
 
 fn srl_core(current: u8, registers: &mut Registers) -> u8 {
