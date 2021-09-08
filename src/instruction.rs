@@ -704,17 +704,16 @@ fn rotate_r8_right_through_carry(
   additional: &InstructionData,
 ) {
   let mut a = registers.read_r8(additional.small_reg_dst);
-  let origin_carry = registers.carry();
-  let carry = a & 1 != 0;
 
-  if origin_carry {
-    a |= 1 << 7;
-  } else {
-    a &= !(1 << 7);
+  let will_carry = a & 0x1 != 0;
+  a = a >> 1;
+
+  if registers.carry() {
+    a += (1 << 7);
   }
 
   registers.write_r8(additional.small_reg_dst, a);
-  registers.set_flags(a == 0, false, false, carry);
+  registers.set_flags(a == 0, false, false, will_carry);
 
   // Increment PC by one
   registers.inc_pc(1);
@@ -1030,31 +1029,24 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
 fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  let target = registers.read_r8(additional.small_reg_dst);
-
-  // Not entirely sure what this does but the general process seems to be
-  // if A & 0xF > 0x9 or H then add $06 to A
-  // if A & 0xF0 > 0x99 or C then add $60 to A
+  let acc = registers.read_r8(additional.small_reg_dst);
 
   let mut t = 0;
+  let mut carry = false;
 
-  if target & 0xF > 0x9 {
-    t += 1;
+  if registers.half_carry() || (!registers.subtract() && (acc & 0xF) > 9) {
+    t = 6;
   }
 
-  let carry = if target & 0xF0 > 0x99 {
-    t += 2;
-    true
-  } else {
-    false
-  };
+  if carry || (!registers.subtract() && (acc > 0x99)) {
+    t |= 0x60;
+    carry = true;
+  }
 
-  let result = match t {
-    0 => target,
-    1 => target + if registers.subtract() { 0xFA } else { 0x06 }, // -6 or +6
-    2 => target + if registers.subtract() { 0xA0 } else { 0x60 }, // -60 or +60
-    3 => target + if registers.subtract() { 0x9A } else { 0x66 }, // -66 or + 66
-    _ => panic!("impossible condition for DAA"),
+  let result = if registers.subtract() {
+    acc - t
+  } else {
+    acc + t
   };
 
   trace!(
@@ -1066,8 +1058,6 @@ fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Instruct
     carry
   );
 
-  // https://forums.nesdev.com/viewtopic.php?t=15944
-  // https://stackoverflow.com/questions/8119577/z80-daa-instruction
   registers.write_r8(additional.small_reg_dst, result);
   registers.set_flags(result == 0, registers.subtract(), false, carry);
   registers.inc_pc(1);

@@ -162,6 +162,8 @@ impl Registers {
 
   /// Increase or decrease the program counter by a signed 8-bit integer.
   pub fn jump_relative(&mut self, by: i8) {
+    // TODO: Check this works for negative values
+    let by = by as i16;
     let new_location = self.pc.wrapping_add(by as u16);
     trace!("relative jump {} by {} -> {}", self.pc, by, new_location);
     self.set_pc(new_location);
