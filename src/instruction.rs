@@ -279,7 +279,7 @@ pub fn dec_mem_r16(
 fn add_core(l: u8, r: u8, registers: &mut Registers) -> u8 {
   // Half carry is set where the addition of the lower nibbles of each byte carries into the upper
   // nibble.
-  let half_carry = (((l & 0xF) + (r & 0xF)) & 0xF0) != 0;
+  let half_carry = isset8((l & 0xF) + (r & 0xF), 0x10);
 
   // Carry is set when the addition of two 8-bit values is greater than can be held in an 8 bit
   // register.
@@ -321,7 +321,7 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
   // Half carry when the upper nibble of the origin subtracted from the upper nibble of the sub
   // carries (TODO: Check this logic, it doesn't seem right)
-  let half_carry = (origin & 0xF0) < (sub_v & 0xF0);
+  let half_carry = (((origin & 0xF) - (sub_v & 0xF)) & 0x10) == 0x10;
 
   // Carry when the origin is smaller than the value being subtracted
   let carry = origin < sub_v;
