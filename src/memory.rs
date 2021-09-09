@@ -317,8 +317,7 @@ impl MemoryChunk for GameboyState {
   }
 
   fn read_u8(&self, address: u16) -> u8 {
-    trace!("read {:x}", address);
-    if address < END_OF_FIXED_ROM {
+    let result = if address < END_OF_FIXED_ROM {
       if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);
       }
@@ -350,6 +349,8 @@ impl MemoryChunk for GameboyState {
       } else {
         self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }
-    }
+    };
+    trace!("read {:x} {:x}", address, result);
+    result
   }
 }

@@ -113,10 +113,10 @@ pub struct Registers {
 }
 
 /// The position of flags in the F register
-pub const ZERO_FLAG: u8 = 0x1 << 7;
-pub const HALF_CARRY_FLAG: u8 = 0x1 << 6;
-pub const SUBTRACT_FLAG: u8 = 0x1 << 5;
-pub const CARRY_FLAG: u8 = 0x1 << 4;
+pub const ZERO_FLAG: u8 = 0x80;
+pub const SUBTRACT_FLAG: u8 = 0x40;
+pub const HALF_CARRY_FLAG: u8 = 0x20;
+pub const CARRY_FLAG: u8 = 0x10;
 pub const FLAGS_MASK: u8 = ZERO_FLAG | HALF_CARRY_FLAG | SUBTRACT_FLAG | CARRY_FLAG;
 
 impl Registers {
@@ -165,7 +165,7 @@ impl Registers {
     // TODO: Check this works for negative values
     let by = by as i16;
     let new_location = self.pc.wrapping_add(by as u16);
-    trace!("relative jump {} by {} -> {}", self.pc, by, new_location);
+    debug!("relative jump {} by {} -> {}", self.pc, by, new_location);
     self.set_pc(new_location);
   }
 

@@ -521,12 +521,14 @@ fn ld_r8_ff00_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 }
 
 /// Generic add with carry, sets flags and returns result
-fn adc_generic(l: u8, r: u8, registers: &mut Registers) -> u8 {
-  let result = l + r + if registers.carry() { 1 } else { 0 };
-  let half_carry = (((l & 0xF) + (r & 0xF)) & 0xF0) != 0;
-  let carry = l as u16 + r as u16 & 0xFF00 != 0;
-  registers.set_flags(result == 0, false, half_carry, carry);
-  result
+fn adc_generic(mut acc: u8, r: u8, registers: &mut Registers) -> u8 {
+  let origin = acc;
+  let half_carry = isset8(((acc & 0x0F) + (r & 0x0F)) & 0x10, 0x10);
+  let carry = acc + r < acc;
+  acc += r;
+  acc += if registers.carry() { 1 } else { 0 };
+  registers.set_flags(acc == 0, false, half_carry, carry);
+  acc
 }
 
 /// Add with carry an immediate to a small register
@@ -694,6 +696,27 @@ fn rotate_right_with_carry(
   registers.inc_pc(1);
 }
 
+fn rotate_r8_left_through_carry(
+  registers: &mut Registers,
+  _memory: &mut MemoryPtr,
+  additional: &InstructionData,
+) {
+  let mut a = registers.read_r8(additional.small_reg_dst);
+
+  let will_carry = a & (0x1 << 7) != 0;
+  a = a << 1;
+
+  if registers.carry() {
+    a += 1;
+  }
+
+  registers.write_r8(additional.small_reg_dst, a);
+  registers.set_flags(a == 0, false, false, will_carry);
+
+  // Increment PC by one
+  registers.inc_pc(1);
+}
+
 /// Rotate 8-bit register right using the carry bit as an additional bit.
 /// In practice, store the current carry bit, set carry bit to value of bit 0
 /// then shift right everything by one bit and then replace bit 7 with the origin
@@ -846,13 +869,12 @@ fn add_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &
   let r = registers.read_r16(additional.wide_reg_one);
   let result = l + r;
 
-  registers.write_r16(additional.wide_reg_dst, result);
-
   // Did the 11th bits carry?
-  let half_carried = (l & 0xFFF) + (r & 0xFFF) & (1 << 12);
-  let carried = (l as u32 + r as u32) & (1 << 16);
+  let half_carried = (l + r) & (1 << 12) != 0;
+  let carried = (l as u32 + r as u32) & (1 << 16) != 0;
 
-  registers.set_flags(registers.zero(), false, half_carried != 0, carried != 0);
+  registers.write_r16(additional.wide_reg_dst, result);
+  registers.set_flags(registers.zero(), false, half_carried, carried);
 
   // Increment the PC by one once finished
   registers.inc_pc(1);
@@ -889,7 +911,7 @@ fn register_plus_signed_8_bit_immediate(
   // to be moved to the 16th bit).
 
   let result = l + add_v as i16;
-  println!("{} {} {} {}", l, add_v, add_v as i16, result);
+
   let half_carry = if (l & 0xFF) + ((add_v as i16) & 0xFF) > 0xFF {
     true
   } else {
@@ -1288,7 +1310,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   };
 
   let rla = Instruction {
-    execute: rl_r8,
+    execute: rotate_r8_left_through_carry,
     cycles: 4,
     text: format!("RLA"),
     data: InstructionData::small_dst(SmallWidthRegister::A),
@@ -2826,8 +2848,8 @@ pub fn instruction_set() -> Vec<Instruction> {
   let ld_hl_sp = Instruction {
     execute: ld_r16_r16,
     cycles: 8,
-    text: format!("ld HL, SP"),
-    data: InstructionData::wide_dst_wide_src(WideRegister::HL, WideRegister::SP),
+    text: format!("ld SP, HL"),
+    data: InstructionData::wide_dst_wide_src(WideRegister::SP, WideRegister::HL),
   };
 
   let ld_a_nn = Instruction {
