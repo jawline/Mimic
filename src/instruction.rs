@@ -1,5 +1,5 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
-use crate::memory::{isset8, MemoryPtr};
+use crate::memory::{isset8, isset16, isset32, MemoryPtr};
 
 use log::{error, info, trace};
 
@@ -321,7 +321,7 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
   // Half carry when the upper nibble of the origin subtracted from the upper nibble of the sub
   // carries (TODO: Check this logic, it doesn't seem right)
-  let half_carry = (((origin & 0xF) - (sub_v & 0xF)) & 0x10) == 0x10;
+  let half_carry = isset8((origin & 0xF0) - (sub_v & 0xF0), 0x10);
 
   // Carry when the origin is smaller than the value being subtracted
   let carry = origin < sub_v;
@@ -451,12 +451,21 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// The core logic for subtraction of 8-bit values through a carry
-fn sbc_core(v1: u8, mut v2: u8, registers: &mut Registers) -> u8 {
+fn sbc_core(mut acc: u8, val: u8, registers: &mut Registers) -> u8 {
+  let origin = acc;
+
+  acc -= val;
+
+  let mut carry = acc > origin;
+
   if registers.carry() {
-    v2 += 1;
+    acc -= 1;
+    carry = carry | (acc > origin);
   }
 
-  sub_core(v1, v2, registers)
+  let half_carry = isset8(acc ^ val ^ origin, 0x10);
+  registers.set_flags(acc == 0, true, half_carry, carry);
+  acc
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
@@ -521,14 +530,16 @@ fn ld_r8_ff00_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 }
 
 /// Generic add with carry, sets flags and returns result
-fn adc_generic(mut acc: u8, r: u8, registers: &mut Registers) -> u8 {
-  let origin = acc;
-  let half_carry = isset8(((acc & 0x0F) + (r & 0x0F)) & 0x10, 0x10);
-  let carry = acc + r < acc;
+fn adc_generic(acc: u8, r: u8, registers: &mut Registers) -> u8 {
+  let mut acc = acc as u16;
+  let origin = acc as u16;
+  let r = r as u16;
   acc += r;
   acc += if registers.carry() { 1 } else { 0 };
+  let half_carry = acc ^ origin ^ r & 0x10 != 0;
+  let carry = acc > 255;
   registers.set_flags(acc == 0, false, half_carry, carry);
-  acc
+  (acc & 255) as u8
 }
 
 /// Add with carry an immediate to a small register
@@ -772,8 +783,8 @@ fn dec_small_register(
 
   registers.set_flags(
     result == 0,
-    false,
-    ((l & 0xF0) - 1) & (0x0F) != 0,
+    true,
+    isset8(l, 0x10),
     registers.carry(),
   );
 
@@ -870,8 +881,8 @@ fn add_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &
   let result = l + r;
 
   // Did the 11th bits carry?
-  let half_carried = (l + r) & (1 << 12) != 0;
-  let carried = (l as u32 + r as u32) & (1 << 16) != 0;
+  let half_carried = isset16((l & 0xFFF) + (r & 0xFFF), 0x1 << 12);
+  let carried = isset32((l as u32 + r as u32), 0x1 << 16);
 
   registers.write_r16(additional.wide_reg_dst, result);
   registers.set_flags(registers.zero(), false, half_carried, carried);
@@ -904,27 +915,31 @@ fn register_plus_signed_8_bit_immediate(
   immediate: u8,
   registers: &mut Registers,
 ) -> u16 {
-  let add_v = immediate as i8;
-  let l = register as i16;
 
-  // TODO: This seems like a really hacky way to go from u8 to i16 (we need to force the final bit
-  // to be moved to the 16th bit).
+  let mut acc = register;
 
-  let result = l + add_v as i16;
+  println!("{} {} {}", register, immediate, immediate as i8);
 
-  let half_carry = if (l & 0xFF) + ((add_v as i16) & 0xFF) > 0xFF {
-    true
+  if (isset8(immediate, 0x80)) {
+      let immediate = (!immediate) + 1;
+      let immediate = immediate as u16;
+      let half_carry = isset16(((acc & 0xF0) - (immediate & 0xF0)) & 0xF, 0x8);
+      // TODO: This path doesn't work
+      println!("{}: ", ((acc & 0xF0) - (immediate & 0xF0)) & 0xF);
+      let carry = ((acc & 0xFF) - (immediate & 0xFF)) > acc;
+      acc -= immediate;
+      registers.set_flags(false, false, half_carry, carry);
+      println!("{} - {} = {} ({} {})", register, immediate, acc, half_carry, carry);
   } else {
-    false
-  };
-  let carry = if (add_v > 0 && result < l) || (add_v < 0 && result > l) {
-    true
-  } else {
-    false
-  };
+      let immediate = immediate as u16;
+      let half_carry = ((((acc & 0xF) + (immediate & 0xF))) & 0x10) != 0;
+      let carry = (acc & 0xFF) + (immediate & 0xFF) > 255;
+      acc += immediate;
+      registers.set_flags(false, false, half_carry, carry);
+      println!("{} + {} = {} ({}, {})", register, immediate, acc, half_carry, carry);
+  }
 
-  registers.set_flags(false, false, half_carry, carry);
-  result as u16
+  acc
 }
 
 /// Add an immediate byte (signed) to wide reg one and then save it to wide reg dst

@@ -32,6 +32,16 @@ pub fn isset8(val: u8, bit: u8) -> bool {
   val & bit != 0
 }
 
+/// Check if a 16-bit bit has been set
+pub fn isset16(val: u16, bit: u16) -> bool {
+  val & bit != 0
+}
+
+/// Check if a 32-bit bit has been set
+pub fn isset32(val: u32, bit: u32) -> bool {
+  val & bit != 0
+}
+
 /**
  * A trait representing a addressable memory region (ROM or RAM) in the Gameboy.
  */

@@ -133,7 +133,6 @@ pub fn run(
 
           pub const WHITE: u8 = 255;
           pub const MID: u8 = 128;
-          pub const LOW: u8 = 96;
 
           fn print_greyscale(canvas: &mut Canvas, threshold: bool, x: usize, y: usize, shade: u8) {
             if (!threshold & (shade > 0)) | (threshold & (shade >= MID)) {
