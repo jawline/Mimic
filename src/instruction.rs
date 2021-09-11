@@ -321,15 +321,17 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
   // Half carry when the upper nibble of the origin subtracted from the upper nibble of the sub
   // carries (TODO: Check this logic, it doesn't seem right)
-  let half_carry = isset8((origin & 0xF0) - (sub_v & 0xF0), 0x10);
 
   // Carry when the origin is smaller than the value being subtracted
   let carry = origin < sub_v;
 
   // The result is an 8-bit subtraction
   let result = origin - sub_v;
+  let half_carry = (result ^ sub_v ^ origin) & 0x10 == 0x10;
 
   registers.set_flags(result == 0, true, half_carry, carry);
+
+  println!("{} {} {} {} {}", origin, sub_v, result, half_carry, carry);
 
   result
 }
@@ -3286,7 +3288,8 @@ fn ext_sla_indirect_r16(
 }
 
 fn core_sra(reg: u8, registers: &mut Registers) -> u8 {
-  let new_reg = reg >> 1;
+  // For some reason in SRA the most significant bit (0x80, 128) is ignored from the calculation.
+  let new_reg = (reg & 0x80) | reg >> 1;
   registers.set_flags(new_reg == 0, false, false, isset8(reg, 0x1));
   new_reg
 }
