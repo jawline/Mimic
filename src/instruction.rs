@@ -1,5 +1,5 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
-use crate::memory::{isset8, isset16, isset32, MemoryPtr};
+use crate::memory::{isset16, isset32, isset8, MemoryPtr};
 
 use log::{error, info, trace};
 
@@ -267,12 +267,7 @@ pub fn dec_mem_r16(
   // Increment by one and modify memory
   memory.write_u8(addr, result);
 
-  registers.set_flags(
-    result == 0,
-    true,
-    ((l & 0xF0) - 1) & (0x0F) != 0,
-    registers.carry(),
-  );
+  registers.set_flags(result == 0, true, half_carry_sub(l, 1), registers.carry());
 }
 
 /// Add two 8-bit values and set flags
@@ -327,11 +322,10 @@ fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
 
   // The result is an 8-bit subtraction
   let result = origin - sub_v;
-  let half_carry = (result ^ sub_v ^ origin) & 0x10 == 0x10;
-
+  let half_carry = half_carry_sub(origin, sub_v);
   registers.set_flags(result == 0, true, half_carry, carry);
 
-  println!("{} {} {} {} {}", origin, sub_v, result, half_carry, carry);
+  //println!("{} {} {} {} {}", origin, sub_v, result, half_carry, carry);
 
   result
 }
@@ -453,21 +447,8 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// The core logic for subtraction of 8-bit values through a carry
-fn sbc_core(mut acc: u8, val: u8, registers: &mut Registers) -> u8 {
-  let origin = acc;
-
-  acc -= val;
-
-  let mut carry = acc > origin;
-
-  if registers.carry() {
-    acc -= 1;
-    carry = carry | (acc > origin);
-  }
-
-  let half_carry = isset8(acc ^ val ^ origin, 0x10);
-  registers.set_flags(acc == 0, true, half_carry, carry);
-  acc
+fn sbc_core(acc: u8, val: u8, registers: &mut Registers) -> u8 {
+  sub_core(acc, val + 1, registers)
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
@@ -771,6 +752,14 @@ fn dec_wide_register(
   registers.inc_pc(1);
 }
 
+fn half_carry_sub(a: u8, b: u8) -> bool {
+  isset8((a & 0x0F) - (b & 0xF), 0x10)
+}
+
+fn half_carry_sub_signed_n_from_16_bit_value(a: u16, b: u16) -> bool {
+  isset16((a & 0x0F) - (b & 0xF), 0x10)
+}
+
 /// Decrement the value of a small register by one
 fn dec_small_register(
   registers: &mut Registers,
@@ -783,12 +772,7 @@ fn dec_small_register(
   // Increment the destination register by one
   registers.write_r8(additional.small_reg_dst, result);
 
-  registers.set_flags(
-    result == 0,
-    true,
-    isset8(l, 0x10),
-    registers.carry(),
-  );
+  registers.set_flags(result == 0, true, half_carry_sub(l, 1), registers.carry());
 
   // Increment the PC by one once finished
   registers.inc_pc(1);
@@ -917,28 +901,26 @@ fn register_plus_signed_8_bit_immediate(
   immediate: u8,
   registers: &mut Registers,
 ) -> u16 {
-
   let mut acc = register;
 
-  println!("{} {} {}", register, immediate, immediate as i8);
+  //println!("{} {} {}", register, immediate, immediate as i8);
 
   if (isset8(immediate, 0x80)) {
-      let immediate = (!immediate) + 1;
-      let immediate = immediate as u16;
-      let half_carry = isset16(((acc & 0xF0) - (immediate & 0xF0)) & 0xF, 0x8);
-      // TODO: This path doesn't work
-      println!("{}: ", ((acc & 0xF0) - (immediate & 0xF0)) & 0xF);
-      let carry = ((acc & 0xFF) - (immediate & 0xFF)) > acc;
-      acc -= immediate;
-      registers.set_flags(false, false, half_carry, carry);
-      println!("{} - {} = {} ({} {})", register, immediate, acc, half_carry, carry);
+    // TODO: Broken
+    let immediate = (!immediate) + 1;
+    let immediate = immediate as u16;
+    let half_carry = (((acc & 0xF) - (immediate & 0xF)) & 0x10) != 0;
+    let carry = (acc & 0xFF) - (immediate & 0xFF) > 255;
+    acc -= immediate;
+    registers.set_flags(false, false, half_carry, carry);
+    //println!("{} - {} = {} ({} {})", register, immediate, acc, half_carry, carry);
   } else {
-      let immediate = immediate as u16;
-      let half_carry = ((((acc & 0xF) + (immediate & 0xF))) & 0x10) != 0;
-      let carry = (acc & 0xFF) + (immediate & 0xFF) > 255;
-      acc += immediate;
-      registers.set_flags(false, false, half_carry, carry);
-      println!("{} + {} = {} ({}, {})", register, immediate, acc, half_carry, carry);
+    let immediate = immediate as u16;
+    let half_carry = (((acc & 0xF) + (immediate & 0xF)) & 0x10) != 0;
+    let carry = (acc & 0xFF) + (immediate & 0xFF) > 255;
+    acc += immediate;
+    registers.set_flags(false, false, half_carry, carry);
+    //println!("{} + {} = {} ({}, {})", register, immediate, acc, half_carry, carry);
   }
 
   acc
