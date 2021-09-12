@@ -1,6 +1,8 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset16, isset32, isset8, MemoryPtr};
-use crate::util::{carries_add8, carries_add8_with_carry, carries_sub8, half_carry_sub8};
+use crate::util::{
+  carries_add8, carries_add8_with_carry, carries_sub8, half_carry_add8, half_carry_sub8,
+};
 use log::trace;
 
 /// We re-use some instruction functions for multiple register implementations
@@ -226,10 +228,7 @@ pub fn inc_small_register(
 
   // Increment the destination register by one
   registers.write_r8(additional.small_reg_dst, result);
-
-  let half_carry = ((l & 0xF) + 1) & 0xF0 != 0;
-
-  registers.set_flags(result == 0, false, half_carry, registers.carry());
+  registers.set_flags(result == 0, false, half_carry_add8(l, 1), registers.carry());
 }
 
 // Increment an 8-bit value at a given memory address by one.
@@ -247,9 +246,7 @@ pub fn inc_mem_r16(
   // Increment by one and modify memory
   memory.write_u8(addr, result);
 
-  let half_carry = ((l & 0xF) + 1) & 0xF0 != 0;
-
-  registers.set_flags(result == 0, false, half_carry, registers.carry());
+  registers.set_flags(result == 0, false, half_carry_add8(l, 1), registers.carry());
 }
 
 /// Decrement the value of memory pointed by a wide register by one

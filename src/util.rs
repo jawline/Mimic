@@ -42,8 +42,12 @@ pub fn carries_add8(val: u8, other: u8) -> (bool, bool) {
   carries_add8_with_carry(val, other, false)
 }
 
-pub fn half_carry_sub8(a: u8, b: u8) -> bool {
-  isset8((a & 0x0F) - (b & 0xF), 0x10)
+pub fn half_carry_add8(val: u8, operand: u8) -> bool {
+  isset8((val & 0xF) + (operand & 0xF), 0x10)
+}
+
+pub fn half_carry_sub8(val: u8, operand: u8) -> bool {
+  isset8((val & 0xF) - (operand & 0xF), 0x10)
 }
 
 pub fn carries_sub8(val: u8, operand: u8) -> (bool, bool) {
