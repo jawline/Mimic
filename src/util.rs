@@ -54,7 +54,7 @@ pub fn carries_sub8(val: u8, operand: u8) -> (bool, bool) {
   // TODO: Is there anything fancier like the xor trick?
   let carry = val < operand;
   let half_carry = half_carry_sub8(val, operand);
-  (carry, half_carry)
+  (half_carry, carry)
 }
 
 pub fn half_carry_sub8_signed_n_from_16_bit_value(a: u16, b: u16) -> bool {
