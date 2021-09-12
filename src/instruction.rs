@@ -512,17 +512,32 @@ fn ld_r8_ff00_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
   registers.write_r8(additional.small_reg_dst, rval);
 }
 
+fn carries_add8_with_carry(val: u8, other: u8, carry: bool) -> (bool, bool) {
+  // Upgrade them to 16 bits so they are wide enough to
+  // contain 0x100
+  let val = val as u16;
+  let other = (other as u16) + if carry { 1 } else { 0 };
+
+  let sum = val + other;
+  let no_carry_sum = val ^ other;
+  let carry_into = sum ^ no_carry_sum;
+
+  let half_carry = isset16(carry_into, 0x10);
+  let carry = isset16(carry_into, 0x100);
+
+  (half_carry, carry)
+}
+
+fn carries_add8(val: u8, other: u8, carry: bool) -> (bool, bool) {
+  carries_add8_with_carry(val, other, false)
+}
+
 /// Generic add with carry, sets flags and returns result
 fn adc_generic(acc: u8, r: u8, registers: &mut Registers) -> u8 {
-  let mut acc = acc as u16;
-  let origin = acc as u16;
-  let r = r as u16;
-  acc += r;
-  acc += if registers.carry() { 1 } else { 0 };
-  let half_carry = acc ^ origin ^ r & 0x10 != 0;
-  let carry = acc > 255;
-  registers.set_flags(acc == 0, false, half_carry, carry);
-  (acc & 255) as u8
+  let result = acc + r + if registers.carry() { 1 } else { 0 };
+  let (half_carry, carry) = carries_add8_with_carry(acc, r, registers.carry());
+  registers.set_flags(result == 0, false, half_carry, carry);
+  result
 }
 
 /// Add with carry an immediate to a small register
@@ -668,7 +683,7 @@ fn rotate_left_with_carry(
   let carry = a & (1 << 7) != 0;
   a = a.rotate_left(1);
   registers.write_r8(additional.small_reg_dst, a);
-  registers.set_flags(a == 0, false, false, carry);
+  registers.set_flags(false, false, false, carry);
 
   // Increment PC by one
   registers.inc_pc(1);
@@ -684,7 +699,7 @@ fn rotate_right_with_carry(
   let carry = a & (1) != 0;
   a = a.rotate_right(1);
   registers.write_r8(additional.small_reg_dst, a);
-  registers.set_flags(a == 0, false, false, carry);
+  registers.set_flags(false, false, false, carry);
 
   // Increment PC by one
   registers.inc_pc(1);
@@ -705,7 +720,7 @@ fn rotate_r8_left_through_carry(
   }
 
   registers.write_r8(additional.small_reg_dst, a);
-  registers.set_flags(a == 0, false, false, will_carry);
+  registers.set_flags(false, false, false, will_carry);
 
   // Increment PC by one
   registers.inc_pc(1);
@@ -730,7 +745,7 @@ fn rotate_r8_right_through_carry(
   }
 
   registers.write_r8(additional.small_reg_dst, a);
-  registers.set_flags(a == 0, false, false, will_carry);
+  registers.set_flags(false, false, false, will_carry);
 
   // Increment PC by one
   registers.inc_pc(1);
