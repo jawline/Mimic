@@ -1,4 +1,4 @@
-use crate::memory::MemoryPtr;
+use crate::memory::{isset16, isset8, MemoryPtr};
 
 pub const STAT: u16 = 0xFF41;
 
@@ -20,4 +20,39 @@ pub fn stat_interrupts_with_masked_flags(flags: u8, mem: &mut MemoryPtr) -> u8 {
   let current_stat = stat(mem) & STAT_FLAG_MASK;
   let new_stat = current_stat | (flags & (!STAT_FLAG_MASK));
   new_stat
+}
+
+pub fn carries_add8_with_carry(val: u8, other: u8, carry: bool) -> (bool, bool) {
+  // Upgrade them to 16 bits so they are wide enough to
+  // contain 0x100
+  let val = val as u16;
+  let other = (other as u16) + if carry { 1 } else { 0 };
+
+  let sum = val + other;
+  let no_carry_sum = val ^ other;
+  let carry_into = sum ^ no_carry_sum;
+
+  let half_carry = isset16(carry_into, 0x10);
+  let carry = isset16(carry_into, 0x100);
+
+  (half_carry, carry)
+}
+
+pub fn carries_add8(val: u8, other: u8) -> (bool, bool) {
+  carries_add8_with_carry(val, other, false)
+}
+
+pub fn half_carry_sub8(a: u8, b: u8) -> bool {
+  isset8((a & 0x0F) - (b & 0xF), 0x10)
+}
+
+pub fn carries_sub8(val: u8, operand: u8) -> (bool, bool) {
+  // TODO: Is there anything fancier like the xor trick?
+  let carry = val < operand;
+  let half_carry = half_carry_sub8(val, operand);
+  (carry, half_carry)
+}
+
+pub fn half_carry_sub8_signed_n_from_16_bit_value(a: u16, b: u16) -> bool {
+  isset16((a & 0x0F) - (b & 0xF), 0x10)
 }

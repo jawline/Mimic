@@ -1,7 +1,7 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset16, isset32, isset8, MemoryPtr};
-
-use log::{error, info, trace};
+use crate::util::{carries_add8, carries_add8_with_carry, carries_sub8, half_carry_sub8};
+use log::trace;
 
 /// We re-use some instruction functions for multiple register implementations
 /// This struct carries data for the single-implementation for many opcode instruction methods
@@ -267,19 +267,12 @@ pub fn dec_mem_r16(
   // Increment by one and modify memory
   memory.write_u8(addr, result);
 
-  registers.set_flags(result == 0, true, half_carry_sub(l, 1), registers.carry());
+  registers.set_flags(result == 0, true, half_carry_sub8(l, 1), registers.carry());
 }
 
 /// Add two 8-bit values and set flags
 fn add_core(l: u8, r: u8, registers: &mut Registers) -> u8 {
-  // Half carry is set where the addition of the lower nibbles of each byte carries into the upper
-  // nibble.
-  let half_carry = isset8((l & 0xF) + (r & 0xF), 0x10);
-
-  // Carry is set when the addition of two 8-bit values is greater than can be held in an 8 bit
-  // register.
-  let carry = (l as u16 + r as u16) & 0xFF00 != 0;
-
+  let (half_carry, carry) = carries_add8(l, r);
   let result = l + r;
   registers.set_flags(result == 0, false, half_carry, carry);
   result
@@ -318,11 +311,10 @@ fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
   // carries (TODO: Check this logic, it doesn't seem right)
 
   // Carry when the origin is smaller than the value being subtracted
-  let carry = origin < sub_v;
 
   // The result is an 8-bit subtraction
   let result = origin - sub_v;
-  let half_carry = half_carry_sub(origin, sub_v);
+  let (half_carry, carry) = carries_sub8(origin, sub_v);
   registers.set_flags(result == 0, true, half_carry, carry);
 
   //println!("{} {} {} {} {}", origin, sub_v, result, half_carry, carry);
@@ -512,30 +504,19 @@ fn ld_r8_ff00_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
   registers.write_r8(additional.small_reg_dst, rval);
 }
 
-fn carries_add8_with_carry(val: u8, other: u8, carry: bool) -> (bool, bool) {
-  // Upgrade them to 16 bits so they are wide enough to
-  // contain 0x100
-  let val = val as u16;
-  let other = (other as u16) + if carry { 1 } else { 0 };
-
-  let sum = val + other;
-  let no_carry_sum = val ^ other;
-  let carry_into = sum ^ no_carry_sum;
-
-  let half_carry = isset16(carry_into, 0x10);
-  let carry = isset16(carry_into, 0x100);
-
-  (half_carry, carry)
-}
-
-fn carries_add8(val: u8, other: u8, carry: bool) -> (bool, bool) {
-  carries_add8_with_carry(val, other, false)
-}
-
 /// Generic add with carry, sets flags and returns result
 fn adc_generic(acc: u8, r: u8, registers: &mut Registers) -> u8 {
   let result = acc + r + if registers.carry() { 1 } else { 0 };
   let (half_carry, carry) = carries_add8_with_carry(acc, r, registers.carry());
+  println!(
+    "{} + {} + {} = {} ({}, {})",
+    acc,
+    r,
+    if registers.carry() { 1 } else { 0 },
+    result,
+    half_carry,
+    carry
+  );
   registers.set_flags(result == 0, false, half_carry, carry);
   result
 }
@@ -741,7 +722,7 @@ fn rotate_r8_right_through_carry(
   a = a >> 1;
 
   if registers.carry() {
-    a += (1 << 7);
+    a += 1 << 7;
   }
 
   registers.write_r8(additional.small_reg_dst, a);
@@ -767,14 +748,6 @@ fn dec_wide_register(
   registers.inc_pc(1);
 }
 
-fn half_carry_sub(a: u8, b: u8) -> bool {
-  isset8((a & 0x0F) - (b & 0xF), 0x10)
-}
-
-fn half_carry_sub_signed_n_from_16_bit_value(a: u16, b: u16) -> bool {
-  isset16((a & 0x0F) - (b & 0xF), 0x10)
-}
-
 /// Decrement the value of a small register by one
 fn dec_small_register(
   registers: &mut Registers,
@@ -787,7 +760,7 @@ fn dec_small_register(
   // Increment the destination register by one
   registers.write_r8(additional.small_reg_dst, result);
 
-  registers.set_flags(result == 0, true, half_carry_sub(l, 1), registers.carry());
+  registers.set_flags(result == 0, true, half_carry_sub8(l, 1), registers.carry());
 
   // Increment the PC by one once finished
   registers.inc_pc(1);
@@ -883,7 +856,7 @@ fn add_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &
 
   // Did the 11th bits carry?
   let half_carried = isset16((l & 0xFFF) + (r & 0xFFF), 0x1 << 12);
-  let carried = isset32((l as u32 + r as u32), 0x1 << 16);
+  let carried = isset32(l as u32 + r as u32, 0x1 << 16);
 
   registers.write_r16(additional.wide_reg_dst, result);
   registers.set_flags(registers.zero(), false, half_carried, carried);
@@ -920,7 +893,7 @@ fn register_plus_signed_8_bit_immediate(
 
   //println!("{} {} {}", register, immediate, immediate as i8);
 
-  if (isset8(immediate, 0x80)) {
+  if isset8(immediate, 0x80) {
     // TODO: Broken
     let immediate = (!immediate) + 1;
     let immediate = immediate as u16;

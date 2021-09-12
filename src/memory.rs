@@ -1,5 +1,5 @@
 use crate::util::{stat_interrupts_with_masked_flags, STAT};
-use log::{debug, error, info, trace, warn};
+use log::{error, info, trace, warn};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
