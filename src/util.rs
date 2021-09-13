@@ -27,7 +27,7 @@ pub fn carries_add8_with_carry(val: u8, operand: u8, carry: bool) -> (bool, bool
   // contain 0x100
   let val = val as u16;
   let operand = operand as u16;
-  let carry =  if carry { 1 } else { 0 };
+  let carry = if carry { 1 } else { 0 };
   let sum = val + operand + carry;
   let carry_into = sum ^ val ^ operand ^ carry;
 
@@ -37,8 +37,24 @@ pub fn carries_add8_with_carry(val: u8, operand: u8, carry: bool) -> (bool, bool
   (half_carry, carry)
 }
 
-pub fn carries_add8(val: u8, other: u8) -> (bool, bool) {
-  carries_add8_with_carry(val, other, false)
+pub fn carries_sub8_with_carry(val: u8, operand: u8, carry: bool) -> (bool, bool) {
+  // Upgrade them to 16 bits so they are wide enough to
+  // contain 0x100
+
+  let val = val as u16;
+  let operand = operand as u16;
+  let carry = if carry { 1 } else { 0 };
+  let sum = val - operand - carry;
+  let carry_into = sum ^ val ^ operand ^ carry;
+
+  let half_carry = isset16(carry_into, 0x10);
+  let carry = isset16(carry_into, 0x100);
+
+  (half_carry, carry)
+}
+
+pub fn carries_add8(val: u8, operand: u8) -> (bool, bool) {
+  carries_add8_with_carry(val, operand, false)
 }
 
 pub fn half_carry_add8(val: u8, operand: u8) -> bool {
@@ -50,10 +66,7 @@ pub fn half_carry_sub8(val: u8, operand: u8) -> bool {
 }
 
 pub fn carries_sub8(val: u8, operand: u8) -> (bool, bool) {
-  // TODO: Is there anything fancier like the xor trick?
-  let carry = val < operand;
-  let half_carry = half_carry_sub8(val, operand);
-  (half_carry, carry)
+  carries_sub8_with_carry(val, operand, false)
 }
 
 pub fn half_carry_sub8_signed_n_from_16_bit_value(a: u16, b: u16) -> bool {

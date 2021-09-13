@@ -1,7 +1,8 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset16, isset32, isset8, MemoryPtr};
 use crate::util::{
-  carries_add8, carries_add8_with_carry, carries_sub8, half_carry_add8, half_carry_sub8,
+  carries_add8, carries_add8_with_carry, carries_sub8, carries_sub8_with_carry, half_carry_add8,
+  half_carry_sub8,
 };
 use log::trace;
 
@@ -276,7 +277,6 @@ fn add_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 
 /// Add an immediate to a small register
 fn add_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
 
@@ -290,7 +290,6 @@ fn add_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// Add two small registers (small_reg_one to small_reg_dst)
 fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -302,22 +301,22 @@ fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
   registers.inc_pc(1);
 }
 
+/// Same as sub but subtracts an additional 1 if the carry bit is set and sets the resulting carry
+/// and half carries appropriately
+fn sub_core_with_carry(acc: u8, operand: u8, registers: &mut Registers, carry: bool) -> u8 {
+  let result = acc - operand - if carry { 1 } else { 0 };
+  let (half_carry, carry) = carries_sub8_with_carry(acc, operand, carry);
+  registers.set_flags(result == 0, true, half_carry, carry);
+  result
+}
+
 /// This function forms the foundation for all common 8-bit subtractions
 fn sub_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
-
-  // The result is an 8-bit subtraction
-  let result = acc - operand;
-  let (half_carry, carry) = carries_sub8(acc, operand);
-  registers.set_flags(result == 0, true, half_carry, carry);
-
-  //println!("{} {} {} {} {}", origin, sub_v, result, half_carry, carry);
-
-  result
+  sub_core_with_carry(acc, operand, registers, false)
 }
 
 /// Subtract two small registers (small_reg_one to small_reg_dst)
 fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -330,7 +329,6 @@ fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
 /// Subtract an immediate from a small dst register
 fn sub_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
 
@@ -350,7 +348,6 @@ fn and_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 
 /// And of two small registers
 fn and_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
   let result = and_core(acc, operand, registers);
@@ -361,7 +358,6 @@ fn and_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
 /// And imm with small reg dst
 fn and_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
   let result = and_core(acc, operand, registers);
@@ -379,7 +375,6 @@ fn or_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 
 /// or two small registers
 fn or_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -391,7 +386,6 @@ fn or_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Ins
 
 /// bitwise or small reg dst with immediate
 fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
   let result = or_core(acc, operand, registers);
@@ -402,7 +396,6 @@ fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instr
 
 /// cp two small registers
 fn cp_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -414,7 +407,6 @@ fn cp_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Ins
 
 /// cp small reg dst against an immediate
 fn cp_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
   sub_core(acc, operand, registers);
@@ -450,7 +442,8 @@ fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 
 /// The core logic for subtraction of 8-bit values through a carry
 fn sbc_core(acc: u8, val: u8, registers: &mut Registers) -> u8 {
-  sub_core(acc, val + 1, registers)
+  let carry = registers.carry();
+  sub_core_with_carry(acc, val, registers, carry)
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
@@ -891,8 +884,6 @@ fn register_plus_signed_8_bit_immediate(
   registers: &mut Registers,
 ) -> u16 {
   let mut acc = register;
-
-  //println!("{} {} {}", register, immediate, immediate as i8);
 
   if isset8(immediate, 0x80) {
     // TODO: Broken
