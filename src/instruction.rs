@@ -1026,24 +1026,31 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
 fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  let acc = registers.read_r8(additional.small_reg_dst);
+  let target = registers.read_r8(additional.small_reg_dst);
+
+  // Not entirely sure what this does but the general process seems to be
+  // if A & 0xF > 0x9 or H then add $06 to A
+  // if A & 0xF0 > 0x99 or C then add $60 to A
 
   let mut t = 0;
-  let mut carry = false;
 
-  if registers.half_carry() || (!registers.subtract() && (acc & 0xF) > 9) {
-    t = 6;
+  if target & 0xF > 0x9 {
+    t += 1;
   }
 
-  if carry || (!registers.subtract() && (acc > 0x99)) {
-    t |= 0x60;
-    carry = true;
-  }
-
-  let result = if registers.subtract() {
-    acc - t
+  let carry = if target & 0xF0 > 0x99 {
+    t += 2;
+    true
   } else {
-    acc + t
+    false
+  };
+
+  let result = match t {
+    0 => target,
+    1 => target + if registers.subtract() { 0xFA } else { 0x06 }, // -6 or +6
+    2 => target + if registers.subtract() { 0xA0 } else { 0x60 }, // -60 or +60
+    3 => target + if registers.subtract() { 0x9A } else { 0x66 }, // -66 or + 66
+    _ => panic!("impossible condition for DAA"),
   };
 
   trace!(
@@ -1055,6 +1062,8 @@ fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Instruct
     carry
   );
 
+  // https://forums.nesdev.com/viewtopic.php?t=15944
+  // https://stackoverflow.com/questions/8119577/z80-daa-instruction
   registers.write_r8(additional.small_reg_dst, result);
   registers.set_flags(result == 0, registers.subtract(), false, carry);
   registers.inc_pc(1);
