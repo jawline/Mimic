@@ -245,7 +245,6 @@ pub fn inc_mem_r16(
 
   // Increment by one and modify memory
   memory.write_u8(addr, result);
-
   registers.set_flags(result == 0, false, half_carry_add8(l, 1), registers.carry());
 }
 
@@ -268,50 +267,47 @@ pub fn dec_mem_r16(
 }
 
 /// Add two 8-bit values and set flags
-fn add_core(l: u8, r: u8, registers: &mut Registers) -> u8 {
-  let (half_carry, carry) = carries_add8(l, r);
-  let result = l + r;
+fn add_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
+  let (half_carry, carry) = carries_add8(acc, operand);
+  let result = acc + operand;
   registers.set_flags(result == 0, false, half_carry, carry);
   result
 }
 
 /// Add an immediate to a small register
 fn add_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let add_v = memory.read_u8(registers.pc() + 1);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = memory.read_u8(registers.pc() + 1);
+
+  // We calculate the registers here since its shared with other adds
+  let result = add_core(acc, operand, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 
   // Increment the PC by one once finished
   registers.inc_pc(2);
-
-  let origin = registers.read_r8(additional.small_reg_dst);
-
-  // We calculate the registers here since its shared with other adds
-  let result = add_core(origin, add_v, registers);
-  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// Add two small registers (small_reg_one to small_reg_dst)
 fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  // Increment the PC by one once finished
-  registers.inc_pc(1);
 
-  let origin = registers.read_r8(additional.small_reg_dst);
-  let add_v = registers.read_r8(additional.small_reg_one);
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = registers.read_r8(additional.small_reg_one);
 
   // We calculate the registers here since its shared with immediates
-  let result = add_core(origin, add_v, registers);
+  let result = add_core(acc, operand, registers);
   registers.write_r8(additional.small_reg_dst, result);
+
+  // Increment the PC by one once finished
+  registers.inc_pc(1);
 }
 
 /// This function forms the foundation for all common 8-bit subtractions
-fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
-  // Half carry when the upper nibble of the origin subtracted from the upper nibble of the sub
-  // carries (TODO: Check this logic, it doesn't seem right)
-
-  // Carry when the origin is smaller than the value being subtracted
+fn sub_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 
   // The result is an 8-bit subtraction
-  let result = origin - sub_v;
-  let (half_carry, carry) = carries_sub8(origin, sub_v);
+  let result = acc - operand;
+  let (half_carry, carry) = carries_sub8(acc, operand);
   registers.set_flags(result == 0, true, half_carry, carry);
 
   //println!("{} {} {} {} {}", origin, sub_v, result, half_carry, carry);
@@ -321,93 +317,110 @@ fn sub_core(origin: u8, sub_v: u8, registers: &mut Registers) -> u8 {
 
 /// Subtract two small registers (small_reg_one to small_reg_dst)
 fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = registers.read_r8(additional.small_reg_one);
+
+  let result = sub_core(acc, operand, registers);
+  registers.write_r8(additional.small_reg_dst, result);
+
   // Increment the PC by one once finished
   registers.inc_pc(1);
-
-  let origin = registers.read_r8(additional.small_reg_dst);
-  let sub_v = registers.read_r8(additional.small_reg_one);
-
-  let result = sub_core(origin, sub_v, registers);
-  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// Subtract an immediate from a small dst register
 fn sub_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let sub_v = memory.read_u8(registers.pc() + 1);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = memory.read_u8(registers.pc() + 1);
+
+  let result = sub_core(acc, operand, registers);
+  registers.write_r8(additional.small_reg_dst, result);
 
   // Increment the PC by one once finished
   registers.inc_pc(2);
-
-  let origin = registers.read_r8(additional.small_reg_dst);
-  let result = sub_core(origin, sub_v, registers);
-  registers.write_r8(additional.small_reg_dst, result);
 }
 
 /// The core of an AND operation
-fn and_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
-  let result = v1 & v2;
+fn and_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
+  let result = acc & operand;
   registers.set_flags(result == 0, false, true, false);
   result
 }
 
 /// And of two small registers
 fn and_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  registers.inc_pc(1);
-  let r1 = registers.read_r8(additional.small_reg_dst);
-  let r2 = registers.read_r8(additional.small_reg_one);
-  let result = and_core(r1, r2, registers);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = registers.read_r8(additional.small_reg_one);
+  let result = and_core(acc, operand, registers);
+
   registers.write_r8(additional.small_reg_dst, result);
+  registers.inc_pc(1);
 }
 
 /// And imm with small reg dst
 fn and_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let r2 = memory.read_u8(registers.pc() + 1);
-  registers.inc_pc(2);
-  let r1 = registers.read_r8(additional.small_reg_dst);
-  let result = and_core(r1, r2, registers);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = memory.read_u8(registers.pc() + 1);
+  let result = and_core(acc, operand, registers);
+
   registers.write_r8(additional.small_reg_dst, result);
+  registers.inc_pc(2);
 }
 
 /// The core of an OR operation
-fn or_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
-  let result = v1 | v2;
+fn or_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
+  let result = acc | operand;
   registers.set_flags(result == 0, false, false, false);
   result
 }
 
 /// or two small registers
 fn or_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  registers.inc_pc(1);
-  let r1 = registers.read_r8(additional.small_reg_dst);
-  let r2 = registers.read_r8(additional.small_reg_one);
-  let result = or_core(r1, r2, registers);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = registers.read_r8(additional.small_reg_one);
+
+  let result = or_core(acc, operand, registers);
   registers.write_r8(additional.small_reg_dst, result);
+
+  registers.inc_pc(1);
 }
 
 /// bitwise or small reg dst with immediate
 fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let r2 = memory.read_u8(registers.pc() + 1);
-  registers.inc_pc(2);
-  let r1 = registers.read_r8(additional.small_reg_dst);
-  let result = or_core(r1, r2, registers);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = memory.read_u8(registers.pc() + 1);
+  let result = or_core(acc, operand, registers);
+
   registers.write_r8(additional.small_reg_dst, result);
+  registers.inc_pc(2);
 }
 
 /// cp two small registers
 fn cp_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = registers.read_r8(additional.small_reg_one);
+
+  // We discard the result but keep the changes to flags
+  sub_core(acc, operand, registers);
+
   registers.inc_pc(1);
-  let origin = registers.read_r8(additional.small_reg_dst);
-  let sub_v = registers.read_r8(additional.small_reg_one);
-  sub_core(origin, sub_v, registers);
 }
 
 /// cp small reg dst against an immediate
 fn cp_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
-  let sub_v = memory.read_u8(registers.pc() + 1);
+
+  let acc = registers.read_r8(additional.small_reg_dst);
+  let operand = memory.read_u8(registers.pc() + 1);
+  sub_core(acc, operand, registers);
+
   // Increment the PC by one once finished
   registers.inc_pc(2);
-  let origin = registers.read_r8(additional.small_reg_dst);
-  sub_core(origin, sub_v, registers);
 }
 
 /// Implement the core xor logic for 8 bit values
