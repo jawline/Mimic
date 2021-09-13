@@ -518,15 +518,6 @@ fn ld_r8_ff00_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 fn adc_generic(acc: u8, r: u8, registers: &mut Registers) -> u8 {
   let result = acc + r + if registers.carry() { 1 } else { 0 };
   let (half_carry, carry) = carries_add8_with_carry(acc, r, registers.carry());
-  println!(
-    "{} + {} + {} = {} ({}, {})",
-    acc,
-    r,
-    if registers.carry() { 1 } else { 0 },
-    result,
-    half_carry,
-    carry
-  );
   registers.set_flags(result == 0, false, half_carry, carry);
   result
 }

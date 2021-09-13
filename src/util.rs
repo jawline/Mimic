@@ -22,15 +22,14 @@ pub fn stat_interrupts_with_masked_flags(flags: u8, mem: &mut MemoryPtr) -> u8 {
   new_stat
 }
 
-pub fn carries_add8_with_carry(val: u8, other: u8, carry: bool) -> (bool, bool) {
+pub fn carries_add8_with_carry(val: u8, operand: u8, carry: bool) -> (bool, bool) {
   // Upgrade them to 16 bits so they are wide enough to
   // contain 0x100
   let val = val as u16;
-  let other = (other as u16) + if carry { 1 } else { 0 };
-
-  let sum = val + other;
-  let no_carry_sum = val ^ other;
-  let carry_into = sum ^ no_carry_sum;
+  let operand = operand as u16;
+  let carry =  if carry { 1 } else { 0 };
+  let sum = val + operand + carry;
+  let carry_into = sum ^ val ^ operand ^ carry;
 
   let half_carry = isset16(carry_into, 0x10);
   let carry = isset16(carry_into, 0x100);
