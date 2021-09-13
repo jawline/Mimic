@@ -1,8 +1,8 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset16, isset32, isset8, MemoryPtr};
 use crate::util::{
-  carries_add8, carries_add8_with_carry, carries_sub8, carries_sub8_with_carry, half_carry_add8,
-  half_carry_sub8,carries_add16_signed_8bit,carries_sub16_signed_8bit
+  carries_add16_signed_8bit, carries_add8, carries_add8_with_carry, carries_sub16_signed_8bit,
+  carries_sub8, carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
 };
 use log::trace;
 
@@ -883,7 +883,6 @@ fn register_plus_signed_8_bit_immediate(
   immediate: u8,
   registers: &mut Registers,
 ) -> u16 {
-
   if isset8(immediate, 0x80) {
     // TODO: Broken
     let immediate = (!immediate) + 1;
@@ -892,7 +891,10 @@ fn register_plus_signed_8_bit_immediate(
     let origin = acc;
     acc -= immediate;
     registers.set_flags(false, false, half_carry, carry);
-    println!("{} - {} = {} ({} {})", origin, immediate, acc, half_carry, carry);
+    println!(
+      "{} - {} = {} ({} {})",
+      origin, immediate, acc, half_carry, carry
+    );
   } else {
     let (half_carry, carry) = carries_add16_signed_8bit(acc, immediate);
     acc += immediate as u16;

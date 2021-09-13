@@ -41,7 +41,10 @@ pub fn carries_add16_signed_8bit(val: u16, operand: u8) -> (bool, bool) {
   let operand = operand as u16;
   let result = val + operand;
   let carry_bitvector = result ^ val ^ operand;
-  (isset16(carry_bitvector, 0x10), isset16(carry_bitvector, 0x100))
+  (
+    isset16(carry_bitvector, 0x10),
+    isset16(carry_bitvector, 0x100),
+  )
 }
 
 pub fn carries_sub16_signed_8bit(val: u16, operand: u8) -> (bool, bool) {
