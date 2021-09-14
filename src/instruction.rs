@@ -1028,46 +1028,32 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
 fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
-  let target = registers.read_r8(additional.small_reg_dst);
+  let mut acc = registers.read_r8(additional.small_reg_dst);
+  let mut correction: u16 = if registers.carry() { 0x60 } else { 0 };
+  let add_mode = !registers.subtract();
 
-  // Not entirely sure what this does but the general process seems to be
-  // if A & 0xF > 0x9 or H then add $06 to A
-  // if A & 0xF0 > 0x99 or C then add $60 to A
-
-  let mut t = 0;
-
-  if target & 0xF > 0x9 {
-    t += 1;
+  if registers.half_carry() || (add_mode && ((acc & 0xF) > 9)) {
+    correction |= 0x06;
   }
 
-  let carry = if target & 0xF0 > 0x99 {
-    t += 2;
-    true
+  if registers.carry() || (add_mode && ((acc & 0xFF) > 0x99)) {
+    correction |= 0x60;
+  }
+
+  if add_mode {
+    acc += correction as u8;
   } else {
-    false
-  };
+    acc -= correction as u8;
+  }
 
-  let result = match t {
-    0 => target,
-    1 => target + if registers.subtract() { 0xFA } else { 0x06 }, // -6 or +6
-    2 => target + if registers.subtract() { 0xA0 } else { 0x60 }, // -60 or +60
-    3 => target + if registers.subtract() { 0x9A } else { 0x66 }, // -66 or + 66
-    _ => panic!("impossible condition for DAA"),
-  };
+  let mut carry = registers.carry();
 
-  trace!(
-    "DAA {} {} {} {} {}",
-    result,
-    result == 0,
-    registers.subtract(),
-    false,
-    carry
-  );
+  if isset16(correction << 2, 0x100) {
+    carry = true;
+  }
 
-  // https://forums.nesdev.com/viewtopic.php?t=15944
-  // https://stackoverflow.com/questions/8119577/z80-daa-instruction
-  registers.write_r8(additional.small_reg_dst, result);
-  registers.set_flags(result == 0, registers.subtract(), false, carry);
+  registers.write_r8(additional.small_reg_dst, acc);
+  registers.set_flags(acc == 0, registers.subtract(), false, carry);
   registers.inc_pc(1);
 }
 
