@@ -1,4 +1,4 @@
-use crate::cpu::{CPU, STAT, VBLANK};
+use crate::cpu::{Cpu, STAT, VBLANK};
 use crate::memory::{isset8, MemoryPtr};
 use crate::util::{self, stat};
 use log::{debug, info, trace};
@@ -44,13 +44,13 @@ enum Mode {
   VBLANK,
 }
 
-pub enum GpuStepState {
+pub enum PpuStepState {
   None,
   VBlank,
   HBlank,
 }
 
-pub struct GPU {
+pub struct Ppu {
   cycles_in_mode: u16,
   current_line: u8,
   mode: Mode,
@@ -101,10 +101,10 @@ impl Sprite {
   }
 }
 
-impl GPU {
-  pub fn new() -> GPU {
-    info!("GPU initialized");
-    GPU {
+impl Ppu {
+  pub fn new() -> Self {
+    info!("PPU initialized");
+    Self {
       cycles_in_mode: 0,
       current_line: 0,
       mode: Mode::OAM,
@@ -155,7 +155,7 @@ impl GPU {
 
   fn try_fire(stat: u8, interrupt: u8, mem: &mut MemoryPtr) {
     if isset8(stat, interrupt) {
-      CPU::set_interrupt_happened(mem, STAT);
+      Cpu::set_interrupt_happened(mem, STAT);
     }
   }
 
@@ -248,13 +248,13 @@ impl GPU {
     trace!("Rendering full line {}", self.current_line);
 
     let lcd = self.lcd_control(mem);
-    let scy = GPU::scy(mem);
-    let scx = GPU::scx(mem);
-    let render_bg = GPU::show_background(lcd);
-    let render_sprites = GPU::show_sprites(lcd);
-    let bgtile = GPU::bgtile(lcd);
-    let window = GPU::window(lcd);
-    let background_map_selected = GPU::bgmap(lcd);
+    let scy = Self::scy(mem);
+    let scx = Self::scx(mem);
+    let render_bg = Self::show_background(lcd);
+    let render_sprites = Self::show_sprites(lcd);
+    let bgtile = Self::bgtile(lcd);
+    let window = Self::window(lcd);
+    let background_map_selected = Self::bgmap(lcd);
     let mut hit = vec![false; GB_SCREEN_WIDTH as usize];
 
     if render_bg {
@@ -287,11 +287,11 @@ impl GPU {
           hit[i as usize] = true;
         }
 
-        GPU::write_px(
+        Self::write_px(
           pixels,
           i as u8,
           self.current_line,
-          GPU::pal(val, PAL_BG_REG, mem),
+          Self::pal(val, PAL_BG_REG, mem),
         );
 
         x += 1;
@@ -325,7 +325,7 @@ impl GPU {
               let color = self.tile_value(sprite.tile as u16, tile_x as u16, tile_y as u16, mem);
               let low_x = sprite.x + x;
               if low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
-                let pval = GPU::pal(
+                let pval = Self::pal(
                   color,
                   if sprite.palette {
                     PAL_OBJ1_REG
@@ -334,7 +334,7 @@ impl GPU {
                   },
                   mem,
                 );
-                GPU::write_px(pixels, low_x as u8, self.current_line, pval);
+                Self::write_px(pixels, low_x as u8, self.current_line, pval);
               }
             }
           }
@@ -344,7 +344,7 @@ impl GPU {
   }
 
   fn update_stat_lyc(&self, mem: &mut MemoryPtr) {
-    let lyc = GPU::lyc(mem);
+    let lyc = Self::lyc(mem);
 
     let current_stat = stat(mem);
     let coincidence_triggered = lyc == self.current_line;
@@ -375,10 +375,10 @@ impl GPU {
     }
   }
 
-  pub fn step(&mut self, cpu: &mut CPU, mem: &mut MemoryPtr, draw: &mut [u8]) -> GpuStepState {
+  pub fn step(&mut self, cpu: &mut Cpu, mem: &mut MemoryPtr, draw: &mut [u8]) -> PpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
     trace!(
-      "GPU mode {:?} step by {} to {}",
+      "Ppu mode {:?} step by {} to {}",
       self.mode,
       cpu.registers.last_clock,
       self.cycles_in_mode
@@ -390,14 +390,14 @@ impl GPU {
         if self.cycles_in_mode >= 80 {
           self.enter_mode(Mode::VRAM, mem);
         }
-        GpuStepState::None
+        PpuStepState::None
       }
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
           self.render_line(mem, draw);
           self.enter_mode(Mode::HBLANK, mem);
         }
-        GpuStepState::None
+        PpuStepState::None
       }
       Mode::HBLANK => {
         if self.cycles_in_mode >= 204 {
@@ -408,7 +408,7 @@ impl GPU {
             self.enter_mode(Mode::OAM, mem);
           }
         }
-        GpuStepState::HBlank
+        PpuStepState::HBlank
       }
       Mode::VBLANK => {
         if self.cycles_in_mode >= 114 {
@@ -421,13 +421,13 @@ impl GPU {
         if self.current_line == 1 {
           self.change_scanline(0, mem);
           self.enter_mode(Mode::OAM, mem);
-          GpuStepState::None
+          PpuStepState::None
         } else if self.current_line == 153 {
-          CPU::set_interrupt_happened(mem, VBLANK);
+          Cpu::set_interrupt_happened(mem, VBLANK);
           self.change_scanline(0, mem);
-          GpuStepState::VBlank
+          PpuStepState::VBlank
         } else {
-          GpuStepState::None
+          PpuStepState::None
         }
       }
     }

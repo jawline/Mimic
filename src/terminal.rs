@@ -13,9 +13,9 @@ use std::io::{self, stdout, Write};
 use std::time::Duration;
 use std::time::SystemTime;
 
-use crate::cpu::{CPU, JOYPAD};
-use crate::gpu::{GpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
+use crate::cpu::{Cpu, JOYPAD};
 use crate::machine::Machine;
+use crate::ppu::{PpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 
 pub fn run(
   mut gameboy_state: Machine,
@@ -62,7 +62,7 @@ pub fn run(
     let state = gameboy_state.step(&mut pixel_buffer);
 
     match state {
-      GpuStepState::VBlank => {
+      PpuStepState::VBlank => {
         let mut state = &mut gameboy_state.memory;
 
         state.start = false;
@@ -113,7 +113,7 @@ pub fn run(
                 _ => {}
               }
               if fired {
-                CPU::set_interrupt_happened(state, JOYPAD);
+                Cpu::set_interrupt_happened(state, JOYPAD);
               }
             }
             _ => {}

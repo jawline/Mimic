@@ -283,17 +283,17 @@ impl Registers {
   }
 }
 
-pub struct CPU {
+pub struct Cpu {
   pub registers: Registers,
   instructions: Vec<Instruction>,
   ext_instructions: Vec<Instruction>,
 }
 
-impl CPU {
-  pub fn new() -> CPU {
+impl Cpu {
+  pub fn new() -> Self {
     let instructions = instruction_set();
     let ext = extended_instruction_set();
-    CPU {
+    Self {
       registers: Registers::default(),
       instructions: instructions,
       ext_instructions: ext,
@@ -332,19 +332,19 @@ impl CPU {
       // the order of if-else statements.
       if isset8(interrupted, VBLANK) {
         debug!("VBLANK INTERRUPT");
-        CPU::clear_interrupt_happened(memory, VBLANK);
+        Self::clear_interrupt_happened(memory, VBLANK);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
       } else if isset8(interrupted, STAT) {
         debug!("STAT INTERRUPT");
-        CPU::clear_interrupt_happened(memory, STAT);
+        Self::clear_interrupt_happened(memory, STAT);
         self.fire_interrupt(STAT_ADDRESS, memory);
       } else if isset8(interrupted, TIMER) {
         debug!("TIMER INT");
-        CPU::clear_interrupt_happened(memory, TIMER);
+        Self::clear_interrupt_happened(memory, TIMER);
         self.fire_interrupt(TIMER_ADDRESS, memory);
       } else if isset8(interrupted, JOYPAD) {
         debug!("JOYPAD PRESSED");
-        CPU::clear_interrupt_happened(memory, JOYPAD);
+        Self::clear_interrupt_happened(memory, JOYPAD);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
       }
     }

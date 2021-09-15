@@ -1,24 +1,24 @@
-use crate::clock::CLOCK;
-use crate::cpu::CPU;
-use crate::gpu::{GpuStepState, GPU};
+use crate::clock::Clock;
+use crate::cpu::Cpu;
 use crate::memory::GameboyState;
+use crate::ppu::{Ppu, PpuStepState};
 
 /// Encapsulate the entire running state of the Gameboy
 pub struct Machine {
-  pub cpu: CPU,
-  pub gpu: GPU,
-  pub clock: CLOCK,
+  pub cpu: Cpu,
+  pub ppu: Ppu,
+  pub clock: Clock,
   pub memory: GameboyState,
 }
 
 impl Machine {
-  pub fn step(&mut self, screen_buffer: &mut [u8]) -> GpuStepState {
+  pub fn step(&mut self, screen_buffer: &mut [u8]) -> PpuStepState {
     self.cpu.step(&mut self.memory);
     self
       .clock
       .step(self.cpu.registers.last_clock as u8, &mut self.memory);
     self
-      .gpu
+      .ppu
       .step(&mut self.cpu, &mut self.memory, screen_buffer)
   }
 }

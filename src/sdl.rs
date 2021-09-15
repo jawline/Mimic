@@ -9,10 +9,10 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 use sdl2::EventPump;
 
-use crate::cpu::{CPU, JOYPAD};
-use crate::gpu::{GpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
+use crate::cpu::{Cpu, JOYPAD};
 use crate::machine::Machine;
 use crate::memory::GameboyState;
+use crate::ppu::{PpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use log::{info, trace};
 
 fn events(state: &mut GameboyState, events: &mut EventPump) {
@@ -143,7 +143,7 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
   }
 
   if fired {
-    CPU::set_interrupt_happened(state, JOYPAD);
+    Cpu::set_interrupt_happened(state, JOYPAD);
   }
 }
 
@@ -193,7 +193,7 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
     let state = gameboy_state.step(&mut pixel_buffer);
 
     match state {
-      GpuStepState::VBlank => {
+      PpuStepState::VBlank => {
         redraw(&mut canvas, &mut texture, &pixel_buffer);
         redraws += 1;
       }

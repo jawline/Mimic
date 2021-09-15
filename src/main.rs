@@ -1,21 +1,21 @@
 mod clock;
 mod cpu;
-mod gpu;
 mod instruction;
 mod machine;
 mod memory;
+mod ppu;
 mod sdl;
 mod terminal;
 mod util;
 
 use std::io;
 
-use clock::CLOCK;
-use cpu::CPU;
-use gpu::GPU;
+use clock::Clock;
+use cpu::Cpu;
 use log::info;
 use machine::Machine;
 use memory::{GameboyState, RomChunk};
+use ppu::Ppu;
 
 use clap::{AppSettings, Clap};
 
@@ -70,9 +70,9 @@ fn main() -> io::Result<()> {
   let root_map = GameboyState::new(boot_rom, gb_test);
 
   let mut gameboy_state = Machine {
-    cpu: CPU::new(),
-    gpu: GPU::new(),
-    clock: CLOCK::new(),
+    cpu: Cpu::new(),
+    ppu: Ppu::new(),
+    clock: Clock::new(),
     memory: root_map,
   };
 
