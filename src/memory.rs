@@ -321,9 +321,7 @@ impl MemoryChunk for GameboyState {
         let new_stat = stat_interrupts_with_masked_flags(val, self);
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, new_stat);
       } else if address == 0xFF04 {
-        self.high_ram.write_u8(address + 1 - END_OF_ECHO_RAM, 0);
-        self.high_ram.write_u8(address + 2 - END_OF_ECHO_RAM, 0);
-        self.high_ram.write_u8(address + 3 - END_OF_ECHO_RAM, 0);
+        self.high_ram.write_u8(address - END_OF_ECHO_RAM, 0);
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
