@@ -1,5 +1,6 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
-use crate::memory::{isset16, isset32, isset8, MemoryPtr};
+use crate::memory::{isset16, isset32, isset8};
+use crate::memory::{GameboyState, MemoryChunk};
 use crate::util::{
   carries_add16_signed_8bit, carries_add8, carries_add8_with_carry, carries_sub16_signed_8bit,
   carries_sub8, carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
@@ -112,19 +113,24 @@ impl InstructionData {
 /// The instruction struct contains the implementation of and metadata on an instruction
 #[derive(Clone)]
 pub struct Instruction {
-  pub execute: fn(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData),
+  pub execute:
+    fn(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData),
   pub cycles: u16,
   pub text: String,
   pub data: InstructionData,
 }
 
 /// No-op just increments the stack pointer
-pub fn no_op(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+pub fn no_op(registers: &mut Registers, _memory: &mut GameboyState, _additional: &InstructionData) {
   registers.inc_pc(1);
 }
 
 /// Load immediate loads a 16 bit value following this instruction places it in a register
-pub fn ld_imm_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+pub fn ld_imm_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   //Load the 16 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u16(registers.pc() + 1);
 
@@ -144,7 +150,7 @@ pub fn ld_imm_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// Loads an immediate 8-bit value into the address pointed to by the wide dest register
 pub fn ld_mem_r16_immediate(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let val = memory.read_u8(registers.pc() + 1);
@@ -154,7 +160,11 @@ pub fn ld_mem_r16_immediate(
 }
 
 /// Load immediate loads a 8 bit value following this instruction places it in a small register
-pub fn ld_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+pub fn ld_imm_r8(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   //Load the 8 bit value after the opcode and store it to the dst register
   let imm_val = memory.read_u8(registers.pc() + 1);
 
@@ -167,7 +177,7 @@ pub fn ld_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 /// Write the value of small register one to the address pointed to by wide_reg_dst
 pub fn ld_reg8_mem_reg16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   // Store the provided 8-bit register to the location pointed to by the 16-bit dst register
@@ -180,7 +190,11 @@ pub fn ld_reg8_mem_reg16(
 }
 
 /// Replace the value of small_reg_dst with the value of small_reg_one
-pub fn ld_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+pub fn ld_r8_r8(
+  registers: &mut Registers,
+  _memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
   registers.write_r8(
     additional.small_reg_dst,
@@ -192,7 +206,7 @@ pub fn ld_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: 
 /// pointed to by the provided immediate value
 pub fn ld_r8_indirect_imm(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let target_addr = memory.read_u16(registers.pc() + 1);
@@ -203,7 +217,7 @@ pub fn ld_r8_indirect_imm(
 /// Increment the value of a wide-register by one
 pub fn inc_wide_register(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   // Increment the destination wide register by one
@@ -219,7 +233,7 @@ pub fn inc_wide_register(
 /// Increment the value of a small register by one
 pub fn inc_small_register(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -235,7 +249,7 @@ pub fn inc_small_register(
 // Increment an 8-bit value at a given memory address by one.
 pub fn inc_mem_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -253,7 +267,7 @@ pub fn inc_mem_r16(
 /// and write it back to the same location in memory
 pub fn dec_mem_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -276,7 +290,7 @@ fn add_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 }
 
 /// Add an immediate to a small register
-fn add_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn add_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
 
@@ -289,7 +303,7 @@ fn add_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// Add two small registers (small_reg_one to small_reg_dst)
-fn add_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn add_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -316,7 +330,7 @@ fn sub_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 }
 
 /// Subtract two small registers (small_reg_one to small_reg_dst)
-fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn sub_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -328,7 +342,7 @@ fn sub_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 }
 
 /// Subtract an immediate from a small dst register
-fn sub_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn sub_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
 
@@ -347,7 +361,7 @@ fn and_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 }
 
 /// And of two small registers
-fn and_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn and_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
   let result = and_core(acc, operand, registers);
@@ -357,7 +371,7 @@ fn and_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 }
 
 /// And imm with small reg dst
-fn and_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn and_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
   let result = and_core(acc, operand, registers);
@@ -374,7 +388,7 @@ fn or_core(acc: u8, operand: u8, registers: &mut Registers) -> u8 {
 }
 
 /// or two small registers
-fn or_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn or_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -385,7 +399,7 @@ fn or_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Ins
 }
 
 /// bitwise or small reg dst with immediate
-fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn or_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
   let result = or_core(acc, operand, registers);
@@ -395,7 +409,7 @@ fn or_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instr
 }
 
 /// cp two small registers
-fn cp_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn cp_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = registers.read_r8(additional.small_reg_one);
 
@@ -406,7 +420,7 @@ fn cp_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Ins
 }
 
 /// cp small reg dst against an immediate
-fn cp_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn cp_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let acc = registers.read_r8(additional.small_reg_dst);
   let operand = memory.read_u8(registers.pc() + 1);
   sub_core(acc, operand, registers);
@@ -423,7 +437,7 @@ fn xor_core(v1: u8, v2: u8, registers: &mut Registers) -> u8 {
 }
 
 /// XOR two small registers
-fn xor_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn xor_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let v_src = registers.read_r8(additional.small_reg_one);
   let v_dst = registers.read_r8(additional.small_reg_dst);
@@ -432,7 +446,7 @@ fn xor_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 }
 
 /// XOR small dst register with immediate
-fn xor_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn xor_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let v_src = memory.read_u8(registers.pc() + 1);
   registers.inc_pc(2);
   let v_dst = registers.read_r8(additional.small_reg_dst);
@@ -447,7 +461,7 @@ fn sbc_core(acc: u8, val: u8, registers: &mut Registers) -> u8 {
 }
 
 /// Subtract through carry using two small registers (small_reg_one to small_reg_dst)
-fn sbc_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn sbc_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let v_src = registers.read_r8(additional.small_reg_one);
   let v_dst = registers.read_r8(additional.small_reg_dst);
@@ -456,7 +470,7 @@ fn sbc_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 }
 
 /// Subtract immediate through carry
-fn sbc_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn sbc_r8_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let origin = registers.read_r8(additional.small_reg_dst);
   let sub_v = memory.read_u8(registers.pc() + 1);
   let result = sbc_core(origin, sub_v, registers);
@@ -466,7 +480,11 @@ fn sbc_r8_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Inst
 }
 
 /// Load small reg to 0xFF00 + n
-fn ld_ff00_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ld_ff00_imm_r8(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   // Fetch the immediate offset
   let add_v: u16 = memory.read_u8(registers.pc() + 1).into();
 
@@ -479,7 +497,11 @@ fn ld_ff00_imm_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// Load (0xFF00 + n) to small reg
 // TODO: This and its dual function should have reversed names
-fn ld_r8_ff00_imm(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ld_r8_ff00_imm(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   // Fetch
   let add_v: u16 = memory.read_u8(registers.pc() + 1).into();
 
@@ -491,7 +513,11 @@ fn ld_r8_ff00_imm(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 }
 
 /// Load small reg dst to 0xFF00 + small reg one
-fn ld_ff00_r8_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ld_ff00_r8_r8(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
   let addr_offset: u16 = registers.read_r8(additional.small_reg_one) as u16;
   let rval = registers.read_r8(additional.small_reg_dst);
@@ -500,7 +526,11 @@ fn ld_ff00_r8_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 
 /// Load 0xFF00 + small reg one into small_reg_dst
 // TODO: This function and it's dual should have their names reversed
-fn ld_r8_ff00_r8(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ld_r8_ff00_r8(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
   let addr_offset: u16 = registers.read_r8(additional.small_reg_one).into();
   let rval = memory.read_u8(0xFF00 + addr_offset);
@@ -516,7 +546,7 @@ fn adc_generic(acc: u8, r: u8, registers: &mut Registers) -> u8 {
 }
 
 /// Add with carry an immediate to a small register
-fn adc_r8_imm(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn adc_r8_imm(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   // Fetch
   let add_v = memory.read_u8(registers.pc() + 1);
 
@@ -531,7 +561,7 @@ fn adc_r8_imm(registers: &mut Registers, memory: &mut MemoryPtr, additional: &In
 
 /// Add two small registers (small_reg_one to small_reg_dst)
 /// Also add one if the carry flag is set
-fn adc_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn adc_r8_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
@@ -543,7 +573,11 @@ fn adc_r8_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
 /// Add value at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn add_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn add_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
@@ -558,7 +592,11 @@ fn add_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// Subtract value add wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn sub_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn sub_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
@@ -571,7 +609,11 @@ fn sub_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// Subtract through carry value at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn sbc_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn sbc_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
@@ -585,7 +627,11 @@ fn sbc_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// And memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn and_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn and_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let origin = registers.read_r8(additional.small_reg_dst);
   let address = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(address);
@@ -599,7 +645,11 @@ fn and_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// Cp memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn cp_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn cp_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let target_addr = registers.read_r16(additional.wide_reg_one);
   let add_v = memory.read_u8(target_addr);
   let origin = registers.read_r8(additional.small_reg_dst);
@@ -609,7 +659,11 @@ fn cp_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 
 /// or memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn or_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn or_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
 
   let origin = registers.read_r8(additional.small_reg_dst);
@@ -622,7 +676,11 @@ fn or_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: 
 
 /// XOR memory at wide_register_one in memory to small_reg_dst
 /// save the result in small_reg_dst
-fn xor_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn xor_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
@@ -637,7 +695,11 @@ fn xor_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// Add value add wide_register_one in memory to small_reg_dst
 /// Add a further 1 if the carry is set
 /// save the result in small_reg_dst
-fn adc_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn adc_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   // Increment the PC by one once finished
   registers.inc_pc(1);
 
@@ -651,7 +713,7 @@ fn adc_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// Rotate 8-bit register left, placing whatever is in bit 7 in the carry bit before
 fn rotate_left_with_carry(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -667,7 +729,7 @@ fn rotate_left_with_carry(
 /// Rotate 8-bit register right, placing whatever is in bit 0 in the carry bit before
 fn rotate_right_with_carry(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -682,7 +744,7 @@ fn rotate_right_with_carry(
 
 fn rotate_r8_left_through_carry(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -707,7 +769,7 @@ fn rotate_r8_left_through_carry(
 /// carry bit
 fn rotate_r8_right_through_carry(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let mut a = registers.read_r8(additional.small_reg_dst);
@@ -729,7 +791,7 @@ fn rotate_r8_right_through_carry(
 /// Decrement the value of a small register by one
 fn dec_wide_register(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   // Increment the destination register by one
@@ -745,7 +807,7 @@ fn dec_wide_register(
 /// Decrement the value of a small register by one
 fn dec_small_register(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let l = registers.read_r8(additional.small_reg_dst);
@@ -763,7 +825,7 @@ fn dec_small_register(
 /// Write the contents of a wide register to an address in memory
 fn load_immediate_wide_register(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   // Find the address we are writing to
@@ -778,7 +840,7 @@ fn load_immediate_wide_register(
 
 fn load_indirect_nn_small_register(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   // Find the address we are writing to
@@ -797,7 +859,7 @@ fn load_indirect_nn_small_register(
 /// Example, ld HL, 0 ld A, 5 ldi (HL), A will leave [0] = 5, A = 5, HL = 1
 fn ldi_mem_r16_val_r8(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -809,7 +871,11 @@ fn ldi_mem_r16_val_r8(
 
 /// Place memory pointed to by the wide register into the small dst register
 /// then increment the wide register
-fn ldi_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ldi_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
 
@@ -822,7 +888,7 @@ fn ldi_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 /// Like ldi but decrement
 fn ldd_mem_r16_val_r8(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -833,7 +899,11 @@ fn ldd_mem_r16_val_r8(
 }
 
 /// Like ldi but decrement
-fn ldd_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ldd_r8_mem_r16(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
   let wide_reg = registers.read_r16(additional.wide_reg_one);
   let mem = memory.read_u8(wide_reg);
@@ -843,7 +913,11 @@ fn ldd_r8_mem_r16(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 }
 
 /// Add a wide register to a wide register
-fn add_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn add_r16_r16(
+  registers: &mut Registers,
+  _memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let l = registers.read_r16(additional.wide_reg_dst);
   let r = registers.read_r16(additional.wide_reg_one);
   let result = l + r;
@@ -860,7 +934,7 @@ fn add_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &
 }
 
 /// Add an immediate byte (signed) to a wide register
-fn add_r16_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn add_r16_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   let l = registers.read_r16(additional.wide_reg_dst);
   let add_v = memory.read_u8(registers.pc() + 1);
   let result = register_plus_signed_8_bit_immediate(l, add_v, registers);
@@ -870,7 +944,7 @@ fn add_r16_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Ins
 }
 
 /// Load wide_reg_one into wide reg dst  
-fn ld_r16_r16(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ld_r16_r16(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   registers.write_r16(
     additional.wide_reg_dst,
@@ -891,10 +965,10 @@ fn register_plus_signed_8_bit_immediate(
     let origin = acc;
     acc -= immediate;
     registers.set_flags(false, false, half_carry, carry);
-    println!(
-      "{} - {} = {} ({} {})",
-      origin, immediate, acc, half_carry, carry
-    );
+    //println!(
+    //  "{} - {} = {} ({} {})",
+    //  origin, immediate, acc, half_carry, carry
+    //);
   } else {
     let (half_carry, carry) = carries_add16_signed_8bit(acc, immediate);
     acc += immediate as u16;
@@ -907,7 +981,7 @@ fn register_plus_signed_8_bit_immediate(
 /// Add an immediate byte (signed) to wide reg one and then save it to wide reg dst
 fn ld_r16_r16_plus_n(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let l = registers.read_r16(additional.wide_reg_one);
@@ -921,7 +995,7 @@ fn ld_r16_r16_plus_n(
 /// Load a value from memory to a small register
 fn load_r16_mem_to_r8(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let address = registers.read_r16(additional.wide_reg_one);
@@ -932,12 +1006,12 @@ fn load_r16_mem_to_r8(
 }
 
 /// Stop the processor & screen until button press
-fn stop(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn stop(registers: &mut Registers, _memory: &mut GameboyState, _additional: &InstructionData) {
   registers.inc_pc(2);
 }
 
 /// Escape
-fn escape(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn escape(registers: &mut Registers, _memory: &mut GameboyState, _additional: &InstructionData) {
   registers.inc_pc(1);
   registers.escaped = true;
 }
@@ -945,7 +1019,7 @@ fn escape(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &Inst
 /// Jump relative by a signed 8-bit value following the opcode
 fn jump_relative_signed_immediate(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let byte = memory.read_u8(registers.pc() + 1) as i8;
@@ -957,7 +1031,7 @@ fn jump_relative_signed_immediate(
 }
 
 /// Return if the flags & mask == expected
-fn ret(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ret(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
     registers.last_clock = 12;
@@ -969,7 +1043,7 @@ fn ret(registers: &mut Registers, memory: &mut MemoryPtr, additional: &Instructi
 /// Enable interrupts
 fn enable_interrupts(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   _additional: &InstructionData,
 ) {
   trace!("Interrupts enabled");
@@ -980,7 +1054,7 @@ fn enable_interrupts(
 /// Disable interrupts
 fn disable_interrupts(
   registers: &mut Registers,
-  _memory: &mut MemoryPtr,
+  _memory: &mut GameboyState,
   _additional: &InstructionData,
 ) {
   trace!("Interrupts disabled");
@@ -989,14 +1063,18 @@ fn disable_interrupts(
 }
 
 /// Return and enable interrupts
-fn reti(registers: &mut Registers, memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn reti(registers: &mut Registers, memory: &mut GameboyState, _additional: &InstructionData) {
   registers.ime = true;
   let ret_pc = registers.stack_pop16(memory);
   registers.set_pc(ret_pc);
 }
 
 /// Jump to destination if flags & mask == expected
-fn jump_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn jump_immediate(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
@@ -1006,7 +1084,11 @@ fn jump_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 }
 
 /// Jump to the value stored in a wide register
-fn jump_wide_reg(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn jump_wide_reg(
+  registers: &mut Registers,
+  _memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
   let target_address = registers.read_r16(additional.wide_reg_dst);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
@@ -1015,7 +1097,11 @@ fn jump_wide_reg(registers: &mut Registers, _memory: &mut MemoryPtr, additional:
 }
 
 /// Call function if flags & mask == expected
-fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn call_immediate(
+  registers: &mut Registers,
+  memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
@@ -1027,7 +1113,7 @@ fn call_immediate(registers: &mut Registers, memory: &mut MemoryPtr, additional:
 
 /// DAA takes the result of an arithmetic operation and makes it binary coded
 /// retrospectively
-fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn daa(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let mut acc = registers.read_r8(additional.small_reg_dst);
   let mut correction: u16 = if registers.carry() { 0x60 } else { 0 };
   let add_mode = !registers.subtract();
@@ -1057,12 +1143,16 @@ fn daa(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Instruct
   registers.inc_pc(1);
 }
 
-fn invalid_op(_registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn invalid_op(
+  _registers: &mut Registers,
+  _memory: &mut GameboyState,
+  _additional: &InstructionData,
+) {
   unimplemented!();
 }
 
 /// Flip all bits in an r8
-fn cpl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn cpl_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   registers.write_r8(
     additional.small_reg_dst,
@@ -1074,7 +1164,7 @@ fn cpl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Instr
 /// Push a 16-bit register to the stack
 fn push_wide_register(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -1085,7 +1175,7 @@ fn push_wide_register(
 /// Pop two bytes from the stack and store them in specified register
 fn pop_wide_register(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -1095,25 +1185,25 @@ fn pop_wide_register(
 
 /// Halt the processor
 /// Stop doing anything until the next interrupt
-fn halt(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn halt(registers: &mut Registers, _memory: &mut GameboyState, _additional: &InstructionData) {
   registers.halted = true;
   registers.inc_pc(1);
 }
 
 /// Sets the carry flag, resets negative and half carry flags, zero unaffected
-fn scf(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn scf(registers: &mut Registers, _memory: &mut GameboyState, _additional: &InstructionData) {
   registers.inc_pc(1);
   registers.set_flags(registers.zero(), false, false, true);
 }
 
 /// Complement the carry flag (flip it)
-fn ccf(registers: &mut Registers, _memory: &mut MemoryPtr, _additional: &InstructionData) {
+fn ccf(registers: &mut Registers, _memory: &mut GameboyState, _additional: &InstructionData) {
   registers.inc_pc(1);
   registers.set_flags(registers.zero(), false, false, !registers.carry());
 }
 
 /// Push current PC to stack then jump to n (8-bit immediate)
-fn rst_n(registers: &mut Registers, memory: &mut MemoryPtr, additional: &InstructionData) {
+fn rst_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   registers.stack_push16(registers.pc(), memory);
   registers.set_pc(additional.code as u16);
@@ -1256,7 +1346,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   let inc_de = Instruction {
     execute: inc_wide_register,
     cycles: 8,
-    text: "inc DE".to_string(),
+    text: format!("inc DE"),
     data: InstructionData::wide_dst(WideRegister::DE),
   };
 
@@ -3119,7 +3209,7 @@ fn rlc_core(current: u8, registers: &mut Registers) -> u8 {
 }
 
 /// RLC in the extended set
-fn ext_rlc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_rlc_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let current = registers.read_r8(additional.small_reg_dst);
   let result = rlc_core(current, registers);
   registers.write_r8(additional.small_reg_dst, result);
@@ -3128,7 +3218,7 @@ fn ext_rlc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_rlc_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3145,7 +3235,7 @@ fn rrc_core(current: u8, registers: &mut Registers) -> u8 {
 }
 
 /// RRC in the extended set
-fn ext_rrc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_rrc_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let current = registers.read_r8(additional.small_reg_dst);
   let result = rrc_core(current, registers);
   registers.write_r8(additional.small_reg_dst, result);
@@ -3154,7 +3244,7 @@ fn ext_rrc_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_rrc_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3171,7 +3261,7 @@ fn core_rl(reg: u8, registers: &mut Registers) -> u8 {
 }
 
 /// RL in the extended set
-fn rl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn rl_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
   let new_reg = core_rl(reg, registers);
@@ -3180,7 +3270,7 @@ fn rl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &Instru
 
 fn ext_rl_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3197,7 +3287,7 @@ fn core_rr(reg: u8, registers: &mut Registers) -> u8 {
 }
 
 /// RR in the extended set
-fn ext_rr_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_rr_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
   let new_reg = core_rr(reg, registers);
@@ -3206,7 +3296,7 @@ fn ext_rr_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &In
 
 fn ext_rr_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3223,7 +3313,7 @@ fn core_sla(reg: u8, registers: &mut Registers) -> u8 {
 }
 
 /// SLA in the extended set
-fn ext_sla_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_sla_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
   let new_reg = core_sla(reg, registers);
@@ -3232,7 +3322,7 @@ fn ext_sla_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_sla_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3250,7 +3340,7 @@ fn core_sra(reg: u8, registers: &mut Registers) -> u8 {
 }
 
 /// SRA in the extended set
-fn ext_sra_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_sra_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let reg = registers.read_r8(additional.small_reg_dst);
   let new_reg = core_sra(reg, registers);
@@ -3259,7 +3349,7 @@ fn ext_sra_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_sra_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3276,7 +3366,11 @@ fn core_swap(reg: u8, registers: &mut Registers) -> u8 {
 }
 
 /// SWAP in the extended set
-fn ext_swap_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_swap_r8(
+  registers: &mut Registers,
+  _memory: &mut GameboyState,
+  additional: &InstructionData,
+) {
   registers.inc_pc(1);
   let r1 = registers.read_r8(additional.small_reg_dst);
   let result = core_swap(r1, registers);
@@ -3285,7 +3379,7 @@ fn ext_swap_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &
 
 fn ext_swap_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3301,7 +3395,7 @@ fn srl_core(current: u8, registers: &mut Registers) -> u8 {
 }
 
 /// SRL in the extended set
-fn ext_srl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_srl_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   let current = registers.read_r8(additional.small_reg_dst);
   let result = srl_core(current, registers);
   registers.write_r8(additional.small_reg_dst, result);
@@ -3310,7 +3404,7 @@ fn ext_srl_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_srl_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   let address = registers.read_r16(additional.wide_reg_dst);
@@ -3332,7 +3426,7 @@ fn bit_core(current: u8, bit: u8, registers: &mut Registers) {
 }
 
 /// BIT in the extended set
-fn ext_bit_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_bit_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let current = registers.read_r8(additional.small_reg_dst);
   bit_core(current, additional.bit, registers);
@@ -3340,7 +3434,7 @@ fn ext_bit_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_bit_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3355,7 +3449,7 @@ fn res_core(current: u8, bit: u8, _registers: &mut Registers) -> u8 {
 }
 
 /// RES in the extended set
-fn ext_res_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_res_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let target = registers.read_r8(additional.small_reg_dst);
   let result = res_core(target, additional.bit, registers);
@@ -3364,7 +3458,7 @@ fn ext_res_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_res_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);
@@ -3380,7 +3474,7 @@ fn set_core(current: u8, bit: u8, _registers: &mut Registers) -> u8 {
 }
 
 /// SET in the extended set
-fn ext_set_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &InstructionData) {
+fn ext_set_r8(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   let target = registers.read_r8(additional.small_reg_dst);
   let result = set_core(target, additional.bit, registers);
@@ -3389,7 +3483,7 @@ fn ext_set_r8(registers: &mut Registers, _memory: &mut MemoryPtr, additional: &I
 
 fn ext_set_indirect_r16(
   registers: &mut Registers,
-  memory: &mut MemoryPtr,
+  memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
   registers.inc_pc(1);

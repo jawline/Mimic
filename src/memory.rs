@@ -50,22 +50,7 @@ pub trait MemoryChunk {
   fn read_u8(&self, address: u16) -> u8;
 }
 
-impl dyn MemoryChunk {
-  pub fn write_u16(&mut self, address: u16, value: u16) {
-    let lower = value & 0xFF;
-    let upper = value >> 8;
-    self.write_u8(address + 1, upper as u8);
-    self.write_u8(address, lower as u8);
-  }
-  pub fn read_u16(&mut self, address: u16) -> u16 {
-    let upper = self.read_u8(address + 1);
-    let lower = self.read_u8(address);
-    let result = ((upper as u16) << 8) + (lower as u16);
-    result
-  }
-}
-
-pub type MemoryPtr = dyn MemoryChunk + 'static;
+impl MemoryChunk {}
 
 /**
  * Read only chunk of memory loaded as bytes
@@ -271,8 +256,8 @@ impl GameboyState {
   }
 }
 
-impl MemoryChunk for GameboyState {
-  fn write_u8(&mut self, address: u16, val: u8) {
+impl GameboyState {
+  pub fn write_u8(&mut self, address: u16, val: u8) {
     trace!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
       if address < 0x2000 {
@@ -320,17 +305,13 @@ impl MemoryChunk for GameboyState {
       } else if address == STAT {
         let new_stat = stat_interrupts_with_masked_flags(val, self);
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, new_stat);
-      } else if address == 0xFF04 {
-        self.high_ram.write_u8(address + 1 - END_OF_ECHO_RAM, 0);
-        self.high_ram.write_u8(address + 2 - END_OF_ECHO_RAM, 0);
-        self.high_ram.write_u8(address + 3 - END_OF_ECHO_RAM, 0);
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
     }
   }
 
-  fn read_u8(&self, address: u16) -> u8 {
+  pub fn read_u8(&self, address: u16) -> u8 {
     let result = if address < END_OF_FIXED_ROM {
       if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);
@@ -365,6 +346,19 @@ impl MemoryChunk for GameboyState {
       }
     };
     trace!("read {:x} {:x}", address, result);
+    result
+  }
+
+  pub fn write_u16(&mut self, address: u16, value: u16) {
+    let lower = value & 0xFF;
+    let upper = value >> 8;
+    self.write_u8(address + 1, upper as u8);
+    self.write_u8(address, lower as u8);
+  }
+  pub fn read_u16(&mut self, address: u16) -> u16 {
+    let upper = self.read_u8(address + 1);
+    let lower = self.read_u8(address);
+    let result = ((upper as u16) << 8) + (lower as u16);
     result
   }
 }
