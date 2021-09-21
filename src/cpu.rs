@@ -1,5 +1,5 @@
 use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
-use crate::memory::{isset8, set8, unset8, MemoryPtr};
+use crate::memory::{isset8, set8, unset8, GameboyState};
 use log::{debug, trace};
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
@@ -146,14 +146,14 @@ impl Registers {
   }
 
   /// Push a 16 bit value from the stack and return it
-  pub fn stack_push16<'a>(&mut self, value: u16, memory: &mut MemoryPtr) {
+  pub fn stack_push16<'a>(&mut self, value: u16, memory: &mut GameboyState) {
     let new_sp = self.sp().wrapping_sub(2);
     memory.write_u16(new_sp, value);
     self.set_sp(new_sp);
   }
 
   /// Pop a 16 bit value from the stack and return it
-  pub fn stack_pop16<'a>(&mut self, memory: &mut MemoryPtr) -> u16 {
+  pub fn stack_pop16<'a>(&mut self, memory: &mut GameboyState) -> u16 {
     let sp = self.sp();
     let rval = memory.read_u16(sp);
     self.set_sp(sp.wrapping_add(2));
@@ -165,7 +165,7 @@ impl Registers {
     // TODO: Check this works for negative values
     let by = by as i16;
     let new_location = self.pc.wrapping_add(by as u16);
-    debug!("relative jump {} by {} -> {}", self.pc, by, new_location);
+    trace!("relative jump {} by {} -> {}", self.pc, by, new_location);
     self.set_pc(new_location);
   }
 
@@ -301,14 +301,14 @@ impl Cpu {
   }
 
   /// Trigger a specific interrupt (disable IME, push PC to stack and jump to interrupt handler)
-  fn fire_interrupt(&mut self, location: u16, memory: &mut MemoryPtr) {
+  fn fire_interrupt(&mut self, location: u16, memory: &mut GameboyState) {
     self.registers.ime = false;
     self.registers.stack_push16(self.registers.pc(), memory);
     self.registers.set_pc(location);
   }
 
   /// Check if there are any interrupts waiting to fire
-  pub fn check_interrupt(&mut self, memory: &mut MemoryPtr) {
+  pub fn check_interrupt(&mut self, memory: &mut GameboyState) {
     let triggered = memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS);
 
     // If any interrupt is triggered then unhalt the processor.
@@ -351,7 +351,7 @@ impl Cpu {
   }
 
   /// Clear an interrupt bit in the interrupts that have triggered register
-  pub fn clear_interrupt_happened(memory: &mut MemoryPtr, interrupt: u8) {
+  pub fn clear_interrupt_happened(memory: &mut GameboyState, interrupt: u8) {
     memory.write_u8(
       INTERRUPTS_HAPPENED_ADDRESS,
       memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) & !interrupt,
@@ -359,7 +359,7 @@ impl Cpu {
   }
 
   /// Set an interrupt triggered bit in memory
-  pub fn set_interrupt_happened(memory: &mut MemoryPtr, interrupt: u8) {
+  pub fn set_interrupt_happened(memory: &mut GameboyState, interrupt: u8) {
     memory.write_u8(
       INTERRUPTS_HAPPENED_ADDRESS,
       memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | interrupt,
@@ -367,7 +367,7 @@ impl Cpu {
   }
 
   /// Step the emulator by a single instruction
-  pub fn step(&mut self, memory: &mut MemoryPtr) {
+  pub fn step(&mut self, memory: &mut GameboyState) {
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
 
@@ -403,7 +403,6 @@ impl Cpu {
       //trace!("post-step: {:?}", self.registers);
       // Some instructions mutate the last clock like JR
       self.registers.last_clock += inst.cycles;
-      trace!("{} cycles", self.registers.last_clock);
     } else {
       self.registers.last_clock = 4;
     }

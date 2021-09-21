@@ -1,5 +1,5 @@
 use crate::cpu::{Cpu, TIMER};
-use crate::memory::{isset8, MemoryPtr};
+use crate::memory::{isset8, GameboyState};
 
 const DIV_REGISTER: u16 = 0xFF04;
 const TIMA_REGISTER: u16 = 0xFF05;
@@ -7,35 +7,39 @@ const MOD_REGISTER: u16 = 0xFF06;
 const TAC_REGISTER: u16 = 0xFF07;
 
 pub struct Clock {
+  ticks: usize,
   div: usize,
   main: usize,
 }
 
 impl Clock {
   pub fn new() -> Self {
-    Self { div: 0, main: 0 }
-  }
-
-  fn tac(&mut self, mem: &mut MemoryPtr) -> u8 {
-    mem.read_u8(TAC_REGISTER)
-  }
-
-  fn update_div(&mut self, instruction_time: usize, mem: &mut MemoryPtr) {
-    self.div += instruction_time;
-    while self.div >= 64 {
-      mem.write_u8(DIV_REGISTER, mem.read_u8(DIV_REGISTER).wrapping_add(1));
-      self.div -= 64;
+    Self {
+      ticks: 0,
+      div: 0,
+      main: 0,
     }
   }
 
-  fn update_tima(&mut self, tac: u8, instruction_time: usize, mem: &mut MemoryPtr) {
-    self.main += instruction_time;
+  fn tac(&mut self, mem: &mut GameboyState) -> u8 {
+    mem.read_u8(TAC_REGISTER)
+  }
 
+  fn update_div(&mut self, instruction_time: usize, mem: &mut GameboyState) {
+    // TODO: Optimize the loop away
+    self.ticks += instruction_time;
+    while self.ticks >= 256 {
+      self.ticks -= 256;
+      mem.write_u8(DIV_REGISTER, mem.read_u8(DIV_REGISTER).wrapping_add(1));
+    }
+  }
+
+  fn update_tima(&mut self, tac: u8, mem: &mut GameboyState) {
     let threshold = match tac & 0x3 {
-      0 => 256,
-      1 => 4,
-      2 => 16,
-      3 => 64,
+      0 => 1024,
+      1 => 16,
+      2 => 64,
+      3 => 256,
       _ => panic!("should be impossible"),
     };
 
@@ -48,6 +52,8 @@ impl Clock {
         None => (mem.read_u8(MOD_REGISTER), true),
       };
 
+      println!("TIMA: {}", new_tima);
+
       mem.write_u8(TIMA_REGISTER, new_tima);
 
       if carried {
@@ -56,14 +62,16 @@ impl Clock {
     }
   }
 
-  pub fn step(&mut self, instruction_time: u8, mem: &mut MemoryPtr) {
+  pub fn step(&mut self, instruction_time: u8, mem: &mut GameboyState) {
     let instruction_time = usize::from(instruction_time);
     self.update_div(instruction_time, mem);
 
     let tac = self.tac(mem);
 
     if isset8(tac, 0x4) {
-      self.update_tima(tac, instruction_time, mem);
+      println!("{} {}", self.main, instruction_time);
+      self.main += instruction_time;
+      self.update_tima(tac, mem);
     }
   }
 }
