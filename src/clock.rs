@@ -13,10 +13,7 @@ pub struct Clock {
 
 impl Clock {
   pub fn new() -> Self {
-    Self {
-      ticks: 0,
-      main: 0,
-    }
+    Self { ticks: 0, main: 0 }
   }
 
   fn tac(&mut self, mem: &mut GameboyState) -> u8 {
