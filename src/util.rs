@@ -82,7 +82,3 @@ pub fn half_carry_sub8(val: u8, operand: u8) -> bool {
 pub fn carries_sub8(val: u8, operand: u8) -> (bool, bool) {
   carries_sub8_with_carry(val, operand, false)
 }
-
-pub fn half_carry_sub8_signed_n_from_16_bit_value(a: u16, b: u16) -> bool {
-  isset16((a & 0x0F) - (b & 0xF), 0x10)
-}

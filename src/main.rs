@@ -78,7 +78,6 @@ fn main() -> io::Result<()> {
 
   if skip_bios {
     // Skip boot
-    use crate::memory::MemoryChunk;
     gameboy_state.cpu.registers.set_pc(0x100);
     gameboy_state.memory.write_u8(0xFF50, 1);
   }

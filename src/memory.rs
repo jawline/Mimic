@@ -43,26 +43,13 @@ pub fn isset32(val: u32, bit: u32) -> bool {
 }
 
 /**
- * A trait representing a addressable memory region (ROM or RAM) in the Gameboy.
- */
-pub trait MemoryChunk {
-  fn write_u8(&mut self, address: u16, value: u8);
-  fn read_u8(&self, address: u16) -> u8;
-}
-
-impl MemoryChunk {}
-
-/**
  * Read only chunk of memory loaded as bytes
  */
 pub struct RomChunk {
   pub bytes: Vec<u8>,
 }
 
-impl MemoryChunk for RomChunk {
-  fn write_u8(&mut self, address: u16, _: u8) {
-    warn!("tried to write to {:x} in RomChunk", address);
-  }
+impl RomChunk {
   fn read_u8(&self, address: u16) -> u8 {
     self.bytes[address as usize]
   }
@@ -93,7 +80,7 @@ pub struct RamChunk {
   pub bytes: Vec<u8>,
 }
 
-impl MemoryChunk for RamChunk {
+impl RamChunk {
   fn write_u8(&mut self, address: u16, v: u8) {
     self.bytes[address as usize] = v;
   }

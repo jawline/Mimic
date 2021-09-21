@@ -1,9 +1,9 @@
 use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
 use crate::memory::{isset16, isset32, isset8};
-use crate::memory::{GameboyState, MemoryChunk};
+use crate::memory::{GameboyState};
 use crate::util::{
   carries_add16_signed_8bit, carries_add8, carries_add8_with_carry, carries_sub16_signed_8bit,
-  carries_sub8, carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
+ carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
 };
 use log::trace;
 
@@ -962,7 +962,7 @@ fn register_plus_signed_8_bit_immediate(
     let immediate = (!immediate) + 1;
     let (half_carry, carry) = carries_sub16_signed_8bit(acc, immediate);
     let immediate = immediate as u16;
-    let origin = acc;
+    //let origin = acc;
     acc -= immediate;
     registers.set_flags(false, false, half_carry, carry);
     //println!(

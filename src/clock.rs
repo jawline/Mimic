@@ -8,7 +8,6 @@ const TAC_REGISTER: u16 = 0xFF07;
 
 pub struct Clock {
   ticks: usize,
-  div: usize,
   main: usize,
 }
 
@@ -16,7 +15,6 @@ impl Clock {
   pub fn new() -> Self {
     Self {
       ticks: 0,
-      div: 0,
       main: 0,
     }
   }
