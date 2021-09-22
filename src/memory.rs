@@ -5,6 +5,11 @@ use std::io;
 use std::io::prelude::*;
 use std::vec::Vec;
 
+pub const DIV_REGISTER: u16 = 0xFF04;
+pub const TIMA_REGISTER: u16 = 0xFF05;
+pub const MOD_REGISTER: u16 = 0xFF06;
+pub const TAC_REGISTER: u16 = 0xFF07;
+
 const END_OF_BOOT: u16 = 0x101;
 const END_OF_FIXED_ROM: u16 = 0x4000;
 const END_OF_BANKED_ROM: u16 = 0x8000;
@@ -280,6 +285,8 @@ impl GameboyState {
         self.gamepad_write(val);
       } else if address == 0xFF02 && val == 0x81 {
         print!("{}", self.read_u8(0xFF01) as char);
+      } else if address == DIV_REGISTER {
+        self.high_ram.write_u8(address - END_OF_ECHO_RAM, 0);
       } else if address == 0xFF46 {
         // OAM DMA Mode. TODO: Read up on this and do it better
         for i in 0..160 {
@@ -295,6 +302,14 @@ impl GameboyState {
       } else {
         self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
       }
+    }
+  }
+
+  /// Write a special register exactly, ignoring any rules for that memory address such as writes
+  /// truncate to 0.
+  pub fn write_special_register(&mut self, address: u16, val: u8) {
+    if address >= END_OF_ECHO_RAM {
+      self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
     }
   }
 
@@ -342,6 +357,7 @@ impl GameboyState {
     self.write_u8(address + 1, upper as u8);
     self.write_u8(address, lower as u8);
   }
+
   pub fn read_u16(&mut self, address: u16) -> u16 {
     let upper = self.read_u8(address + 1);
     let lower = self.read_u8(address);

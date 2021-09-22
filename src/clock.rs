@@ -1,10 +1,7 @@
 use crate::cpu::{Cpu, TIMER};
-use crate::memory::{isset8, GameboyState};
-
-const DIV_REGISTER: u16 = 0xFF04;
-const TIMA_REGISTER: u16 = 0xFF05;
-const MOD_REGISTER: u16 = 0xFF06;
-const TAC_REGISTER: u16 = 0xFF07;
+use crate::memory::{
+  isset8, GameboyState, DIV_REGISTER, MOD_REGISTER, TAC_REGISTER, TIMA_REGISTER,
+};
 
 pub struct Clock {
   ticks: usize,
@@ -25,7 +22,7 @@ impl Clock {
     self.ticks += instruction_time;
     while self.ticks >= 256 {
       self.ticks -= 256;
-      mem.write_u8(DIV_REGISTER, mem.read_u8(DIV_REGISTER).wrapping_add(1));
+      mem.write_special_register(DIV_REGISTER, mem.read_u8(DIV_REGISTER).wrapping_add(1));
     }
   }
 
