@@ -118,11 +118,9 @@ impl InstructionData {
 /// The instruction struct contains the implementation of and metadata on an instruction
 #[derive(Clone)]
 pub struct Instruction {
-  pub execute:
-    fn(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData),
+  pub execute: fn(registers: &mut Registers, memory: &mut GameboyState),
   pub cycles: u16,
   pub text: String,
-  pub data: InstructionData,
 }
 
 /// No-op just increments the stack pointer
@@ -1219,14 +1217,13 @@ fn rst_n(registers: &mut Registers, memory: &mut GameboyState, additional: &Inst
 macro_rules! instr {
   ($name:expr, $cycles:expr, $method:ident, $additional:expr) => {{
     const INSTRUCTION_DATA: InstructionData = $additional;
-    fn evaluate(registers: &mut Registers, memory: &mut GameboyState, _ignore: &InstructionData) {
+    fn evaluate(registers: &mut Registers, memory: &mut GameboyState) {
       $method(registers, memory, &INSTRUCTION_DATA);
     }
     Instruction {
       execute: evaluate,
       cycles: $cycles,
       text: $name.to_string(),
-      data: InstructionData::const_default(),
     }
   }};
 }
@@ -1415,12 +1412,12 @@ pub fn instruction_set() -> Vec<Instruction> {
     InstructionData::small_dst(SmallWidthRegister::A)
   );
 
-  let jr_nz_n = Instruction {
-    execute: jump_relative_signed_immediate,
-    cycles: 8,
-    text: format!("JRNZ n"),
-    data: InstructionData::const_default().with_flag(ZERO_FLAG, 0),
-  };
+  let jr_nz_n = instr!(
+    "JRNZ n",
+    8,
+    jump_relative_signed_immediate,
+    InstructionData::const_default().with_flag(ZERO_FLAG, 0)
+  );
 
   let load_imm_hl = instr!(
     "ld HL, nn",
@@ -1965,61 +1962,56 @@ pub fn instruction_set() -> Vec<Instruction> {
     InstructionData::small_dst_small_src(SmallWidthRegister::L, SmallWidthRegister::A)
   );
 
-  let load_hl_b = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) B".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::B),
-  };
+  let load_hl_b = instr!(
+    "ld (HL), B",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::B)
+  );
 
-  let load_hl_c = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) C".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::C),
-  };
+  let load_hl_c = instr!(
+    "ld (HL), C",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::C)
+  );
 
-  let load_hl_d = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) D".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::D),
-  };
+  let load_hl_d = instr!(
+    "ld (HL), D",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::D)
+  );
 
-  let load_hl_e = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) E".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::E),
-  };
+  let load_hl_e = instr!(
+    "ld (HL), E",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::E)
+  );
 
-  let load_hl_h = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) H".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::H),
-  };
+  let load_hl_h = instr!(
+    "ld (HL), H",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::H)
+  );
 
-  let load_hl_l = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) L".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::L),
-  };
+  let load_hl_l = instr!(
+    "ld (HL), L",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::L)
+  );
 
-  let halt = Instruction {
-    execute: halt,
-    cycles: 4,
-    text: "HALT".to_string(),
-    data: InstructionData::const_default(),
-  };
+  let halt = instr!("halt", 4, halt, InstructionData::const_default());
 
-  let load_hl_a = Instruction {
-    execute: ld_reg8_mem_reg16,
-    cycles: 8,
-    text: "ld (HL) A".to_string(),
-    data: InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A),
-  };
+  let load_hl_a = instr!(
+    "ld (HL)m A",
+    8,
+    ld_reg8_mem_reg16,
+    InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A)
+  );
 
   let ld_a_b = instr!(
     "ld A, B",

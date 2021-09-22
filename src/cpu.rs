@@ -399,7 +399,7 @@ impl Cpu {
 
       trace!("{} ({:x})", inst.text, opcode);
       self.registers.last_clock = 0;
-      (inst.execute)(&mut self.registers, memory, &inst.data);
+      (inst.execute)(&mut self.registers, memory);
       //trace!("post-step: {:?}", self.registers);
       // Some instructions mutate the last clock like JR
       self.registers.last_clock += inst.cycles;
