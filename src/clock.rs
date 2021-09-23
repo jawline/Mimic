@@ -44,8 +44,6 @@ impl Clock {
         None => (mem.read_u8(MOD_REGISTER), true),
       };
 
-      println!("TIMA: {}", new_tima);
-
       mem.write_u8(TIMA_REGISTER, new_tima);
 
       if carried {
@@ -61,7 +59,6 @@ impl Clock {
     let tac = self.tac(mem);
 
     if isset8(tac, 0x4) {
-      println!("{} {}", self.main, instruction_time);
       self.main += instruction_time;
       self.update_tima(tac, mem);
     }

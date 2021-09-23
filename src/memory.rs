@@ -10,6 +10,7 @@ pub const TIMA_REGISTER: u16 = 0xFF05;
 pub const MOD_REGISTER: u16 = 0xFF06;
 pub const TAC_REGISTER: u16 = 0xFF07;
 
+const RAM_BANK_SIZE: usize = 0x2000;
 const END_OF_BOOT: u16 = 0x101;
 const END_OF_FIXED_ROM: u16 = 0x4000;
 const END_OF_BANKED_ROM: u16 = 0x8000;
@@ -268,11 +269,10 @@ impl GameboyState {
         self.ram_mode = val != 0;
       }
     } else if address < END_OF_VRAM {
-      trace!("{}", address - END_OF_BANKED_ROM);
       self.vram.write_u8(address - END_OF_BANKED_ROM, val)
     } else if address < END_OF_CARTRIDGE_RAM {
       let address = (address - END_OF_VRAM) as usize;
-      let address = address + (0x2000 * self.ram_bank);
+      let address = address + (RAM_BANK_SIZE * self.ram_bank);
       self.cart_ram.wide_write_u8(address, val)
     } else if address < END_OF_INTERNAL_RAM {
       self.iram.write_u8(address - END_OF_CARTRIDGE_RAM, val)
@@ -328,7 +328,7 @@ impl GameboyState {
       self.vram.read_u8(address - END_OF_BANKED_ROM)
     } else if address < END_OF_CARTRIDGE_RAM {
       let address = (address - END_OF_VRAM) as usize;
-      let address = address + (0x2000 * self.ram_bank);
+      let address = address + (RAM_BANK_SIZE * self.ram_bank);
       trace!("cart ram: {}", address);
       self.cart_ram.wide_read_u8(address)
     } else if address < END_OF_INTERNAL_RAM {

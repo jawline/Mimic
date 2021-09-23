@@ -1,6 +1,7 @@
 mod clock;
 mod cpu;
 mod instruction;
+mod instruction_data;
 mod machine;
 mod memory;
 mod ppu;

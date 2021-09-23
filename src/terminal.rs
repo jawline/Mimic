@@ -46,6 +46,7 @@ pub fn run(
   let mut last_right = None;
   let mut last_up = None;
   let mut last_down = None;
+  let mut redrawing = true;
 
   let mut frame = 0;
 
@@ -107,6 +108,9 @@ pub fn run(
                   state.select = true;
                   fired = true;
                 }
+                KeyCode::Char('p') => {
+                  redrawing = !redrawing;
+                }
                 KeyCode::Char('q') => {
                   break;
                 }
@@ -128,7 +132,7 @@ pub fn run(
         state.down = is_key(last_down);
 
         // Redraw only every other frame to help with flashing
-        if frame % 3 == 0 {
+        if redrawing && frame % 3 == 0 {
           canvas.clear();
 
           pub const WHITE: u8 = 255;
