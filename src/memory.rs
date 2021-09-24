@@ -124,6 +124,12 @@ pub struct GameboyState {
   gamepad_high: bool,
 
   /**
+   * Current timer state
+   */
+  pub ticks: usize,
+  pub main: usize,
+
+  /**
    * Rom and Ram bank settings
    */
   pub rom_bank: usize,
@@ -154,6 +160,9 @@ impl GameboyState {
       boot_enabled: true,
       ram_on: false,
       ram_mode: false,
+
+      ticks: 0,
+      main: 0,
 
       /**
        * Rom bank defaults
@@ -250,6 +259,35 @@ impl GameboyState {
 }
 
 impl GameboyState {
+  fn write_high_mem(&mut self, address: u16, val: u8) {
+    if address == GAMEPAD_ADDRESS {
+      self.gamepad_write(val);
+    } else if address == 0xFF02 && val == 0x81 {
+      print!("{}", self.read_u8(0xFF01) as char);
+    } else if address == DIV_REGISTER {
+      self.ticks = 0;
+      //self.main = 0;
+      self.high_ram.write_u8(address - END_OF_ECHO_RAM, 0);
+    } else if address == TIMA_REGISTER {
+      //self.main = 0;
+      self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
+    } else if address == 0xFF46 {
+      // OAM DMA Mode. TODO: Read up on this and do it better
+      for i in 0..160 {
+        let v = self.read_u8(((val as u16) << 8) + i);
+        self.high_ram.write_u8(i as u16, v);
+      }
+    } else if address == BOOT_ROM_ADDRESS {
+      // Writing a 1 to this register disables the boot rom
+      self.boot_enabled = false;
+    } else if address == STAT {
+      let new_stat = stat_interrupts_with_masked_flags(val, self);
+      self.high_ram.write_u8(address - END_OF_ECHO_RAM, new_stat);
+    } else {
+      self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
+    }
+  }
+
   pub fn write_u8(&mut self, address: u16, val: u8) {
     trace!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
@@ -281,27 +319,7 @@ impl GameboyState {
       error!("illegal write to {:x}", address);
       unimplemented!();
     } else {
-      if address == GAMEPAD_ADDRESS {
-        self.gamepad_write(val);
-      } else if address == 0xFF02 && val == 0x81 {
-        print!("{}", self.read_u8(0xFF01) as char);
-      } else if address == DIV_REGISTER {
-        self.high_ram.write_u8(address - END_OF_ECHO_RAM, 0);
-      } else if address == 0xFF46 {
-        // OAM DMA Mode. TODO: Read up on this and do it better
-        for i in 0..160 {
-          let v = self.read_u8(((val as u16) << 8) + i);
-          self.high_ram.write_u8(i as u16, v);
-        }
-      } else if address == BOOT_ROM_ADDRESS {
-        // Writing a 1 to this register disables the boot rom
-        self.boot_enabled = false;
-      } else if address == STAT {
-        let new_stat = stat_interrupts_with_masked_flags(val, self);
-        self.high_ram.write_u8(address - END_OF_ECHO_RAM, new_stat);
-      } else {
-        self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
-      }
+      self.write_high_mem(address, val);
     }
   }
 
