@@ -125,9 +125,11 @@ pub struct GameboyState {
 
   /**
    * Current timer state
+   * The div register is really interesting. While reads only give you the lower byte, under the
+   * hood it's actually 16 bits wide and impacts the div and tima.
+   * We store it here so it can be accessed both by the timer module and read by read_u8.
    */
-  pub ticks: usize,
-  pub main: usize,
+  pub div: u16,
 
   /**
    * Rom and Ram bank settings
@@ -161,8 +163,8 @@ impl GameboyState {
       ram_on: false,
       ram_mode: false,
 
-      ticks: 0,
-      main: 0,
+      /// The divider starts at zero
+      div: 0,
 
       /**
        * Rom bank defaults
@@ -265,12 +267,11 @@ impl GameboyState {
     } else if address == 0xFF02 && val == 0x81 {
       print!("{}", self.read_u8(0xFF01) as char);
     } else if address == DIV_REGISTER {
-      self.ticks = 0;
-      //self.main = 0;
-      self.high_ram.write_u8(address - END_OF_ECHO_RAM, 0);
+      self.div = 0;
     } else if address == TIMA_REGISTER {
-      //self.main = 0;
       self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
+    } else if address == TAC_REGISTER {
+      self.high_ram.write_u8(address - END_OF_ECHO_RAM, val & 0x7);
     } else if address == 0xFF46 {
       // OAM DMA Mode. TODO: Read up on this and do it better
       for i in 0..160 {
@@ -361,6 +362,10 @@ impl GameboyState {
     } else {
       if address == GAMEPAD_ADDRESS {
         self.gamepad_state()
+      } else if address == DIV_REGISTER {
+        // The high bits of the div register are the value read (essentially it's a rolling
+        // increment of the clock signals upper byte, so it will be 1 after 256 cycles)
+        (self.div >> 8) as u8
       } else {
         self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }
