@@ -1215,7 +1215,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     InstructionData::small_dst(SmallWidthRegister::A)
   );
   let jr_n = instr!(
-    "jr n",
+    "jr nn",
     8,
     jump_relative_signed_immediate,
     InstructionData::const_default().with_flag(0, 0)
@@ -1475,11 +1475,11 @@ pub fn instruction_set() -> Vec<Instruction> {
     InstructionData::small_dst(SmallWidthRegister::A)
   );
 
-  let ccf = instr!("CCF", 4, ccf, InstructionData::const_default());
+  let ccf = instr!("ccf", 4, ccf, InstructionData::const_default());
 
   let ld_b_b = instr!(
     "ld B, B",
-    8,
+    4,
     ld_r8_r8,
     InstructionData::small_dst_small_src(SmallWidthRegister::B, SmallWidthRegister::B)
   );
@@ -1858,7 +1858,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   let halt = instr!("halt", 4, halt, InstructionData::const_default());
 
   let load_hl_a = instr!(
-    "ld (HL)m A",
+    "ld (HL), A",
     8,
     ld_reg8_mem_reg16,
     InstructionData::wide_dst_small_in(WideRegister::HL, SmallWidthRegister::A)
@@ -2461,7 +2461,7 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let call = instr!(
     "call NN",
-    4,
+    12,
     call_immediate,
     InstructionData::const_default().with_flag(0, 0)
   );
@@ -2528,7 +2528,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     InstructionData::const_default().with_flag(CARRY_FLAG, CARRY_FLAG)
   );
 
-  let ret_i = instr!("reti", 8, reti, InstructionData::const_default());
+  let ret_i = instr!("reti", 16, reti, InstructionData::const_default());
 
   let jc = instr!(
     "jc NN",
