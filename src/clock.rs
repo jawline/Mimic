@@ -43,27 +43,32 @@ impl Clock {
     }
   }
 
-  pub fn step(&mut self, instruction_time: u8, mem: &mut GameboyState) {
-    let div_carries = self.update_div(instruction_time, mem);
+  pub fn step(&mut self, mut total_instruction_time: u8, mem: &mut GameboyState) {
+    // We split this into 4 cycle instructions
+    while total_instruction_time > 0 {
+      total_instruction_time -= 4;
+      let instruction_time = 4;
+      let div_carries = self.update_div(instruction_time, mem);
 
-    let tac = self.tac(mem);
+      let tac = self.tac(mem);
 
-    if isset8(tac, 0x4) {
-      let triggered = match tac & 3 {
-        0 => isset16(div_carries, 1 << 10),
-        1 => isset16(div_carries, 1 << 4),
-        2 => isset16(div_carries, 1 << 6),
-        3 => isset16(div_carries, 1 << 8),
-        _ => panic!("tac & 3 should not ever be > 3"),
-      };
-      trace!(
-        "TAC: {} carries {:b} triggered {}",
-        tac & 3,
-        div_carries,
-        triggered
-      );
-      if triggered {
-        self.increment_tima(mem);
+      if isset8(tac, 0x4) {
+        let triggered = match tac & 3 {
+          0 => isset16(div_carries, 1 << 10),
+          1 => isset16(div_carries, 1 << 4),
+          2 => isset16(div_carries, 1 << 6),
+          3 => isset16(div_carries, 1 << 8),
+          _ => panic!("tac & 3 should not ever be > 3"),
+        };
+        trace!(
+          "TAC: {} carries {:b} triggered {}",
+          tac & 3,
+          div_carries,
+          triggered
+        );
+        if triggered {
+          self.increment_tima(mem);
+        }
       }
     }
   }
