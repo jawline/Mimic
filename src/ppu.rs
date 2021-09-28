@@ -332,8 +332,8 @@ impl Ppu {
       trace!("BG disabled on line: {}", self.current_line);
     }
 
-    if window {
-      let map_line = self.wy + self.current_line;
+    if window && self.current_line >= self.wy {
+      let map_line = self.current_line - self.wy;
       let map_line_offset = ((map_line as u16) >> 3) << 5;
 
       let map_offset = if window_map_selected { BGMAP } else { MAP } + map_line_offset;
@@ -352,8 +352,8 @@ impl Ppu {
       let mut line_offset = (self.wx >> 3) as u16;
       let mut tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
 
-      let mut x = scx & 7;
-      let y = ((self.current_line + scy) & 7) as u16;
+      let mut x = 0;
+      let y = ((self.current_line - self.wy) & 7) as u16;
 
       for i in 0..GB_SCREEN_WIDTH {
         let val = self.tile_value(tile, x as u16, y as u16, mem);
