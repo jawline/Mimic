@@ -13,6 +13,8 @@ const TILESET_ONE_ADDR: u16 = 0x8000;
 const SCY: u16 = 0xFF42;
 const SCX: u16 = 0xFF43;
 const LCD_CONTROL: u16 = 0xFF40;
+const WX: u16 = 0xFF4B;
+const WY: u16 = 0xFF4A;
 const MAP: u16 = 0x9800;
 const BGMAP: u16 = 0x9C00;
 const OAM: u16 = 0xFE00;
@@ -53,6 +55,8 @@ pub enum PpuStepState {
 pub struct Ppu {
   cycles_in_mode: u16,
   current_line: u8,
+  wx: u8,
+  wy: u8,
   mode: Mode,
 }
 
@@ -107,6 +111,8 @@ impl Ppu {
     Self {
       cycles_in_mode: 0,
       current_line: 0,
+      wx: 0,
+      wy: 0,
       mode: Mode::OAM,
     }
   }
@@ -142,11 +148,15 @@ impl Ppu {
   }
 
   fn window(lcd: u8) -> bool {
-    lcd & (1 << 5) != 0
+    isset8(lcd, 1 << 5)
   }
 
   fn bgmap(lcd: u8) -> bool {
-    lcd & (1 << 3) != 0
+    isset8(lcd, 1 << 3)
+  }
+
+  fn window_bgmap(lcd: u8) -> bool {
+    isset8(lcd, 1 << 6)
   }
 
   fn bgtile(lcd: u8) -> bool {
@@ -188,9 +198,24 @@ impl Ppu {
     util::update_stat_flags(current_stat | mode, mem);
   }
 
+  fn reset_window(&mut self, mode: Mode, mem: &mut GameboyState) {
+    match mode {
+      Mode::OAM => {
+          self.wx = mem.read_u8(WX);
+          self.wy = mem.read_u8(WY);
+      },
+      Mode::VRAM => {},
+      Mode::HBLANK => {
+          self.wx = mem.read_u8(WX);
+      },
+      Mode::VBLANK => {},
+    }
+  }
+
   fn enter_mode(&mut self, mode: Mode, mem: &mut GameboyState) {
     self.cycles_in_mode = 0;
     self.mode = mode;
+    self.reset_window(mode, mem);
     self.update_stat_register(mode, mem);
     self.try_fire_stat_interrupt(mode, mem);
   }
@@ -255,6 +280,7 @@ impl Ppu {
     let bgtile = Self::bgtile(lcd);
     let window = Self::window(lcd);
     let background_map_selected = Self::bgmap(lcd);
+    let window_map_selected = Self::window_bgmap(lcd);
     let mut hit = vec![false; GB_SCREEN_WIDTH as usize];
 
     if render_bg {
@@ -304,6 +330,53 @@ impl Ppu {
       }
     } else {
       trace!("BG disabled on line: {}", self.current_line);
+    }
+
+    if window {
+      let map_line = self.wy + self.current_line;
+      let map_line_offset = ((map_line as u16) >> 3) << 5;
+
+      let map_offset = if window_map_selected { BGMAP } else { MAP } + map_line_offset;
+
+      trace!(
+        "WX: {} WY: {} WINDOW: {} BGM: {} MAP_LINE: {:x} OFFSET: {:x} MO: {:x}",
+        self.wx,
+        self.wy,
+        window,
+        background_map_selected,
+        map_line,
+        map_line_offset,
+        map_offset
+      );
+
+      let mut line_offset = (self.wx >> 3) as u16;
+      let mut tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
+
+      let mut x = scx & 7;
+      let y = ((self.current_line + scy) & 7) as u16;
+
+      for i in 0..GB_SCREEN_WIDTH {
+        let val = self.tile_value(tile, x as u16, y as u16, mem);
+
+        if val != 0 {
+          hit[i as usize] = true;
+        }
+
+        Self::write_px(
+          pixels,
+          i as u8,
+          self.current_line,
+          Self::pal(val, PAL_BG_REG, mem),
+        );
+
+        x += 1;
+
+        if x == 8 {
+          x = 0;
+          line_offset = (line_offset + 1) & 31;
+          tile = self.fetch_tile(map_offset + line_offset, bgtile, mem);
+        }
+      }
     }
 
     if render_sprites {

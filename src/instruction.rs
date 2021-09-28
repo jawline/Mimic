@@ -803,7 +803,7 @@ fn add_r16_n(registers: &mut Registers, memory: &mut GameboyState, additional: &
   registers.inc_pc(2);
 }
 
-/// Load wide_reg_one into wide reg dst  
+/// Load wide_reg_one into wide reg dst
 fn ld_r16_r16(registers: &mut Registers, _memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   registers.write_r16(
@@ -3390,6 +3390,7 @@ macro_rules! make_bit_set {
 }
 
 pub fn extended_instruction_set() -> Vec<Instruction> {
+
   // RLC
   let rlc_row = make_extended_row!("rlc", ext_rlc_r8, 8, ext_rlc_indirect_r16, 16);
 
