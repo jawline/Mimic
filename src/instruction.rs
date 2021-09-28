@@ -2622,7 +2622,7 @@ pub fn instruction_set() -> Vec<Instruction> {
 
   let ld_a_ff00 = instr!(
     "ld A, (FF00 + n)",
-    12,
+    8,
     ld_r8_ff00_imm,
     InstructionData::small_dst(SmallWidthRegister::A)
   );
