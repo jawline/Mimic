@@ -3390,7 +3390,6 @@ macro_rules! make_bit_set {
 }
 
 pub fn extended_instruction_set() -> Vec<Instruction> {
-
   // RLC
   let rlc_row = make_extended_row!("rlc", ext_rlc_r8, 8, ext_rlc_indirect_r16, 16);
 

@@ -155,6 +155,10 @@ impl Ppu {
     isset8(lcd, 1 << 3)
   }
 
+  fn big_sprites(lcd: u8) -> bool {
+    isset8(lcd, 1 << 2)
+  }
+
   fn window_bgmap(lcd: u8) -> bool {
     isset8(lcd, 1 << 6)
   }
@@ -201,14 +205,14 @@ impl Ppu {
   fn reset_window(&mut self, mode: Mode, mem: &mut GameboyState) {
     match mode {
       Mode::OAM => {
-          self.wx = mem.read_u8(WX);
-          self.wy = mem.read_u8(WY);
-      },
-      Mode::VRAM => {},
+        self.wx = mem.read_u8(WX);
+        self.wy = mem.read_u8(WY);
+      }
+      Mode::VRAM => {}
       Mode::HBLANK => {
-          self.wx = mem.read_u8(WX);
-      },
-      Mode::VBLANK => {},
+        self.wx = mem.read_u8(WX);
+      }
+      Mode::VBLANK => {}
     }
   }
 
@@ -277,6 +281,7 @@ impl Ppu {
     let scx = Self::scx(mem);
     let render_bg = Self::show_background(lcd);
     let render_sprites = Self::show_sprites(lcd);
+    let big_sprites = Self::big_sprites(lcd);
     let bgtile = Self::bgtile(lcd);
     let window = Self::window(lcd);
     let background_map_selected = Self::bgmap(lcd);
@@ -384,7 +389,8 @@ impl Ppu {
         if Sprite::visible(i, mem) {
           let sprite = Sprite::fetch(i, mem);
 
-          let hits_line_y = sprite.y <= self.current_line && sprite.y + 8 > self.current_line;
+          let hits_line_y = sprite.y <= self.current_line
+            && sprite.y + if big_sprites { 16 } else { 8 } > self.current_line;
           if hits_line_y {
             let tile_y = if sprite.yflip {
               7 - (self.current_line - sprite.y as u8)
