@@ -1,5 +1,6 @@
 use crate::util::{stat_interrupts_with_masked_flags, STAT};
 use log::{error, info, trace, warn};
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -51,6 +52,7 @@ pub fn isset32(val: u32, bit: u32) -> bool {
 /**
  * Read only chunk of memory loaded as bytes
  */
+#[derive(Serialize, Deserialize)]
 pub struct RomChunk {
   pub bytes: Vec<u8>,
 }
@@ -59,9 +61,6 @@ impl RomChunk {
   fn read_u8(&self, address: u16) -> u8 {
     self.bytes[address as usize]
   }
-}
-
-impl RomChunk {
   pub fn from_file(path: &str) -> io::Result<RomChunk> {
     info!("Loading {}", path);
     let mut f = File::open(path)?;
@@ -82,6 +81,7 @@ impl RomChunk {
 /**
  * RAM read/write memory as bytes
  */
+#[derive(Serialize, Deserialize)]
 pub struct RamChunk {
   pub bytes: Vec<u8>,
 }
@@ -111,6 +111,7 @@ impl RamChunk {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct GameboyState {
   boot: RomChunk,
   cart: RomChunk,

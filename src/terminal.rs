@@ -19,6 +19,7 @@ use crate::ppu::{PpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 
 pub fn run(
   mut gameboy_state: Machine,
+  save_path: &str,
   greyscale: bool,
   invert: bool,
   threshold: bool,
@@ -64,7 +65,8 @@ pub fn run(
 
     match state {
       PpuStepState::VBlank => {
-        let mut state = &mut gameboy_state.memory;
+        let mut save = false;
+        let mut state = &mut gameboy_state.state.memory;
 
         state.start = false;
         state.select = false;
@@ -111,6 +113,9 @@ pub fn run(
                 KeyCode::Char('p') => {
                   redrawing = !redrawing;
                 }
+                KeyCode::Char('s') => {
+                  save = true;
+                }
                 KeyCode::Char('q') => {
                   break;
                 }
@@ -130,6 +135,10 @@ pub fn run(
         state.right = is_key(last_right);
         state.up = is_key(last_up);
         state.down = is_key(last_down);
+
+        if save {
+          gameboy_state.save_state(save_path).unwrap();
+        }
 
         // Redraw only every other frame to help with flashing
         if redrawing && frame % 3 == 0 {

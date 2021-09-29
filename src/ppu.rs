@@ -2,6 +2,7 @@ use crate::cpu::{Cpu, STAT, VBLANK};
 use crate::memory::{isset8, GameboyState};
 use crate::util::{self, stat};
 use log::{debug, info, trace};
+use serde::{Deserialize, Serialize};
 
 pub const GB_SCREEN_WIDTH: u32 = 160;
 pub const GB_SCREEN_HEIGHT: u32 = 144;
@@ -38,7 +39,7 @@ const STAT_OAM: u8 = 0x2;
 const STAT_TRANSFERRING_TO_LCD: u8 = 0x3;
 const STAT_LYC_EQUALS_LCDC: u8 = 0x4;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 enum Mode {
   OAM,
   VRAM,
@@ -52,6 +53,7 @@ pub enum PpuStepState {
   HBlank,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Ppu {
   cycles_in_mode: u16,
   current_line: u8,

@@ -13,8 +13,9 @@ use std::io;
 
 use clock::Clock;
 use cpu::Cpu;
+use instruction::InstructionSet;
 use log::info;
-use machine::Machine;
+use machine::{Machine, MachineState};
 use memory::{GameboyState, RomChunk};
 use ppu::Ppu;
 
@@ -50,44 +51,56 @@ fn main() -> io::Result<()> {
   let bios_file = opts.bios;
   let rom_file = opts.rom;
   let mut skip_bios = opts.skip_bios;
+  let savestate_path = format!("{}.save", rom_file);
 
-  info!("loading BIOS: {:#?} TEST: {}", bios_file, rom_file);
+  let gameboy = match Machine::load_state(&savestate_path) {
+    Ok(machine) => machine,
+    Err(_) => {
+      info!("loading BIOS: {:#?} TEST: {}", bios_file, rom_file);
 
-  info!("preparing initial state");
+      info!("preparing initial state");
 
-  let boot_rom = if let Some(bios_file) = bios_file {
-    RomChunk::from_file(&bios_file)?
-  } else {
-    skip_bios = true;
-    RomChunk::empty()
+      let boot_rom = if let Some(bios_file) = bios_file {
+        RomChunk::from_file(&bios_file)?
+      } else {
+        skip_bios = true;
+        RomChunk::empty()
+      };
+
+      info!("loaded BIOS");
+
+      let gb_test = RomChunk::from_file(&rom_file)?;
+
+      info!("Loaded rom");
+
+      let root_map = GameboyState::new(boot_rom, gb_test);
+
+      let mut gameboy_state = MachineState {
+        cpu: Cpu::new(),
+        ppu: Ppu::new(),
+        clock: Clock::new(),
+        memory: root_map,
+      };
+
+      if skip_bios {
+        // Skip boot
+        gameboy_state.cpu.registers.set_pc(0x100);
+        gameboy_state.memory.write_u8(0xFF50, 1);
+      }
+
+      Machine {
+        state: gameboy_state,
+        instruction_set: InstructionSet::new(),
+      }
+    }
   };
-
-  info!("loaded BIOS");
-
-  let gb_test = RomChunk::from_file(&rom_file)?;
-
-  info!("Loaded rom");
-
-  let root_map = GameboyState::new(boot_rom, gb_test);
-
-  let mut gameboy_state = Machine {
-    cpu: Cpu::new(),
-    ppu: Ppu::new(),
-    clock: Clock::new(),
-    memory: root_map,
-  };
-
-  if skip_bios {
-    // Skip boot
-    gameboy_state.cpu.registers.set_pc(0x100);
-    gameboy_state.memory.write_u8(0xFF50, 1);
-  }
 
   if !opts.cli_mode {
-    sdl::run(gameboy_state)
+    sdl::run(gameboy)
   } else {
     terminal::run(
-      gameboy_state,
+      gameboy,
+      &savestate_path,
       !opts.cli_midpoint_rendering,
       opts.invert,
       !opts.no_threshold,

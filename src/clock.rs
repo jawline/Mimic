@@ -1,7 +1,9 @@
 use crate::cpu::{Cpu, TIMER};
 use crate::memory::{isset16, isset8, GameboyState, MOD_REGISTER, TAC_REGISTER, TIMA_REGISTER};
 use log::trace;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct Clock {}
 
 impl Clock {

@@ -188,7 +188,7 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
   let mut redraws = 0;
 
   loop {
-    events(&mut gameboy_state.memory, &mut event_pump);
+    events(&mut gameboy_state.state.memory, &mut event_pump);
 
     let state = gameboy_state.step(&mut pixel_buffer);
 

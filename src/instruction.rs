@@ -8,6 +8,20 @@ use crate::util::{
 };
 use log::trace;
 
+pub struct InstructionSet {
+  pub instructions: Vec<Instruction>,
+  pub ext_instructions: Vec<Instruction>,
+}
+
+impl InstructionSet {
+  pub fn new() -> Self {
+    Self {
+      instructions: instruction_set(),
+      ext_instructions: extended_instruction_set(),
+    }
+  }
+}
+
 /// The instruction struct contains the implementation of and metadata on an instruction
 #[derive(Clone)]
 pub struct Instruction {

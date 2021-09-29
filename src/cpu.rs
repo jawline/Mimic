@@ -1,6 +1,7 @@
-use crate::instruction::{extended_instruction_set, instruction_set, Instruction};
+use crate::instruction::InstructionSet;
 use crate::memory::{isset8, set8, unset8, GameboyState};
 use log::{debug, trace};
+use serde::{Deserialize, Serialize};
 
 pub const INTERRUPTS_ENABLED_ADDRESS: u16 = 0xFFFF;
 pub const INTERRUPTS_HAPPENED_ADDRESS: u16 = 0xFF0F;
@@ -29,15 +30,8 @@ pub const JOYPAD: u8 = 0x1 << 4;
 /// The interrupt address for a joypad pressed interrupt
 pub const JOYPAD_ADDRESS: u16 = 0x60;
 
-/// Gameboy clock state
-#[derive(Default, Debug)]
-pub struct Clock {
-  m: u8,
-  t: u8,
-}
-
 /// Represents a register pair that can be addressed either as two u8's or one u16
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct RegisterPair {
   l: u8,
   r: u8,
@@ -86,7 +80,7 @@ use SmallWidthRegister::*;
 use WideRegister::*;
 
 /// CPU state and registers for a Z80 gameboy processor.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Registers {
   pc: u16,
   sp: u16,
@@ -94,12 +88,9 @@ pub struct Registers {
   af: RegisterPair,
   de: RegisterPair,
   hl: RegisterPair,
-  clock: Clock,
 
   /// This indicates the last opcode processed was an escape opcode, triggering the extended instruction set
   /// While this flag is true we should not process interrupts
-  /// TODO: maybe it would be better to just immediately process the follow up instruction to avoid
-  /// the step?
   pub escaped: bool,
 
   /// Is the CPU halted
@@ -283,20 +274,15 @@ impl Registers {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Cpu {
   pub registers: Registers,
-  instructions: Vec<Instruction>,
-  ext_instructions: Vec<Instruction>,
 }
 
 impl Cpu {
   pub fn new() -> Self {
-    let instructions = instruction_set();
-    let ext = extended_instruction_set();
     Self {
       registers: Registers::default(),
-      instructions: instructions,
-      ext_instructions: ext,
     }
   }
 
@@ -367,7 +353,7 @@ impl Cpu {
   }
 
   /// Step the emulator by a single instruction
-  pub fn step(&mut self, memory: &mut GameboyState) {
+  pub fn step(&mut self, memory: &mut GameboyState, instructions: &InstructionSet) {
     if !self.registers.halted {
       let opcode = memory.read_u8(self.registers.pc());
 
@@ -375,10 +361,10 @@ impl Cpu {
 
       if self.registers.escaped {
         trace!("Selected opcode from extended set since escaped is set");
-        inst = &self.ext_instructions[opcode as usize];
+        inst = &instructions.ext_instructions[opcode as usize];
         self.registers.escaped = false;
       } else {
-        inst = &self.instructions[opcode as usize];
+        inst = &instructions.instructions[opcode as usize];
       }
 
       debug!(
