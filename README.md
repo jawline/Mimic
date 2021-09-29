@@ -7,6 +7,8 @@ An open source Gameboy emulator written in Rust that can use a command line inte
 cargo run --release -- --rom PATH --cli-mode
 
 <p float="left">
+  <img src="/screenshots/zelda1.png" width="49%" />
+  <img src="/screenshots/pokemon1.png" width="49%" />
   <img src="/screenshots/screenshot4.png" width="49%" />
   <img src="/screenshots/screenshot5.png" width="49%" />
 </p>
