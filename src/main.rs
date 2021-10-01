@@ -5,6 +5,7 @@ mod instruction_data;
 mod machine;
 mod memory;
 mod ppu;
+mod register;
 mod sdl;
 mod terminal;
 mod util;

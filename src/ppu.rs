@@ -175,7 +175,7 @@ impl Ppu {
     }
   }
 
-  fn try_fire_stat_interrupt(&mut self, mode: Mode, mem: &mut GameboyState) {
+  fn try_fire_interrupts(&mut self, mode: Mode, mem: &mut GameboyState) {
     let stat = util::stat(mem);
 
     match mode {
@@ -188,6 +188,7 @@ impl Ppu {
       }
       Mode::VBLANK => {
         Self::try_fire(stat, STAT_INTERRUPT_DURING_V_BLANK, mem);
+        Cpu::set_interrupt_happened(mem, VBLANK);
       }
     }
   }
@@ -223,7 +224,7 @@ impl Ppu {
     self.mode = mode;
     self.reset_window(mode, mem);
     self.update_stat_register(mode, mem);
-    self.try_fire_stat_interrupt(mode, mem);
+    self.try_fire_interrupts(mode, mem);
   }
 
   fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
@@ -276,6 +277,10 @@ impl Ppu {
   }
 
   fn render_line(&mut self, mem: &mut GameboyState, pixels: &mut [u8]) {
+    if self.current_line >= GB_SCREEN_HEIGHT as u8 {
+      return;
+    }
+
     trace!("Rendering full line {}", self.current_line);
 
     let lcd = self.lcd_control(mem);
@@ -440,6 +445,14 @@ impl Ppu {
       current_stat & (!STAT_LYC_EQUALS_LCDC)
     };
 
+    let new_stat = new_stat
+      | match self.mode {
+        Mode::HBLANK => 0,
+        Mode::VBLANK => 1,
+        Mode::OAM => 2,
+        Mode::VRAM => 3,
+      };
+
     util::update_stat_flags(new_stat, mem);
   }
 
@@ -451,9 +464,7 @@ impl Ppu {
 
   fn change_scanline(&mut self, new_scanline: u8, mem: &mut GameboyState) {
     self.current_line = new_scanline;
-    if new_scanline <= 153 {
-      self.update_scanline(mem);
-    }
+    self.update_scanline(mem);
   }
 
   pub fn step(&mut self, cpu: &mut Cpu, mem: &mut GameboyState, draw: &mut [u8]) -> PpuStepState {
@@ -483,7 +494,7 @@ impl Ppu {
       Mode::HBLANK => {
         if self.cycles_in_mode >= 204 {
           self.change_scanline(self.current_line + 1, mem);
-          if self.current_line == 144 {
+          if self.current_line == 145 {
             self.enter_mode(Mode::VBLANK, mem);
           } else {
             self.enter_mode(Mode::OAM, mem);
@@ -502,11 +513,10 @@ impl Ppu {
         if self.current_line == 1 {
           self.change_scanline(0, mem);
           self.enter_mode(Mode::OAM, mem);
-          PpuStepState::None
-        } else if self.current_line == 153 {
-          Cpu::set_interrupt_happened(mem, VBLANK);
-          self.change_scanline(0, mem);
           PpuStepState::VBlank
+        } else if self.current_line == 153 {
+          self.change_scanline(0, mem);
+          PpuStepState::None
         } else {
           PpuStepState::None
         }

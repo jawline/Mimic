@@ -1,4 +1,4 @@
-use crate::cpu::{SmallWidthRegister, WideRegister};
+use crate::register::{SmallWidthRegister, WideRegister};
 
 /// We re-use some instruction functions for multiple register implementations
 /// This struct carries data for the single-implementation for many opcode instruction methods

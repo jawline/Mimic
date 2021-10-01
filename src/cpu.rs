@@ -1,5 +1,8 @@
 use crate::instruction::InstructionSet;
 use crate::memory::{isset8, set8, unset8, GameboyState};
+use crate::register::{
+  RegisterPair, SmallWidthRegister, SmallWidthRegister::*, WideRegister, WideRegister::*,
+};
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
@@ -29,55 +32,6 @@ pub const JOYPAD: u8 = 0x1 << 4;
 
 /// The interrupt address for a joypad pressed interrupt
 pub const JOYPAD_ADDRESS: u16 = 0x60;
-
-/// Represents a register pair that can be addressed either as two u8's or one u16
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct RegisterPair {
-  l: u8,
-  r: u8,
-}
-
-impl RegisterPair {
-  fn as_u16(&self) -> u16 {
-    let high_portion = (self.l as u16) << 8;
-    let low_portion = self.r as u16;
-    high_portion + low_portion
-  }
-
-  fn write_u16(&mut self, v: u16) {
-    self.l = (v >> 8) as u8;
-    self.r = (v & 0xFF) as u8;
-  }
-}
-
-/// Enum to address all the 8-bit registers
-#[derive(Debug, Clone, Copy)]
-pub enum SmallWidthRegister {
-  B,
-  C,
-  A,
-  F,
-  D,
-  E,
-  H,
-  L,
-  SmallUnset, // Used to identify errors in instructions
-}
-
-/// Enum to address all the 16-bit wide registers
-#[derive(Debug, Clone, Copy)]
-pub enum WideRegister {
-  PC,
-  SP,
-  BC,
-  AF,
-  DE,
-  HL,
-  WideUnset,
-}
-
-use SmallWidthRegister::*;
-use WideRegister::*;
 
 /// CPU state and registers for a Z80 gameboy processor.
 #[derive(Default, Debug, Serialize, Deserialize)]

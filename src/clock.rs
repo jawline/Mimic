@@ -46,16 +46,16 @@ impl Clock {
   }
 
   pub fn step(&mut self, mut total_instruction_time: u8, mem: &mut GameboyState) {
-    // We split this into 4 cycle instructions
+    // We split this into 4 cycle instructions so that the carry is correctly respected from div
+    // changes
     while total_instruction_time > 0 {
       total_instruction_time -= 4;
-      let instruction_time = 4;
-      let div_carries = self.update_div(instruction_time, mem);
+      let div_carries = self.update_div(4, mem);
 
       let tac = self.tac(mem);
 
       if isset8(tac, 0x4) {
-        let triggered = match tac & 3 {
+        let tima_should_increment = match tac & 3 {
           0 => isset16(div_carries, 1 << 10),
           1 => isset16(div_carries, 1 << 4),
           2 => isset16(div_carries, 1 << 6),
@@ -66,9 +66,9 @@ impl Clock {
           "TAC: {} carries {:b} triggered {}",
           tac & 3,
           div_carries,
-          triggered
+          tima_should_increment,
         );
-        if triggered {
+        if tima_should_increment {
           self.increment_tima(mem);
         }
       }

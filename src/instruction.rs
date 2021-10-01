@@ -1,7 +1,8 @@
-use crate::cpu::{Registers, SmallWidthRegister, WideRegister, CARRY_FLAG, ZERO_FLAG};
+use crate::cpu::{Registers, CARRY_FLAG, ZERO_FLAG};
 use crate::instruction_data::InstructionData;
 use crate::memory::GameboyState;
 use crate::memory::{isset16, isset32, isset8};
+use crate::register::{SmallWidthRegister, WideRegister};
 use crate::util::{
   carries_add16_signed_8bit, carries_add8, carries_add8_with_carry, carries_sub16_signed_8bit,
   carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
@@ -1278,7 +1279,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   );
 
   let jr_nz_n = instr!(
-    "JRNZ n",
+    "jrnz n",
     8,
     jump_relative_signed_immediate,
     InstructionData::const_default().with_flag(ZERO_FLAG, 0)
@@ -1334,7 +1335,7 @@ pub fn instruction_set() -> Vec<Instruction> {
   );
 
   let jr_z_n = instr!(
-    "JRZ n",
+    "jr z n",
     8,
     jump_relative_signed_immediate,
     InstructionData::const_default().with_flag(ZERO_FLAG, ZERO_FLAG)
