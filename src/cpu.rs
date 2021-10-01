@@ -309,7 +309,7 @@ impl Cpu {
   /// Step the emulator by a single instruction
   pub fn step(&mut self, memory: &mut GameboyState, instructions: &InstructionSet) {
     if !self.registers.halted {
-      let opcode = memory.read_u8(self.registers.pc());
+      let opcode = memory.core_read(self.registers.pc());
 
       let inst;
 

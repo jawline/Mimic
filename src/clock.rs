@@ -12,7 +12,7 @@ impl Clock {
   }
 
   fn tac(&mut self, mem: &mut GameboyState) -> u8 {
-    mem.read_u8(TAC_REGISTER)
+    mem.core_read(TAC_REGISTER)
   }
 
   fn update_div(&mut self, instruction_time: u8, mem: &mut GameboyState) -> u16 {
@@ -30,11 +30,11 @@ impl Clock {
   }
 
   fn increment_tima(&mut self, mem: &mut GameboyState) {
-    let tima = mem.read_u8(TIMA_REGISTER);
+    let tima = mem.core_read(TIMA_REGISTER);
 
     let (new_tima, carried) = match tima.checked_add(1) {
       Some(n) => (n, false),
-      None => (mem.read_u8(MOD_REGISTER), true),
+      None => (mem.core_read(MOD_REGISTER), true),
     };
 
     trace!("NEW TIMA: {}", new_tima);

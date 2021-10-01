@@ -80,8 +80,8 @@ impl Sprite {
 
   fn pos(id: u16, mem: &mut GameboyState) -> (u8, u8) {
     let address = OAM + (id * 4);
-    let y = mem.read_u8(address);
-    let x = mem.read_u8(address + 1);
+    let y = mem.core_read(address);
+    let x = mem.core_read(address + 1);
     (x - 8, y - 16)
   }
 
@@ -93,8 +93,8 @@ impl Sprite {
   fn fetch(id: u16, mem: &mut GameboyState) -> Self {
     let address = Sprite::address(id);
     let (x, y) = Sprite::pos(id, mem);
-    let tile = mem.read_u8(address + 2);
-    let meta = mem.read_u8(address + 3);
+    let tile = mem.core_read(address + 2);
+    let meta = mem.core_read(address + 3);
     Sprite {
       x: x,
       y: y,
@@ -124,12 +124,12 @@ impl Ppu {
     let tile_addr = TILESET_ONE_ADDR + (TILE_SIZE * id);
     let y_addr = tile_addr + (y * 2);
     let mask_x = 1 << (7 - x);
-    let low_bit = if mem.read_u8(y_addr) & mask_x != 0 {
+    let low_bit = if mem.core_read(y_addr) & mask_x != 0 {
       1
     } else {
       0
     };
-    let high_bit = if mem.read_u8(y_addr + 1) & mask_x != 0 {
+    let high_bit = if mem.core_read(y_addr + 1) & mask_x != 0 {
       2
     } else {
       0
@@ -138,7 +138,7 @@ impl Ppu {
   }
 
   fn lcd_control(&self, mem: &mut GameboyState) -> u8 {
-    mem.read_u8(LCD_CONTROL)
+    mem.core_read(LCD_CONTROL)
   }
 
   fn show_background(lcd: u8) -> bool {
@@ -193,27 +193,15 @@ impl Ppu {
     }
   }
 
-  fn update_stat_register(&mut self, mode: Mode, mem: &mut GameboyState) {
-    let mode = match mode {
-      Mode::OAM => STAT_OAM,
-      Mode::VRAM => STAT_TRANSFERRING_TO_LCD,
-      Mode::HBLANK => STAT_H_BLANK,
-      Mode::VBLANK => STAT_V_BLANK,
-    };
-
-    let current_stat = stat(mem) & STAT_LYC_EQUALS_LCDC;
-    util::update_stat_flags(current_stat | mode, mem);
-  }
-
   fn reset_window(&mut self, mode: Mode, mem: &mut GameboyState) {
     match mode {
       Mode::OAM => {
-        self.wx = mem.read_u8(WX);
-        self.wy = mem.read_u8(WY);
+        self.wx = mem.core_read(WX);
+        self.wy = mem.core_read(WY);
       }
       Mode::VRAM => {}
       Mode::HBLANK => {
-        self.wx = mem.read_u8(WX);
+        self.wx = mem.core_read(WX);
       }
       Mode::VBLANK => {}
     }
@@ -223,7 +211,7 @@ impl Ppu {
     self.cycles_in_mode = 0;
     self.mode = mode;
     self.reset_window(mode, mem);
-    self.update_stat_register(mode, mem);
+    self.update_stat_lyc(mem);
     self.try_fire_interrupts(mode, mem);
   }
 
@@ -237,7 +225,7 @@ impl Ppu {
   }
 
   fn fetch_tile(&self, addr: u16, bgtile: bool, mem: &mut GameboyState) -> u16 {
-    let tile = mem.read_u8(addr) as u16;
+    let tile = mem.core_read(addr) as u16;
     if !bgtile && tile < 128 {
       tile + 256
     } else {
@@ -246,22 +234,22 @@ impl Ppu {
   }
 
   fn scx(mem: &mut GameboyState) -> u8 {
-    mem.read_u8(SCX)
+    mem.core_read(SCX)
   }
 
   fn scy(mem: &mut GameboyState) -> u8 {
-    mem.read_u8(SCY)
+    mem.core_read(SCY)
   }
 
   fn lyc(mem: &mut GameboyState) -> u8 {
-    mem.read_u8(LYC_SCANLINE)
+    mem.core_read(LYC_SCANLINE)
   }
 
   fn pal(v: u8, control_reg: u16, mem: &mut GameboyState) -> u8 {
     let mut palette = [255, 160, 96, 0];
 
     // TODO: This is a horrible way, these could all be cached
-    let palette_register = mem.read_u8(control_reg);
+    let palette_register = mem.core_read(control_reg);
 
     for i in 0..4 {
       match palette_register >> (i * 2) & 0x3 {
@@ -435,22 +423,26 @@ impl Ppu {
     let current_stat = stat(mem);
     let coincidence_triggered = lyc == self.current_line;
 
+    debug!("STAT int values {:b}", current_stat);
+
     if coincidence_triggered {
       Self::try_fire(current_stat, STAT_INTERRUPT_LYC_EQUALS_LC, mem);
     }
 
     let new_stat = if coincidence_triggered {
-      current_stat | STAT_LYC_EQUALS_LCDC
+      STAT_LYC_EQUALS_LCDC
     } else {
-      current_stat & (!STAT_LYC_EQUALS_LCDC)
+      0
     };
+
+    debug!("STAT to {:b}", new_stat);
 
     let new_stat = new_stat
       | match self.mode {
-        Mode::HBLANK => 0,
-        Mode::VBLANK => 1,
-        Mode::OAM => 2,
-        Mode::VRAM => 3,
+        Mode::OAM => STAT_OAM,
+        Mode::VRAM => STAT_TRANSFERRING_TO_LCD,
+        Mode::HBLANK => STAT_H_BLANK,
+        Mode::VBLANK => STAT_V_BLANK,
       };
 
     util::update_stat_flags(new_stat, mem);
@@ -458,7 +450,7 @@ impl Ppu {
 
   fn update_scanline(&mut self, mem: &mut GameboyState) {
     debug!("SCANLINE: {:x}", self.current_line);
-    mem.write_u8(CURRENT_SCANLINE, self.current_line as u8);
+    mem.write_special_register(CURRENT_SCANLINE, self.current_line as u8);
     self.update_stat_lyc(mem);
   }
 

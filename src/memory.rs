@@ -333,8 +333,10 @@ impl GameboyState {
     }
   }
 
-  pub fn read_u8(&self, address: u16) -> u8 {
-    let result = if address < END_OF_FIXED_ROM {
+  /// Read u8 will appear in traces but core_read won't, this reduces the noise a little debugging
+  /// TODO: Rename
+  pub fn core_read(&self, address: u16) -> u8 {
+    if address < END_OF_FIXED_ROM {
       if self.boot_enabled && address < END_OF_BOOT {
         return self.boot.read_u8(address);
       }
@@ -370,7 +372,12 @@ impl GameboyState {
       } else {
         self.high_ram.read_u8(address - END_OF_ECHO_RAM)
       }
-    };
+    }
+  }
+
+  /// Read a byte of state
+  pub fn read_u8(&self, address: u16) -> u8 {
+    let result = self.core_read(address);
     trace!("read {:x} {:x}", address, result);
     result
   }

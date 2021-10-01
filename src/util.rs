@@ -7,7 +7,7 @@ pub const STAT: u16 = 0xFF41;
 const STAT_FLAG_MASK: u8 = 0x4 | 0x2 | 0x1;
 
 pub fn stat(mem: &GameboyState) -> u8 {
-  mem.read_u8(STAT)
+  mem.core_read(STAT)
 }
 
 pub fn update_stat_flags(new_stat: u8, mem: &mut GameboyState) {
