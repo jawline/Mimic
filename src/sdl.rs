@@ -11,12 +11,15 @@ use sdl2::EventPump;
 
 use crate::cpu::{Cpu, JOYPAD};
 use crate::machine::Machine;
-use crate::memory::GameboyState;
 use crate::ppu::{PpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use log::{info, trace};
 
-fn events(state: &mut GameboyState, events: &mut EventPump) {
+fn events(machine: &mut Machine, savestate_path: &str, events: &mut EventPump) {
+  let state = &mut machine.state.memory;
+
   let mut fired = false;
+  let mut save = false;
+
   for event in events.poll_iter() {
     match event {
       Event::Quit { .. }
@@ -25,6 +28,14 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
         ..
       } => {
         unimplemented!();
+      }
+      Event::KeyUp {
+        keycode: Some(Keycode::S),
+        ..
+      } => {
+        // Save when somebody hits S
+        // TODO: Find a better way to handle savestates later
+        save = true;
       }
       Event::KeyDown {
         keycode: Some(Keycode::A),
@@ -145,6 +156,10 @@ fn events(state: &mut GameboyState, events: &mut EventPump) {
   if fired {
     Cpu::set_interrupt_happened(state, JOYPAD);
   }
+
+  if save {
+    machine.save_state(savestate_path).unwrap()
+  }
 }
 
 fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
@@ -161,7 +176,7 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
   canvas.present();
 }
 
-pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
+pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> io::Result<()> {
   info!("preparing screen");
 
   let sdl_context = sdl2::init().unwrap();
@@ -188,7 +203,7 @@ pub fn run(mut gameboy_state: Machine) -> io::Result<()> {
   let mut redraws = 0;
 
   loop {
-    events(&mut gameboy_state.state.memory, &mut event_pump);
+    events(&mut gameboy_state, savestate_path, &mut event_pump);
 
     let state = gameboy_state.step(&mut pixel_buffer);
 

@@ -64,8 +64,8 @@ pub struct Ppu {
 
 #[derive(Debug)]
 struct Sprite {
-  pub x: u8,
-  pub y: u8,
+  pub x: i32,
+  pub y: i32,
   pub tile: u8,
   pub palette: bool,
   pub xflip: bool,
@@ -78,16 +78,18 @@ impl Sprite {
     OAM + (id * 4)
   }
 
-  fn pos(id: u16, mem: &mut GameboyState) -> (u8, u8) {
+  fn pos(id: u16, mem: &mut GameboyState) -> (i32, i32) {
     let address = OAM + (id * 4);
-    let y = mem.core_read(address);
-    let x = mem.core_read(address + 1);
+    let y = mem.core_read(address) as i32;
+    let x = mem.core_read(address + 1) as i32;
     (x - 8, y - 16)
   }
 
   fn visible(id: u16, mem: &mut GameboyState) -> bool {
-    let (x, y) = Sprite::pos(id, mem);
-    y != 0 && x != 0
+    let address = OAM + (id * 4);
+    let y = mem.core_read(address);
+    let x = mem.core_read(address + 1);
+    x != 0 || y != 0
   }
 
   fn fetch(id: u16, mem: &mut GameboyState) -> Self {
@@ -384,8 +386,10 @@ impl Ppu {
         if Sprite::visible(i, mem) {
           let sprite = Sprite::fetch(i, mem);
 
-          let hits_line_y = sprite.y <= self.current_line
-            && sprite.y + if big_sprites { 16 } else { 8 } > self.current_line;
+          let current_line_signed = self.current_line.into();
+
+          let hits_line_y = sprite.y <= current_line_signed
+            && sprite.y + if big_sprites { 16 } else { 8 } > current_line_signed;
           if hits_line_y {
             let tile_y = if sprite.yflip {
               7 - (self.current_line - sprite.y as u8)
@@ -397,7 +401,7 @@ impl Ppu {
               let tile_x: u8 = if sprite.xflip { 7 - x } else { x };
 
               let color = self.tile_value(sprite.tile as u16, tile_x as u16, tile_y as u16, mem);
-              let low_x = sprite.x + x;
+              let low_x = sprite.x + x as i32;
               if low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
                 let pval = Self::pal(
                   color,
@@ -497,18 +501,16 @@ impl Ppu {
       Mode::VBLANK => {
         if self.cycles_in_mode >= 114 {
           self.change_scanline(self.current_line + 1, mem);
+          self.cycles_in_mode = 0;
         }
 
         // It seems that the LYC coincidence interrupt can first one full line before the line zero
         // We hack this in by changing to line zero twice, but the first time staying in VBLANK
         // mode and only moving to OAM the second time.
-        if self.current_line == 1 {
+        if self.current_line == 153 {
           self.change_scanline(0, mem);
           self.enter_mode(Mode::OAM, mem);
           PpuStepState::VBlank
-        } else if self.current_line == 153 {
-          self.change_scanline(0, mem);
-          PpuStepState::None
         } else {
           PpuStepState::None
         }

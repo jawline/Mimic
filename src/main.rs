@@ -97,7 +97,7 @@ fn main() -> io::Result<()> {
   };
 
   if !opts.cli_mode {
-    sdl::run(gameboy)
+    sdl::run(gameboy, &savestate_path)
   } else {
     terminal::run(
       gameboy,
