@@ -76,6 +76,8 @@ fn main() -> io::Result<()> {
 
       let root_map = GameboyState::new(boot_rom, gb_test);
 
+      info!("Cart type: {}", root_map.cart_type);
+
       let mut gameboy_state = MachineState {
         cpu: Cpu::new(),
         ppu: Ppu::new(),

@@ -24,6 +24,20 @@ const ROM_BANK_SIZE: usize = 0x4000;
 const GAMEPAD_ADDRESS: u16 = 0xFF00;
 const BOOT_ROM_ADDRESS: u16 = 0xFF50;
 
+const fn is_mbc1(cart_type: u8) -> bool {
+  match cart_type {
+    1 | 2 | 3 => true,
+    _ => false,
+  }
+}
+
+const fn is_mbc3(cart_type: u8) -> bool {
+  match cart_type {
+    0x11 | 0x12 | 0x13 => true,
+    _ => false,
+  }
+}
+
 /// Returns an 8-bit bitvector with the specified flags set
 pub fn set8(val: u8, bit: u8) -> u8 {
   val | bit
@@ -124,6 +138,8 @@ pub struct GameboyState {
   ram_mode: bool,
   gamepad_high: bool,
 
+  pub cart_type: u8,
+
   /**
    * Current timer state
    * The div register is really interesting. While reads only give you the lower byte, under the
@@ -154,6 +170,8 @@ pub struct GameboyState {
 impl GameboyState {
   pub fn new(boot: RomChunk, cart: RomChunk) -> GameboyState {
     GameboyState {
+      cart_type: cart.read_u8(0x147),
+
       boot: boot,
       cart: cart,
       cart_ram: RamChunk::new(0x8000),
@@ -245,12 +263,29 @@ impl GameboyState {
     }
   }
 
+  /// Calculates the RAM bank that should be activated
+  fn set_ram_bank(&mut self, bank: u8) {
+    if self.ram_mode {
+      self.ram_bank = (bank & 0x3) as usize;
+      info!("Set ram bank to {}", self.ram_bank);
+    } else if is_mbc3(self.cart_type) {
+      self.set_rom_bank_upper(bank);
+    }
+  }
+
   /// Calculate the ROM bank that should be activated given a write to a ROM-bank set region of the memory.
   fn set_rom_bank(&mut self, bank: u8) {
-    let bank = (bank & 0x1F) as usize; // Truncate to 5 bits
-    let bank = if bank == 0 { 1 } else { bank };
-    self.rom_bank = (self.rom_bank & 0x60) + bank;
-    info!("Set rom bank to {}", self.rom_bank);
+    if is_mbc1(self.cart_type) {
+      let bank = (bank & 0b00011111) as usize; // Truncate to 5 bits
+      let bank = if bank == 0 { 1 } else { bank };
+      self.rom_bank = bank;
+      info!("Set rom bank to {}", self.rom_bank);
+    } else if is_mbc3(self.cart_type) {
+      let bank = (bank & 0b01111111) as usize; // Truncate to 7 bits
+      let bank = if bank == 0 { 1 } else { bank };
+      self.rom_bank = bank;
+      info!("Set rom bank to {}", self.rom_bank);
+    }
   }
 
   fn set_rom_bank_upper(&mut self, bank: u8) {
@@ -300,7 +335,7 @@ impl GameboyState {
         self.set_rom_bank(val);
       } else if address >= 0x4000 && address < 0x6000 {
         if self.ram_mode {
-          self.ram_bank = (val & 0x3) as usize;
+          self.set_ram_bank(val);
         } else {
           self.set_rom_bank_upper(val);
         }

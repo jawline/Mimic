@@ -402,7 +402,7 @@ impl Ppu {
 
               let color = self.tile_value(sprite.tile as u16, tile_x as u16, tile_y as u16, mem);
               let low_x = sprite.x + x as i32;
-              if low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
+              if low_x > 0 && low_x < 160 && color != 0 && (sprite.prio || !hit[low_x as usize]) {
                 let pval = Self::pal(
                   color,
                   if sprite.palette {
