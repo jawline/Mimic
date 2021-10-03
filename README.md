@@ -83,3 +83,4 @@ The Gameboy clock interacts with the CPU through special memory registers or thr
 - Sound
 - Game compatibility
 - Cartridge Save
+- Using Wrapping<T> types for the emulated arithmetic
