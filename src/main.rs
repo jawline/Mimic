@@ -35,9 +35,9 @@ struct Opts {
   rom: String,
   #[clap(short, long)]
   cli_mode: bool,
-  #[clap(short, long)]
+  #[clap(long)]
   cli_midpoint_rendering: bool,
-  #[clap(short, long)]
+  #[clap(long)]
   invert: bool,
   #[clap(short, long)]
   skip_bios: bool,

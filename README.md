@@ -76,10 +76,10 @@ The Gameboy clock interacts with the CPU through special memory registers or thr
 - Interrupts
 - Input
 - Clock
-- Memory Banking (Rudimentry)
+- Memory Banking (Rudimentry MBC1, MBC3)
 
 ### TODO
 
 - Sound
-- The emulator will not run in Debug mode because Rust errors on unsigned integer arithmetic over/underflow. This can be alleviated using the Wrapping<t> struct but requires explicit wrapping of every literal value. wrapping_add and wrapping_sub could be used on every instruction, but neither solution leads to readable code and I would prefer a solution that leaves the base logic understandable.
-- Improve compatibility
+- Game compatibility
+- Cartridge Save

@@ -14,3 +14,6 @@ crossterm = "0.20.0"
 clap = "3.0.0-beta.2"
 serde = "1.0.130"
 ciborium = "0.1.0"
+
+[profile.dev]
+overflow-checks = false
