@@ -16,6 +16,7 @@ use std::time::SystemTime;
 use crate::cpu::{Cpu, JOYPAD};
 use crate::machine::Machine;
 use crate::ppu::{PpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
+use crate::frame_timer::FrameTimer;
 
 pub fn run(
   mut gameboy_state: Machine,
@@ -49,8 +50,6 @@ pub fn run(
   let mut last_down = None;
   let mut redrawing = true;
 
-  let mut frame = 0;
-
   fn is_key(key: Option<SystemTime>) -> bool {
     match key {
       Some(time) => SystemTime::now().duration_since(time).unwrap().as_millis() < 400,
@@ -60,7 +59,23 @@ pub fn run(
 
   enable_raw_mode()?;
 
+  // Screen redraw is controlled by the frame timer
+  // But we don't want the game to get too ahead of
+  // the screen so we stop stepping the emulator after
+  // the vblank period but before the next frame redraw
+  let mut emulator_timer = FrameTimer::new(1);
+  let mut emulator_running_fast = false;
+  let mut frame_timer = FrameTimer::new(4);
+
   loop {
+
+    if emulator_running_fast {
+        if emulator_timer.should_redraw() {
+            emulator_running_fast = false;
+        }
+    }
+
+    if !emulator_running_fast {
     let state = gameboy_state.step(&mut pixel_buffer);
 
     match state {
@@ -71,7 +86,7 @@ pub fn run(
         state.start = false;
         state.select = false;
 
-        if poll(Duration::from_millis(20))? {
+        if poll(Duration::from_millis(0))? {
           // It's guaranteed that the `read()` won't block when the `poll()`
           // function returns `true`
           match read()? {
@@ -140,65 +155,67 @@ pub fn run(
           gameboy_state.save_state(save_path).unwrap();
         }
 
-        // Redraw only every other frame to help with flashing
-        if redrawing && frame % 3 == 0 {
-          canvas.clear();
-
-          pub const WHITE: u8 = 255;
-          pub const MID: u8 = 128;
-
-          fn print_greyscale(canvas: &mut Canvas, threshold: bool, x: usize, y: usize, shade: u8) {
-            if (!threshold & (shade > 0)) | (threshold & (shade >= MID)) {
-              canvas.set_colored(
-                x as u32,
-                y as u32,
-                PixelColor::TrueColor {
-                  r: shade,
-                  g: shade,
-                  b: shade,
-                },
-              );
-            }
-          }
-
-          fn print_black_or_white(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
-            if shade >= MID {
-              canvas.set(x as u32, y as u32);
-            }
-          }
-
-          for y in 0..GB_SCREEN_HEIGHT as usize {
-            for x in 0..GB_SCREEN_WIDTH as usize {
-              let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
-              let pixel_offset = pixel * 3;
-              let pval = pixel_buffer[pixel_offset];
-
-              let shade = if invert { WHITE - pval } else { pval };
-              if greyscale {
-                print_greyscale(&mut canvas, threshold, x, y, shade);
-              } else {
-                print_black_or_white(&mut canvas, x, y, shade);
-              }
-            }
-          }
-
-          let frame = canvas.frame();
-
-          queue!(stdout(), MoveTo(0, 0), Clear(ClearType::All))?;
-
-          let mut idx = 0;
-
-          for line in frame.lines() {
-            queue!(stdout(), MoveTo(0, idx), Print(line))?;
-            idx += 1;
-          }
-
-          stdout().flush()?;
-        }
-
-        frame += 1;
+        // Stop processing until the frame timer tells us we're ok again
+        emulator_running_fast = true;
       }
       _ => {}
+    }
+    }
+
+    // Redraw only every other frame to help with flashing
+    if frame_timer.should_redraw() {
+      canvas.clear();
+
+      pub const WHITE: u8 = 255;
+      pub const MID: u8 = 128;
+
+      fn print_greyscale(canvas: &mut Canvas, threshold: bool, x: usize, y: usize, shade: u8) {
+        if (!threshold & (shade > 0)) | (threshold & (shade >= MID)) {
+          canvas.set_colored(
+            x as u32,
+            y as u32,
+            PixelColor::TrueColor {
+              r: shade,
+              g: shade,
+              b: shade,
+            },
+          );
+        }
+      }
+
+      fn print_black_or_white(canvas: &mut Canvas, x: usize, y: usize, shade: u8) {
+        if shade >= MID {
+          canvas.set(x as u32, y as u32);
+        }
+      }
+
+      for y in 0..GB_SCREEN_HEIGHT as usize {
+        for x in 0..GB_SCREEN_WIDTH as usize {
+          let pixel = (y * GB_SCREEN_WIDTH as usize) + x;
+          let pixel_offset = pixel * 3;
+          let pval = pixel_buffer[pixel_offset];
+
+          let shade = if invert { WHITE - pval } else { pval };
+          if greyscale {
+            print_greyscale(&mut canvas, threshold, x, y, shade);
+          } else {
+            print_black_or_white(&mut canvas, x, y, shade);
+          }
+        }
+      }
+
+      let frame = canvas.frame();
+
+      queue!(stdout(), MoveTo(0, 0), Clear(ClearType::All))?;
+
+      let mut idx = 0;
+
+      for line in frame.lines() {
+        queue!(stdout(), MoveTo(0, idx), Print(line))?;
+        idx += 1;
+      }
+
+      stdout().flush()?;
     }
   }
 

@@ -9,6 +9,7 @@ mod register;
 mod sdl;
 mod terminal;
 mod util;
+mod frame_timer;
 
 use std::io;
 
