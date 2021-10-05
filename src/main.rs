@@ -35,7 +35,7 @@ struct Opts {
   #[clap(short, long)]
   rom: String,
   #[clap(short, long)]
-  cli_mode: bool,
+  sdl_mode: bool,
   #[clap(long)]
   cli_midpoint_rendering: bool,
   #[clap(long)]
@@ -101,7 +101,7 @@ fn main() -> io::Result<()> {
     }
   };
 
-  if !opts.cli_mode {
+  if opts.sdl_mode {
     sdl::run(gameboy, &savestate_path)
   } else {
     terminal::run(
