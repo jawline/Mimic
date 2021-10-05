@@ -14,13 +14,16 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use crate::cpu::{Cpu, JOYPAD};
+use crate::frame_timer::FrameTimer;
 use crate::machine::Machine;
 use crate::ppu::{PpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
-use crate::frame_timer::FrameTimer;
+
+const KEY_INTERVAL: u128 = 200;
 
 pub fn run(
   mut gameboy_state: Machine,
   save_path: &str,
+  frameskip_rate: u32,
   greyscale: bool,
   invert: bool,
   threshold: bool,
@@ -52,7 +55,7 @@ pub fn run(
 
   fn is_key(key: Option<SystemTime>) -> bool {
     match key {
-      Some(time) => SystemTime::now().duration_since(time).unwrap().as_millis() < 400,
+      Some(time) => SystemTime::now().duration_since(time).unwrap().as_millis() < KEY_INTERVAL,
       None => false,
     }
   }
@@ -65,101 +68,100 @@ pub fn run(
   // the vblank period but before the next frame redraw
   let mut emulator_timer = FrameTimer::new(1);
   let mut emulator_running_fast = false;
-  let mut frame_timer = FrameTimer::new(4);
+  let mut frame_timer = FrameTimer::new(frameskip_rate);
 
   loop {
-
     if emulator_running_fast {
-        if emulator_timer.should_redraw() {
-            emulator_running_fast = false;
-        }
+      if emulator_timer.should_redraw() {
+        emulator_running_fast = false;
+      }
     }
 
     if !emulator_running_fast {
-    let state = gameboy_state.step(&mut pixel_buffer);
+      let state = gameboy_state.step(&mut pixel_buffer);
 
-    match state {
-      PpuStepState::VBlank => {
-        let mut save = false;
-        let mut state = &mut gameboy_state.state.memory;
+      match state {
+        PpuStepState::VBlank => {
+          let mut save = false;
+          let mut state = &mut gameboy_state.state.memory;
 
-        state.start = false;
-        state.select = false;
+          state.start = false;
+          state.select = false;
 
-        if poll(Duration::from_millis(0))? {
-          // It's guaranteed that the `read()` won't block when the `poll()`
-          // function returns `true`
-          match read()? {
-            Event::Key(event) => {
-              let mut fired = false;
-              match event.code {
-                KeyCode::Left => {
-                  fired = fired | !is_key(last_left);
-                  last_left = Some(SystemTime::now());
+          if poll(Duration::from_millis(0))? {
+            // It's guaranteed that the `read()` won't block when the `poll()`
+            // function returns `true`
+            match read()? {
+              Event::Key(event) => {
+                let mut fired = false;
+                match event.code {
+                  KeyCode::Left => {
+                    fired = fired | !is_key(last_left);
+                    last_left = Some(SystemTime::now());
+                  }
+                  KeyCode::Right => {
+                    fired = fired | !is_key(last_right);
+                    last_right = Some(SystemTime::now());
+                  }
+                  KeyCode::Up => {
+                    fired = fired | !is_key(last_up);
+                    last_up = Some(SystemTime::now());
+                  }
+                  KeyCode::Down => {
+                    fired = fired | !is_key(last_down);
+                    last_down = Some(SystemTime::now());
+                  }
+                  KeyCode::Char('a') => {
+                    fired = fired | !is_key(last_a);
+                    last_a = Some(SystemTime::now());
+                  }
+                  KeyCode::Char('b') => {
+                    fired = fired | !is_key(last_b);
+                    last_b = Some(SystemTime::now());
+                  }
+                  KeyCode::Char('n') => {
+                    state.start = true;
+                    fired = true;
+                  }
+                  KeyCode::Char('m') => {
+                    state.select = true;
+                    fired = true;
+                  }
+                  KeyCode::Char('p') => {
+                    redrawing = !redrawing;
+                  }
+                  KeyCode::Char('s') => {
+                    save = true;
+                  }
+                  KeyCode::Char('q') => {
+                    break;
+                  }
+                  _ => {}
                 }
-                KeyCode::Right => {
-                  fired = fired | !is_key(last_right);
-                  last_right = Some(SystemTime::now());
+                if fired {
+                  Cpu::set_interrupt_happened(state, JOYPAD);
                 }
-                KeyCode::Up => {
-                  fired = fired | !is_key(last_up);
-                  last_up = Some(SystemTime::now());
-                }
-                KeyCode::Down => {
-                  fired = fired | !is_key(last_down);
-                  last_down = Some(SystemTime::now());
-                }
-                KeyCode::Char('a') => {
-                  fired = fired | !is_key(last_a);
-                  last_a = Some(SystemTime::now());
-                }
-                KeyCode::Char('b') => {
-                  fired = fired | !is_key(last_b);
-                  last_b = Some(SystemTime::now());
-                }
-                KeyCode::Char('n') => {
-                  state.start = true;
-                  fired = true;
-                }
-                KeyCode::Char('m') => {
-                  state.select = true;
-                  fired = true;
-                }
-                KeyCode::Char('p') => {
-                  redrawing = !redrawing;
-                }
-                KeyCode::Char('s') => {
-                  save = true;
-                }
-                KeyCode::Char('q') => {
-                  break;
-                }
-                _ => {}
               }
-              if fired {
-                Cpu::set_interrupt_happened(state, JOYPAD);
-              }
+              _ => {}
             }
-            _ => {}
           }
+
+          state.a = is_key(last_a);
+          state.b = is_key(last_b);
+          state.left = is_key(last_left);
+          state.right = is_key(last_right);
+          state.up = is_key(last_up);
+          state.down = is_key(last_down);
+
+          if save {
+            gameboy_state.save_state(save_path).unwrap();
+          }
+
+          // Stop processing until the frame timer tells us we're ok again
+          emulator_running_fast = true;
         }
-
-        state.a = is_key(last_a);
-        state.b = is_key(last_b);
-        state.left = is_key(last_left);
-        state.right = is_key(last_right);
-        state.up = is_key(last_up);
-        state.down = is_key(last_down);
-
-        if save {
-          gameboy_state.save_state(save_path).unwrap();
-        }
-
-        // Stop processing until the frame timer tells us we're ok again
-        emulator_running_fast = true;
+        _ => {}
       }
-      _ => {}
-    }
     }
 
     // Redraw only every other frame to help with flashing

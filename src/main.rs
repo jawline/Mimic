@@ -1,5 +1,6 @@
 mod clock;
 mod cpu;
+mod frame_timer;
 mod instruction;
 mod instruction_data;
 mod machine;
@@ -9,7 +10,6 @@ mod register;
 mod sdl;
 mod terminal;
 mod util;
-mod frame_timer;
 
 use std::io;
 
@@ -44,6 +44,8 @@ struct Opts {
   skip_bios: bool,
   #[clap(short, long)]
   no_threshold: bool,
+  #[clap(long, default_value="4")]
+  frameskip_rate: u32,
 }
 
 fn main() -> io::Result<()> {
@@ -105,6 +107,7 @@ fn main() -> io::Result<()> {
     terminal::run(
       gameboy,
       &savestate_path,
+      opts.frameskip_rate,
       !opts.cli_midpoint_rendering,
       opts.invert,
       !opts.no_threshold,

@@ -10,22 +10,23 @@ pub struct FrameTimer {
 }
 
 impl FrameTimer {
-
-    pub fn new(skip_rate: u32) -> Self {
-        FrameTimer {
-            frame_interval: FRAME_TIME * skip_rate,
-            last_frame: SystemTime::now(),
-        }
+  pub fn new(skip_rate: u32) -> Self {
+    FrameTimer {
+      frame_interval: FRAME_TIME * skip_rate,
+      last_frame: SystemTime::now(),
     }
+  }
 
-    pub fn should_redraw(&mut self) -> bool {
-      let elapsed = self.last_frame.elapsed().expect("We expect SystemTime.elapsed to always return a result");
-      if elapsed > self.frame_interval {
-          self.last_frame = SystemTime::now();
-          true
-      } else {
-          false
-      }
+  pub fn should_redraw(&mut self) -> bool {
+    let elapsed = self
+      .last_frame
+      .elapsed()
+      .expect("We expect SystemTime.elapsed to always return a result");
+    if elapsed > self.frame_interval {
+      self.last_frame = SystemTime::now();
+      true
+    } else {
+      false
     }
+  }
 }
-
