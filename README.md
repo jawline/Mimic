@@ -4,7 +4,7 @@ An open source Gameboy emulator written in Rust that can use a command line inte
 
 ### Usage
 
-cargo run --release -- --rom PATH --cli-mode
+cargo run --release -- --rom PATH
 
 <p float="left">
   <img src="/screenshots/zelda1.png" width="49%" />
