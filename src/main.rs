@@ -44,7 +44,7 @@ struct Opts {
   skip_bios: bool,
   #[clap(short, long)]
   no_threshold: bool,
-  #[clap(long, default_value="4")]
+  #[clap(long, default_value = "4")]
   frameskip_rate: u32,
 }
 
