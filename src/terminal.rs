@@ -208,7 +208,7 @@ pub fn run(
 
       let frame = canvas.frame();
 
-      queue!(stdout(), MoveTo(0, 0), Clear(ClearType::All))?;
+      queue!(stdout(), MoveTo(0, 0))?;
 
       let mut idx = 0;
 
@@ -217,7 +217,7 @@ pub fn run(
         idx += 1;
       }
 
-      stdout().flush()?;
+      execute!(stdout())?;
     }
   }
 
