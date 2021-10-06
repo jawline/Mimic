@@ -41,6 +41,7 @@ pub fn run(
     SetSize(frame_width as u16, frame_height as u16),
     EnterAlternateScreen,
     Hide,
+    Clear(ClearType::All)
   )?;
 
   // Simulate long keypresses because the terminal does not send
