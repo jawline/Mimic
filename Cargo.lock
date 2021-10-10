@@ -101,9 +101,9 @@ dependencies = [
 
 [[package]]
 name = "console_engine"
-version = "2.0.1"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2806f9623af3ee69d6d96e68b42167d738f5ead1dc2330cce55e84643fca1f71"
+checksum = "905a8238b9ba588376ddea1b212cbcc0816341ec69da2e334d01e35ecd72faf9"
 dependencies = [
  "crossterm",
  "unicode-width",
@@ -111,9 +111,9 @@ dependencies = [
 
 [[package]]
 name = "crossterm"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0ebde6a9dd5e331cd6c6f48253254d117642c31653baa475e394657c59c1f7d"
+checksum = "486d44227f71a1ef39554c0dc47e44b9f4139927c75043312690c3f476d1d788"
 dependencies = [
  "bitflags",
  "crossterm_winapi",
@@ -170,7 +170,6 @@ dependencies = [
  "ciborium",
  "clap",
  "console_engine",
- "crossterm",
  "drawille",
  "env_logger",
  "log",
