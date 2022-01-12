@@ -1,3 +1,6 @@
+#![feature(drain_filter)]
+extern crate cpal;
+
 mod clock;
 mod cpu;
 mod frame_timer;
@@ -10,6 +13,7 @@ mod register;
 mod sdl;
 mod terminal;
 mod util;
+mod sound;
 
 use std::io;
 
