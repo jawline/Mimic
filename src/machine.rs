@@ -3,6 +3,7 @@ use crate::cpu::Cpu;
 use crate::instruction::InstructionSet;
 use crate::memory::GameboyState;
 use crate::ppu::{Ppu, PpuStepState};
+use crate::sound::Sound;
 use ciborium::{de, ser};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -17,12 +18,13 @@ pub struct MachineState {
   pub memory: GameboyState,
 }
 
-pub struct Machine {
+pub struct Machine<T: cpal::Sample> {
   pub state: MachineState,
+  pub sound: Sound<T>,
   pub instruction_set: InstructionSet,
 }
 
-impl Machine {
+impl<T: cpal::Sample> Machine<T> {
   pub fn save_state(&self, filename: &str) -> Result<(), Box<dyn Error>> {
     let file = File::create(filename)?;
     ser::into_writer(&self.state, file)?;
@@ -35,6 +37,7 @@ impl Machine {
     Ok(Self {
       state: new_state,
       instruction_set: InstructionSet::new(),
+      sound: Sound::new()?,
     })
   }
 

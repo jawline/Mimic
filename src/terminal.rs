@@ -20,8 +20,8 @@ use crate::ppu::{PpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 
 const KEY_INTERVAL: u128 = 200;
 
-pub fn run(
-  mut gameboy_state: Machine,
+pub fn run<T: cpal::Sample>(
+  mut gameboy_state: Machine<T>,
   save_path: &str,
   frameskip_rate: u32,
   greyscale: bool,

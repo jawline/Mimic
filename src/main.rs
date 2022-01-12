@@ -11,12 +11,13 @@ mod memory;
 mod ppu;
 mod register;
 mod sdl;
+mod sound;
 mod terminal;
 mod util;
-mod sound;
 
 use std::io;
 
+use crate::sound::Sound;
 use clock::Clock;
 use cpu::Cpu;
 use instruction::InstructionSet;
@@ -24,6 +25,7 @@ use log::info;
 use machine::{Machine, MachineState};
 use memory::{GameboyState, RomChunk};
 use ppu::Ppu;
+use std::error::Error;
 
 use clap::{AppSettings, Clap};
 
@@ -52,7 +54,7 @@ struct Opts {
   frameskip_rate: u32,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
   env_logger::init();
   let opts: Opts = Opts::parse();
 
@@ -100,13 +102,15 @@ fn main() -> io::Result<()> {
 
       Machine {
         state: gameboy_state,
+        sound: Sound::new()?,
         instruction_set: InstructionSet::new(),
       }
     }
   };
 
   if opts.sdl_mode {
-    sdl::run(gameboy, &savestate_path)
+    sdl::run(gameboy, &savestate_path)?;
+    Ok(())
   } else {
     terminal::run(
       gameboy,
@@ -115,6 +119,7 @@ fn main() -> io::Result<()> {
       !opts.cli_midpoint_rendering,
       opts.invert,
       !opts.no_threshold,
-    )
+    )?;
+    Ok(())
   }
 }
