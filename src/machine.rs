@@ -8,6 +8,7 @@ use ciborium::{de, ser};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs::File;
+use std::sync::mpsc::Sender;
 
 /// Encapsulate the entire running state of the Gameboy
 #[derive(Serialize, Deserialize)]
@@ -40,7 +41,7 @@ impl Machine {
     })
   }
 
-  pub fn step(&mut self, screen_buffer: &mut [u8]) -> PpuStepState {
+  pub fn step(&mut self, screen_buffer: &mut [u8], samples: &Sender<f32>) -> PpuStepState {
     self
       .state
       .cpu

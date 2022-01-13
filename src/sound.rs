@@ -28,7 +28,7 @@ impl Sound {
   }
 
   // Step will process the gameboy state and generate new values for sample.
-  pub fn step(&mut self, cpu: &mut Cpu, mem: &mut GameboyState) {}
+  pub fn step(&mut self, cpu: &mut Cpu, mem: &mut GameboyState, samples: Sender<f32>) {}
 }
 
 fn run<T: cpal::Sample>(
