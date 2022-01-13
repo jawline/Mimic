@@ -14,7 +14,7 @@ use crate::machine::Machine;
 use crate::ppu::{PpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
 use log::{info, trace};
 
-fn events<T: cpal::Sample>(machine: &mut Machine<T>, savestate_path: &str, events: &mut EventPump) {
+fn events(machine: &mut Machine, savestate_path: &str, events: &mut EventPump) {
   let state = &mut machine.state.memory;
 
   let mut fired = false;
@@ -176,7 +176,7 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
   canvas.present();
 }
 
-pub fn run<T: cpal::Sample>(mut gameboy_state: Machine<T>, savestate_path: &str) -> io::Result<()> {
+pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> io::Result<()> {
   info!("preparing screen");
 
   let sdl_context = sdl2::init().unwrap();

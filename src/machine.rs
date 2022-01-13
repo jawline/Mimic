@@ -15,16 +15,16 @@ pub struct MachineState {
   pub cpu: Cpu,
   pub ppu: Ppu,
   pub clock: Clock,
+  pub sound: Sound,
   pub memory: GameboyState,
 }
 
-pub struct Machine<T: cpal::Sample> {
+pub struct Machine {
   pub state: MachineState,
-  pub sound: Sound<T>,
   pub instruction_set: InstructionSet,
 }
 
-impl<T: cpal::Sample> Machine<T> {
+impl Machine {
   pub fn save_state(&self, filename: &str) -> Result<(), Box<dyn Error>> {
     let file = File::create(filename)?;
     ser::into_writer(&self.state, file)?;
@@ -37,7 +37,6 @@ impl<T: cpal::Sample> Machine<T> {
     Ok(Self {
       state: new_state,
       instruction_set: InstructionSet::new(),
-      sound: Sound::new()?,
     })
   }
 

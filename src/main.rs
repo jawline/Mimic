@@ -15,8 +15,6 @@ mod sound;
 mod terminal;
 mod util;
 
-use std::io;
-
 use crate::sound::Sound;
 use clock::Clock;
 use cpu::Cpu;
@@ -91,6 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         cpu: Cpu::new(),
         ppu: Ppu::new(),
         clock: Clock::new(),
+        sound: Sound::new(),
         memory: root_map,
       };
 
@@ -102,7 +101,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
       Machine {
         state: gameboy_state,
-        sound: Sound::new()?,
         instruction_set: InstructionSet::new(),
       }
     }
