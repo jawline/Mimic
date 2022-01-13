@@ -14,6 +14,10 @@ use std::sync::mpsc::{Receiver, Sender};
 /**
  * The Sound struct carries the current gameboy state of the sound system but not references to the
  * device so that it can be serialized.
+ *
+ * When stepped, this will add samples (if any are playing) to a channel that is being read by an
+ * audio thread (constructed by open_device in this file). The device is recreated when loading a
+ * save state so any unplayed samples will be lost.
  */
 #[derive(Serialize, Deserialize)]
 pub struct Sound {}
