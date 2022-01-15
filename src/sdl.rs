@@ -180,7 +180,7 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
 pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> Result<(), Box<dyn Error>> {
   info!("preparing screen");
 
-  let sound_tx = crate::sound::open_device()?;
+  let (_device, _stream, sound_tx) = crate::sound::open_device()?;
 
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();

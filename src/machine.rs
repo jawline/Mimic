@@ -50,6 +50,7 @@ impl Machine {
       self.state.cpu.registers.last_clock as u8,
       &mut self.state.memory,
     );
+    self.state.sound.step(&mut self.state.cpu, &mut self.state.memory, samples);
     self
       .state
       .ppu

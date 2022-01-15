@@ -30,7 +30,7 @@ pub fn run(
   threshold: bool,
 ) -> Result<(), Box<dyn Error>> {
   // TODO: select this on/off
-  let sound_tx = crate::sound::open_device()?;
+  let (_device, _stream, sound_tx) = crate::sound::open_device()?;
 
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
