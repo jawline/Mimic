@@ -325,7 +325,7 @@ impl GameboyState {
     }
   }
 
-  pub fn write_u8(&mut self, address: u16, val: u8) {
+  pub fn core_write(&mut self, address: u16, val: u8) {
     trace!("write {:x} to {:x}", val, address);
     if address < END_OF_BANKED_ROM {
       if address < 0x2000 {
@@ -358,6 +358,10 @@ impl GameboyState {
     } else {
       self.write_high_mem(address, val);
     }
+  }
+
+  pub fn write_u8(&mut self, address: u16, val: u8) {
+    self.core_write(address, val)
   }
 
   /// Write a special register exactly, ignoring any rules for that memory address such as writes

@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::io;
 use std::time::Instant;
 
 use sdl2;
@@ -180,7 +179,7 @@ fn redraw(canvas: &mut WindowCanvas, texture: &mut Texture, pixels: &[u8]) {
 pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> Result<(), Box<dyn Error>> {
   info!("preparing screen");
 
-  let (_device, _stream, sound_tx) = crate::sound::open_device()?;
+  let (_device, _stream, sample_rate, sound_tx) = crate::sound::open_device()?;
 
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
@@ -208,7 +207,7 @@ pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> Result<(), Box<d
   loop {
     events(&mut gameboy_state, savestate_path, &mut event_pump);
 
-    let state = gameboy_state.step(&mut pixel_buffer, &sound_tx);
+    let state = gameboy_state.step(&mut pixel_buffer, sample_rate, &sound_tx);
 
     match state {
       PpuStepState::VBlank => {

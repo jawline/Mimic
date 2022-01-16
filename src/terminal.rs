@@ -10,7 +10,7 @@ use crossterm::{
 };
 use drawille::{Canvas, PixelColor};
 use std::error::Error;
-use std::io::{self, stdout, Write};
+use std::io::stdout;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -30,7 +30,7 @@ pub fn run(
   threshold: bool,
 ) -> Result<(), Box<dyn Error>> {
   // TODO: select this on/off
-  let (_device, _stream, sound_tx) = crate::sound::open_device()?;
+  let (_device, _stream, sample_rate, sound_tx) = crate::sound::open_device()?;
 
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let mut canvas = Canvas::new(GB_SCREEN_WIDTH, GB_SCREEN_HEIGHT);
@@ -83,7 +83,7 @@ pub fn run(
     }
 
     if !emulator_running_fast {
-      let state = gameboy_state.step(&mut pixel_buffer, &sound_tx);
+      let state = gameboy_state.step(&mut pixel_buffer, sample_rate, &sound_tx);
 
       match state {
         PpuStepState::VBlank => {

@@ -41,7 +41,12 @@ impl Machine {
     })
   }
 
-  pub fn step(&mut self, screen_buffer: &mut [u8], samples: &Sender<f32>) -> PpuStepState {
+  pub fn step(
+    &mut self,
+    screen_buffer: &mut [u8],
+    sample_rate: usize,
+    samples: &Sender<f32>,
+  ) -> PpuStepState {
     self
       .state
       .cpu
@@ -50,7 +55,12 @@ impl Machine {
       self.state.cpu.registers.last_clock as u8,
       &mut self.state.memory,
     );
-    self.state.sound.step(&mut self.state.cpu, &mut self.state.memory, samples);
+    self.state.sound.step(
+      &mut self.state.cpu,
+      &mut self.state.memory,
+      sample_rate,
+      samples,
+    );
     self
       .state
       .ppu
