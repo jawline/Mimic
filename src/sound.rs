@@ -13,6 +13,7 @@ use std::time::Instant;
 
 const GAMEBOY_FREQUENCY: usize = 4194304;
 const FRAME_SEQUENCER_CLOCK_IN_T_CYCLES: usize = 8192;
+const WAVE_PATTERN_RAM: u16 = 0xFF30;
 
 /**
  * Constan for the lower six bits of a byte for bitwise logic.
@@ -59,6 +60,113 @@ mod approx_instant {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct Wave {
+  pub enabled_address: u16,
+  pub frequency_lsb: u16,
+  pub frequency_msb: u16,
+  pub volume_address: u16,
+  pub length_address: u16,
+  pub frequency_timer: u16,
+  pub frequency_clock: u16,
+  pub amplitude: f32,
+}
+
+impl Wave {
+  fn enabled(&self, mem: &mut GameboyState) -> bool {
+    isset8(mem.core_read(self.enabled_address), 0b10000000)
+  }
+
+  fn frequency(&self, mem: &mut GameboyState) -> u16 {
+    // The 11 bit frequency is stored in the lowest three bits in frequency msb and the whole
+    // of frequency lsb.
+    let upper = ((mem.core_read(self.frequency_msb) & 0x7) as u16) << 8;
+
+    let lower = mem.core_read(self.frequency_lsb) as u16;
+    upper + lower
+  }
+
+  fn length(&self, mem: &GameboyState) -> u8 {
+    mem.core_read(self.length_address)
+  }
+
+  /**
+   * Preserve the first two bits of the second channel register
+   * and write the remaining six bits as new_val
+   */
+  fn set_length(&self, mem: &mut GameboyState, new_val: u8) {
+    mem.core_write(self.length_address, new_val)
+  }
+
+  /**
+   * Returns true if the length enable bit is set.
+   */
+  fn length_enabled(&self, mem: &mut GameboyState) -> bool {
+    const LENGTH_ENABLE_BIT: u8 = 0b01000000;
+    isset8(mem.core_read(self.frequency_msb), LENGTH_ENABLE_BIT)
+  }
+
+  fn amplitude(&self, mem: &mut GameboyState) -> f32 {
+    if self.enabled(mem) {
+      if self.length_enabled(mem) {
+        if self.length(mem) > 0 {
+          self.amplitude
+        } else {
+          0.0
+        }
+      } else {
+        self.amplitude
+      }
+    } else {
+      0.0
+    }
+  }
+
+  /**
+   * The wave generator has a single 2-bit volume register that scale a sound to 0%, 100%, 50% and
+   * 25% for values of 0, 1, 2, 3 respectively
+   */
+  fn volume(&self, mem: &mut GameboyState) -> f32 {
+    match (mem.core_read(self.volume_address) & 0b01100000) >> 5 {
+      0 => 0.0,
+      1 => 1.0,
+      2 => 0.5,
+      3 => 0.25,
+      _ => panic!("this should not be possible because we have sanitized the byte"),
+    }
+  }
+
+  fn sample(&self, mem: &mut GameboyState) -> u8 {
+    // 4 bits per sample, higher bits contain the first element in each byte.
+    let sample = mem.core_read(WAVE_PATTERN_RAM + (self.frequency_clock / 2));
+    if self.frequency_clock % 2 == 0 {
+      sample >> 4
+    } else {
+      sample & 0b00001111
+    }
+  }
+
+  /**
+   * Gameboy square wave generators produce output through 4 duty cycles.
+   *
+   * We expect this function to be called once per 4 cycles by Sound, not just once per instruction.
+   */
+  fn step(&mut self, mem: &mut GameboyState) {
+    if self.frequency_timer == 0 {
+      let volume = self.volume(mem);
+
+      self.amplitude = ((self.sample(mem) as f32) / 15.) * volume;
+
+      // reload frequency timer
+      self.frequency_timer = (2048 - self.frequency(mem)) * 4;
+      // There are 32 4-bit entries in the wave tale
+      self.frequency_clock = (self.frequency_clock + 1) % 32;
+    } else {
+      self.frequency_timer -= 4;
+    }
+  }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Square {
   pub frequency_lsb: u16,
   pub frequency_msb: u16,
@@ -68,9 +176,6 @@ pub struct Square {
   pub frequency_timer: u16,
   pub frequency_clock: u16,
   pub amplitude: f32,
-  #[serde(with = "approx_instant")]
-  pub last_step: Instant,
-  pub count: usize,
 }
 
 enum AddMode {
@@ -189,7 +294,7 @@ impl Square {
       let volume = self.volume(mem);
 
       self.amplitude = if DUTY_FUNCTIONS[self.duty(mem) as usize][self.frequency_clock as usize] {
-        (volume as f32) / 16.
+        (volume as f32) / 15.
       } else {
         -0.
       };
@@ -197,17 +302,6 @@ impl Square {
       // reload frequency timer
       self.frequency_timer = (2048 - self.frequency(mem)) * 4;
       self.frequency_clock = (self.frequency_clock + 1) % 8;
-      const RPT: usize = 30;
-      self.count += 1;
-      if self.count % RPT == 0 {
-        println!(
-          "SQR: {} {:?}",
-          (RPT as f64) / self.last_step.elapsed().as_secs_f64(),
-          self.last_step.elapsed()
-        );
-        self.last_step = Instant::now();
-      }
-      self.last_step = Instant::now();
     } else {
       self.frequency_timer -= 4;
     }
@@ -221,6 +315,7 @@ impl Square {
 struct Channels {
   channel_one: Square,
   channel_two: Square,
+  wave: Wave,
 }
 
 impl Channels {
@@ -230,13 +325,14 @@ impl Channels {
   fn step(&mut self, mem: &mut GameboyState) {
     self.channel_one.step(mem);
     self.channel_two.step(mem);
+    self.wave.step(mem);
   }
 
   /**
    * Get the mixed amplitude of all channels now.
    */
   fn amplitude(&self, mem: &mut GameboyState) -> f32 {
-    self.channel_one.amplitude(mem) + self.channel_two.amplitude(mem)
+    self.channel_one.amplitude(mem) + self.channel_two.amplitude(mem) + self.wave.amplitude(mem)
   }
 }
 
@@ -363,8 +459,6 @@ impl Sound {
           wave_duty: 0,
           frequency_timer: 0,
           frequency_clock: 0,
-          last_step: Instant::now(),
-          count: 0,
         },
         channel_two: Square {
           amplitude: 0.,
@@ -375,8 +469,16 @@ impl Sound {
           wave_duty: 0,
           frequency_timer: 0,
           frequency_clock: 0,
-          last_step: Instant::now(),
-          count: 0,
+        },
+        wave: Wave {
+          enabled_address: 0xFF1A,
+          amplitude: 0.,
+          frequency_lsb: 0xFF1D,
+          frequency_msb: 0xFF1E,
+          volume_address: 0xFF1C,
+          length_address: 0xFF1B,
+          frequency_timer: 0,
+          frequency_clock: 0,
         },
       },
       sequencer: FrameSequencer::new(),
