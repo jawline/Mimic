@@ -1,3 +1,4 @@
+use crate::cpu::Registers;
 use crate::cpu::{Cpu, TIMER};
 use crate::memory::{isset16, isset8, GameboyState, MOD_REGISTER, TAC_REGISTER, TIMA_REGISTER};
 use log::trace;
@@ -29,7 +30,7 @@ impl Clock {
     carries
   }
 
-  fn increment_tima(&mut self, mem: &mut GameboyState) {
+  fn increment_tima(&mut self, mem: &mut GameboyState, registers: &Registers) {
     let tima = mem.core_read(TIMA_REGISTER);
 
     let (new_tima, carried) = match tima.checked_add(1) {
@@ -41,11 +42,16 @@ impl Clock {
     mem.write_special_register(TIMA_REGISTER, new_tima);
 
     if carried {
-      Cpu::set_interrupt_happened(mem, TIMER);
+      Cpu::set_interrupt_happened(mem, TIMER, registers);
     }
   }
 
-  pub fn step(&mut self, mut total_instruction_time: u8, mem: &mut GameboyState) {
+  pub fn step(
+    &mut self,
+    mut total_instruction_time: u8,
+    mem: &mut GameboyState,
+    registers: &Registers,
+  ) {
     // We split this into 4 cycle instructions so that the carry is correctly respected from div
     // changes
     while total_instruction_time > 0 {
@@ -69,7 +75,7 @@ impl Clock {
           tima_should_increment,
         );
         if tima_should_increment {
-          self.increment_tima(mem);
+          self.increment_tima(mem, registers);
         }
       }
     }

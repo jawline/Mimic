@@ -144,7 +144,7 @@ pub fn run(
                   _ => {}
                 }
                 if fired {
-                  Cpu::set_interrupt_happened(state, JOYPAD);
+                  Cpu::set_interrupt_happened(state, JOYPAD, &gameboy_state.state.cpu.registers);
                 }
               }
               _ => {}

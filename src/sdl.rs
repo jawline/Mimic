@@ -154,7 +154,7 @@ fn events(machine: &mut Machine, savestate_path: &str, events: &mut EventPump) {
   }
 
   if fired {
-    Cpu::set_interrupt_happened(state, JOYPAD);
+    Cpu::set_interrupt_happened(state, JOYPAD, &machine.state.cpu.registers);
   }
 
   if save {

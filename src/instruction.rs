@@ -67,7 +67,7 @@ pub fn ld_mem_r16_immediate(
   let val = memory.read_u8(registers.pc() + 1);
   registers.inc_pc(2);
   let addr = registers.read_r16(additional.wide_reg_dst);
-  memory.write_u8(addr, val);
+  memory.write_u8(addr, val, registers);
 }
 
 /// Load immediate loads a 8 bit value following this instruction places it in a small register
@@ -94,7 +94,7 @@ pub fn ld_reg8_mem_reg16(
   // Store the provided 8-bit register to the location pointed to by the 16-bit dst register
   let reg_val = registers.read_r8(additional.small_reg_one);
   let mem_dst = registers.read_r16(additional.wide_reg_dst);
-  memory.write_u8(mem_dst, reg_val);
+  memory.write_u8(mem_dst, reg_val, registers);
 
   // Increment the PC by one once finished
   registers.inc_pc(1);
@@ -170,7 +170,7 @@ pub fn inc_mem_r16(
   let result = l + 1;
 
   // Increment by one and modify memory
-  memory.write_u8(addr, result);
+  memory.write_u8(addr, result, registers);
   registers.set_flags(result == 0, false, half_carry_add8(l, 1), registers.carry());
 }
 
@@ -187,7 +187,7 @@ pub fn dec_mem_r16(
   let result = l - 1;
 
   // Increment by one and modify memory
-  memory.write_u8(addr, result);
+  memory.write_u8(addr, result, registers);
 
   registers.set_flags(result == 0, true, half_carry_sub8(l, 1), registers.carry());
 }
@@ -397,7 +397,7 @@ fn ld_ff00_imm_r8(
   let add_v: u16 = memory.read_u8(registers.pc() + 1).into();
 
   let rval = registers.read_r8(additional.small_reg_dst);
-  memory.write_u8(0xFF00 + add_v, rval);
+  memory.write_u8(0xFF00 + add_v, rval, registers);
   registers.inc_pc(2);
 }
 
@@ -424,7 +424,7 @@ fn ld_ff00_r8_r8(
 ) {
   let addr_offset: u16 = registers.read_r8(additional.small_reg_one) as u16;
   let rval = registers.read_r8(additional.small_reg_dst);
-  memory.write_u8(0xFF00 + addr_offset, rval);
+  memory.write_u8(0xFF00 + addr_offset, rval, registers);
   registers.inc_pc(1);
 }
 
@@ -708,7 +708,11 @@ fn load_immediate_wide_register(
   let load_address = memory.read_u16(registers.pc() + 1);
 
   // Write the contents of wide register one to that location
-  memory.write_u16(load_address, registers.read_r16(additional.wide_reg_one));
+  memory.write_u16(
+    load_address,
+    registers.read_r16(additional.wide_reg_one),
+    registers,
+  );
 
   // Increment the PC by one once finished
   registers.inc_pc(3);
@@ -723,7 +727,11 @@ fn load_indirect_nn_small_register(
   let load_address = memory.read_u16(registers.pc() + 1);
 
   // Write the contents of wide register one to that location
-  memory.write_u8(load_address, registers.read_r8(additional.small_reg_one));
+  memory.write_u8(
+    load_address,
+    registers.read_r8(additional.small_reg_one),
+    registers,
+  );
 
   // Increment the PC by one once finished
   registers.inc_pc(3);
@@ -740,7 +748,7 @@ fn ldi_mem_r16_val_r8(
 ) {
   let wide_reg = registers.read_r16(additional.wide_reg_dst);
   let target = registers.read_r8(additional.small_reg_one);
-  memory.write_u8(wide_reg, target);
+  memory.write_u8(wide_reg, target, registers);
   registers.write_r16(additional.wide_reg_dst, wide_reg.wrapping_add(1));
   registers.inc_pc(1);
 }
@@ -768,7 +776,7 @@ fn ldd_mem_r16_val_r8(
 ) {
   let wide_reg = registers.read_r16(additional.wide_reg_dst);
   let target = registers.read_r8(additional.small_reg_one);
-  memory.write_u8(wide_reg, target);
+  memory.write_u8(wide_reg, target, registers);
   registers.write_r16(additional.wide_reg_dst, wide_reg.wrapping_sub(1));
   registers.inc_pc(1);
 }
@@ -2994,7 +3002,7 @@ fn ext_rlc_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = rlc_core(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn rrc_core(current: u8, registers: &mut Registers) -> u8 {
@@ -3020,7 +3028,7 @@ fn ext_rrc_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = rrc_core(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_rl(reg: u8, registers: &mut Registers) -> u8 {
@@ -3046,7 +3054,7 @@ fn ext_rl_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_rl(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_rr(reg: u8, registers: &mut Registers) -> u8 {
@@ -3072,7 +3080,7 @@ fn ext_rr_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_rr(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_sla(reg: u8, registers: &mut Registers) -> u8 {
@@ -3098,7 +3106,7 @@ fn ext_sla_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_sla(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_sra(reg: u8, registers: &mut Registers) -> u8 {
@@ -3125,7 +3133,7 @@ fn ext_sra_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_sra(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_swap(reg: u8, registers: &mut Registers) -> u8 {
@@ -3155,7 +3163,7 @@ fn ext_swap_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_swap(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn srl_core(current: u8, registers: &mut Registers) -> u8 {
@@ -3179,7 +3187,7 @@ fn ext_srl_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = srl_core(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
   registers.inc_pc(1);
 }
 
@@ -3234,7 +3242,7 @@ fn ext_res_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = res_core(current, additional.bit, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn set_core(current: u8, bit: u8, _registers: &mut Registers) -> u8 {
@@ -3259,7 +3267,7 @@ fn ext_set_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = set_core(current, additional.bit, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 /// The extended set is a systematic. This produces an 8-instruction row from it

@@ -97,7 +97,9 @@ fn main() -> Result<(), Box<dyn Error>> {
       if skip_bios {
         // Skip boot
         gameboy_state.cpu.registers.set_pc(0x100);
-        gameboy_state.memory.write_u8(0xFF50, 1);
+        gameboy_state
+          .memory
+          .write_u8(0xFF50, 1, &gameboy_state.cpu.registers);
       }
 
       Machine {

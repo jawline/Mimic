@@ -1,3 +1,4 @@
+use crate::cpu::Registers;
 use crate::util::{stat_interrupts_with_masked_flags, STAT};
 use log::{error, info, trace, warn};
 use serde::{Deserialize, Serialize};
@@ -138,6 +139,8 @@ pub struct GameboyState {
   ram_mode: bool,
   gamepad_high: bool,
 
+  pub last_clock: usize,
+
   pub cart_type: u8,
 
   /**
@@ -181,6 +184,7 @@ impl GameboyState {
       boot_enabled: true,
       ram_on: false,
       ram_mode: false,
+      last_clock: 0,
 
       /// The divider starts at zero
       div: 0,
@@ -360,7 +364,63 @@ impl GameboyState {
     }
   }
 
-  pub fn write_u8(&mut self, address: u16, val: u8) {
+  pub fn write_u8(&mut self, address: u16, val: u8, registers: &Registers) {
+    if address == 0xFF10 {
+      println!(
+        "CH 1 SWEEP {} AT {}",
+        val,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
+
+    if address == 0xFF11 {
+      println!(
+        "CH 1 DUTYLL {} AT {}",
+        val,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
+
+    if address == 0xFF12 {
+      println!(
+        "CH 1 VOLENVPER {} AT {}",
+        val,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
+
+    if address == 0xFF13 {
+      println!(
+        "CH 1 FREQLSB {} AT {}",
+        val,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
+
+    if address == 0xFF14 {
+      if isset8(val, 0b0100_0000) {
+        println!(
+          "CH 1 LENGTH_ENABLE AT {}",
+          registers.total_clock - self.last_clock
+        );
+      } else {
+        println!(
+          "CH 1 LENGTH_DISABLE AT {}",
+          registers.total_clock - self.last_clock
+        )
+      }
+
+      if isset8(val, 0b1000_0000) {
+        println!("CH 1 TRIGGER AT {}", 0);
+      }
+
+      self.last_clock = registers.total_clock;
+    }
+
     self.core_write(address, val)
   }
 
@@ -421,11 +481,11 @@ impl GameboyState {
     result
   }
 
-  pub fn write_u16(&mut self, address: u16, value: u16) {
+  pub fn write_u16(&mut self, address: u16, value: u16, registers: &Registers) {
     let lower = value & 0xFF;
     let upper = value >> 8;
-    self.write_u8(address + 1, upper as u8);
-    self.write_u8(address, lower as u8);
+    self.write_u8(address + 1, upper as u8, registers);
+    self.write_u8(address, lower as u8, registers);
   }
 
   pub fn read_u16(&mut self, address: u16) -> u16 {

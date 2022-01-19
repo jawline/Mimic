@@ -51,9 +51,11 @@ impl Machine {
       .state
       .cpu
       .step(&mut self.state.memory, &self.instruction_set);
+    self.state.cpu.registers.total_clock += self.state.cpu.registers.last_clock as usize;
     self.state.clock.step(
       self.state.cpu.registers.last_clock as u8,
       &mut self.state.memory,
+      &self.state.cpu.registers,
     );
     self.state.sound.step(
       &mut self.state.cpu,

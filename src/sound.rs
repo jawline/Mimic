@@ -664,7 +664,6 @@ impl Sound {
     }
 
     if self.channels.wave.triggered(mem) {
-      println!("Wave enabled");
       self.channels.wave.enabled = true;
       self.channels.wave.set_length(mem, 255);
       self.channels.wave.frequency_clock = 0;

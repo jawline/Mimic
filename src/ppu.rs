@@ -1,3 +1,4 @@
+use crate::cpu::Registers;
 use crate::cpu::{Cpu, STAT, VBLANK};
 use crate::memory::{isset8, GameboyState};
 use crate::util::{self, stat};
@@ -171,26 +172,26 @@ impl Ppu {
     lcd & (1 << 4) != 0
   }
 
-  fn try_fire(stat: u8, interrupt: u8, mem: &mut GameboyState) {
+  fn try_fire(stat: u8, interrupt: u8, mem: &mut GameboyState, registers: &Registers) {
     if isset8(stat, interrupt) {
-      Cpu::set_interrupt_happened(mem, STAT);
+      Cpu::set_interrupt_happened(mem, STAT, registers);
     }
   }
 
-  fn try_fire_interrupts(&mut self, mode: Mode, mem: &mut GameboyState) {
+  fn try_fire_interrupts(&mut self, mode: Mode, mem: &mut GameboyState, registers: &Registers) {
     let stat = util::stat(mem);
 
     match mode {
       Mode::OAM => {
-        Self::try_fire(stat, STAT_INTERRUPT_DURING_OAM, mem);
+        Self::try_fire(stat, STAT_INTERRUPT_DURING_OAM, mem, registers);
       }
       Mode::VRAM => {}
       Mode::HBLANK => {
-        Self::try_fire(stat, STAT_INTERRUPT_DURING_H_BLANK, mem);
+        Self::try_fire(stat, STAT_INTERRUPT_DURING_H_BLANK, mem, registers);
       }
       Mode::VBLANK => {
-        Self::try_fire(stat, STAT_INTERRUPT_DURING_V_BLANK, mem);
-        Cpu::set_interrupt_happened(mem, VBLANK);
+        Self::try_fire(stat, STAT_INTERRUPT_DURING_V_BLANK, mem, registers);
+        Cpu::set_interrupt_happened(mem, VBLANK, registers);
       }
     }
   }
@@ -209,12 +210,12 @@ impl Ppu {
     }
   }
 
-  fn enter_mode(&mut self, mode: Mode, mem: &mut GameboyState) {
+  fn enter_mode(&mut self, mode: Mode, mem: &mut GameboyState, registers: &Registers) {
     self.cycles_in_mode = 0;
     self.mode = mode;
     self.reset_window(mode, mem);
-    self.update_stat_lyc(mem);
-    self.try_fire_interrupts(mode, mem);
+    self.update_stat_lyc(mem, registers);
+    self.try_fire_interrupts(mode, mem, registers);
   }
 
   fn write_px(pixels: &mut [u8], x: u8, y: u8, val: u8) {
@@ -421,7 +422,7 @@ impl Ppu {
     }
   }
 
-  fn update_stat_lyc(&self, mem: &mut GameboyState) {
+  fn update_stat_lyc(&self, mem: &mut GameboyState, registers: &Registers) {
     let lyc = Self::lyc(mem);
 
     let current_stat = stat(mem);
@@ -430,7 +431,7 @@ impl Ppu {
     debug!("STAT int values {:b}", current_stat);
 
     if coincidence_triggered {
-      Self::try_fire(current_stat, STAT_INTERRUPT_LYC_EQUALS_LC, mem);
+      Self::try_fire(current_stat, STAT_INTERRUPT_LYC_EQUALS_LC, mem, registers);
     }
 
     let new_stat = if coincidence_triggered {
@@ -452,15 +453,15 @@ impl Ppu {
     util::update_stat_flags(new_stat, mem);
   }
 
-  fn update_scanline(&mut self, mem: &mut GameboyState) {
+  fn update_scanline(&mut self, mem: &mut GameboyState, registers: &Registers) {
     debug!("SCANLINE: {:x}", self.current_line);
     mem.write_special_register(CURRENT_SCANLINE, self.current_line as u8);
-    self.update_stat_lyc(mem);
+    self.update_stat_lyc(mem, registers);
   }
 
-  fn change_scanline(&mut self, new_scanline: u8, mem: &mut GameboyState) {
+  fn change_scanline(&mut self, new_scanline: u8, mem: &mut GameboyState, registers: &Registers) {
     self.current_line = new_scanline;
-    self.update_scanline(mem);
+    self.update_scanline(mem, registers);
   }
 
   pub fn step(&mut self, cpu: &mut Cpu, mem: &mut GameboyState, draw: &mut [u8]) -> PpuStepState {
@@ -476,31 +477,31 @@ impl Ppu {
     match current_mode {
       Mode::OAM => {
         if self.cycles_in_mode >= 80 {
-          self.enter_mode(Mode::VRAM, mem);
+          self.enter_mode(Mode::VRAM, mem, &cpu.registers);
         }
         PpuStepState::None
       }
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
           self.render_line(mem, draw);
-          self.enter_mode(Mode::HBLANK, mem);
+          self.enter_mode(Mode::HBLANK, mem, &cpu.registers);
         }
         PpuStepState::None
       }
       Mode::HBLANK => {
         if self.cycles_in_mode >= 204 {
-          self.change_scanline(self.current_line + 1, mem);
+          self.change_scanline(self.current_line + 1, mem, &cpu.registers);
           if self.current_line == 145 {
-            self.enter_mode(Mode::VBLANK, mem);
+            self.enter_mode(Mode::VBLANK, mem, &cpu.registers);
           } else {
-            self.enter_mode(Mode::OAM, mem);
+            self.enter_mode(Mode::OAM, mem, &cpu.registers);
           }
         }
         PpuStepState::HBlank
       }
       Mode::VBLANK => {
         if self.cycles_in_mode >= 114 {
-          self.change_scanline(self.current_line + 1, mem);
+          self.change_scanline(self.current_line + 1, mem, &cpu.registers);
           self.cycles_in_mode = 0;
         }
 
@@ -508,8 +509,8 @@ impl Ppu {
         // We hack this in by changing to line zero twice, but the first time staying in VBLANK
         // mode and only moving to OAM the second time.
         if self.current_line == 153 {
-          self.change_scanline(0, mem);
-          self.enter_mode(Mode::OAM, mem);
+          self.change_scanline(0, mem, &cpu.registers);
+          self.enter_mode(Mode::OAM, mem, &cpu.registers);
           PpuStepState::VBlank
         } else {
           PpuStepState::None
