@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime};
 
-pub const FRAME_TIME: Duration = Duration::from_nanos(16666666);
+const FRAME_TIME_IN_SECONDS: f64 = 1. / 59.71540070833901659232620059483728860926694;
+pub const FRAME_TIME: Duration = Duration::from_secs_f64(FRAME_TIME_IN_SECONDS);
 
 pub struct FrameTimer {
   /// This can be increased by a factor of FRAME_TIME to introduce frame skip

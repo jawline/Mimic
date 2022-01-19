@@ -14,6 +14,7 @@ use std::time::Instant;
 const GAMEBOY_FREQUENCY: usize = 4194304;
 const FRAME_SEQUENCER_CLOCK_IN_T_CYCLES: usize = 8192;
 const WAVE_PATTERN_RAM: u16 = 0xFF30;
+const CHANNEL_ONE_SWEEP_ADDRESS: u16 = 0xFF10;
 
 /**
  * Constan for the lower six bits of a byte for bitwise logic.
@@ -25,6 +26,26 @@ const LOWER_SIX: u8 = 0b00111111;
  */
 const UPPER_TWO: u8 = 0b11000000;
 
+/**
+ * The most significant bit in a byte.
+ */
+const UPPER_BIT: u8 = 0b10000000;
+
+/**
+ * The lower nibble of a byte
+ */
+const LOWER_NIBBLE: u8 = 0b00001111;
+
+/**
+ * The number of bits to shift to extract the upper nibble from a byte as a value.
+ */
+const UPPER_NIBBLE_SHIFT: usize = 4;
+
+/**
+ * The gameboy square wave generators use one of four pre-programmed duty functions to produce
+ * their wave.
+ * These are hard coded here and referenced by the step function in Square.
+ */
 const DUTY_FUNCTIONS: [[bool; 8]; 4] = [
   [false, false, false, false, true, false, false, false],
   [false, false, false, false, true, true, false, false],
@@ -32,54 +53,67 @@ const DUTY_FUNCTIONS: [[bool; 8]; 4] = [
   [false, true, true, true, true, true, true, false],
 ];
 
-mod approx_instant {
-  use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
-  use std::time::{Instant, SystemTime};
-
-  pub fn serialize<S>(instant: &Instant, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: Serializer,
-  {
-    let system_now = SystemTime::now();
-    let instant_now = Instant::now();
-    let approx = system_now - (instant_now - *instant);
-    approx.serialize(serializer)
+/**
+ * This method returns the sweep period, negate, and shift for channel one.
+ */
+fn sweep_parameters(mem: &mut GameboyState) -> SweepState {
+  let sweep_data = mem.core_read(CHANNEL_ONE_SWEEP_ADDRESS);
+  let period = (sweep_data & 0b01110000) >> 4;
+  let negate = isset8(sweep_data, 0b00001000);
+  let shift = sweep_data & 0b00000111;
+  SweepState {
+    period,
+    negate,
+    shift,
   }
+}
 
-  pub fn deserialize<'de, D>(deserializer: D) -> Result<Instant, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
-    let de = SystemTime::deserialize(deserializer)?;
-    let system_now = SystemTime::now();
-    let instant_now = Instant::now();
-    let duration = system_now.duration_since(de).map_err(Error::custom)?;
-    let approx = instant_now - duration;
-    Ok(approx)
-  }
+/**
+ * Decrements whatever the current sweep period is by one.
+ */
+fn dec_sweep_period(mem: &mut GameboyState) {
+  let existing = mem.core_read(CHANNEL_ONE_SWEEP_ADDRESS);
+  let sweep = (existing & 0b0111_0000) >> 4;
+  let sweep = sweep - 1;
+  mem.core_write(
+    CHANNEL_ONE_SWEEP_ADDRESS,
+    ((sweep << 4) & 0b01110000) | (existing & 0b1000_1111),
+  );
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Wave {
-  pub enabled_address: u16,
-  pub frequency_lsb: u16,
-  pub frequency_msb: u16,
-  pub volume_address: u16,
-  pub length_address: u16,
-  pub frequency_timer: u16,
-  pub frequency_clock: u16,
-  pub amplitude: f32,
+struct Wave {
+  dac_address: u16,
+  frequency_lsb: u16,
+  frequency_msb: u16,
+  volume_address: u16,
+  length_address: u16,
+  frequency_timer: u16,
+  frequency_clock: u16,
+  amplitude: f32,
+  volume: f32,
+  enabled: bool,
 }
 
 impl Wave {
-  fn enabled(&self, mem: &mut GameboyState) -> bool {
-    isset8(mem.core_read(self.enabled_address), 0b10000000)
+  /**
+   * Returns true if the channel has been triggered and should update it's shadow state. This
+   * function also resets the triggered value back to zero.
+   */
+  fn triggered(&self, mem: &mut GameboyState) -> bool {
+    let trigger = mem.core_read(self.frequency_msb);
+    mem.core_write(self.frequency_msb, trigger & 0b0111_1111);
+    isset8(trigger, 0b1000_0000)
+  }
+
+  fn dac_power(&self, mem: &mut GameboyState) -> bool {
+    isset8(mem.core_read(self.dac_address), UPPER_BIT)
   }
 
   fn frequency(&self, mem: &mut GameboyState) -> u16 {
     // The 11 bit frequency is stored in the lowest three bits in frequency msb and the whole
     // of frequency lsb.
-    let upper = ((mem.core_read(self.frequency_msb) & 0x7) as u16) << 8;
+    let upper = ((mem.core_read(self.frequency_msb) & 0b00000111) as u16) << 8;
 
     let lower = mem.core_read(self.frequency_lsb) as u16;
     upper + lower
@@ -106,7 +140,7 @@ impl Wave {
   }
 
   fn amplitude(&self, mem: &mut GameboyState) -> f32 {
-    if self.enabled(mem) {
+    if self.enabled {
       if self.length_enabled(mem) {
         if self.length(mem) > 0 {
           self.amplitude
@@ -125,57 +159,82 @@ impl Wave {
    * The wave generator has a single 2-bit volume register that scale a sound to 0%, 100%, 50% and
    * 25% for values of 0, 1, 2, 3 respectively
    */
-  fn volume(&self, mem: &mut GameboyState) -> f32 {
-    match (mem.core_read(self.volume_address) & 0b01100000) >> 5 {
+  fn reload_volume(&mut self, mem: &mut GameboyState) {
+    const WAVE_VOLUME_BITS: u8 = 0b01100000;
+    const WAVE_VOLUME_SHIFT: usize = 5;
+    self.volume = match (mem.core_read(self.volume_address) & WAVE_VOLUME_BITS) >> WAVE_VOLUME_SHIFT
+    {
       0 => 0.0,
       1 => 1.0,
       2 => 0.5,
       3 => 0.25,
       _ => panic!("this should not be possible because we have sanitized the byte"),
-    }
+    };
   }
 
+  /**
+   * Get the amplitude (4 bit value) of the current sample of the wave function.
+   */
   fn sample(&self, mem: &mut GameboyState) -> u8 {
     // 4 bits per sample, higher bits contain the first element in each byte.
     let sample = mem.core_read(WAVE_PATTERN_RAM + (self.frequency_clock / 2));
     if self.frequency_clock % 2 == 0 {
-      sample >> 4
+      sample >> UPPER_NIBBLE_SHIFT
     } else {
-      sample & 0b00001111
+      sample & LOWER_NIBBLE
     }
   }
 
   /**
-   * Gameboy square wave generators produce output through 4 duty cycles.
+   * Gameboy wave sample generators step through 32 4-bit samples in Wave RAM. Once per frequency
+   * tick they emit the volume of the next sample as sound.
    *
    * We expect this function to be called once per 4 cycles by Sound, not just once per instruction.
    */
   fn step(&mut self, mem: &mut GameboyState) {
-    if self.frequency_timer == 0 {
-      let volume = self.volume(mem);
+    if !self.dac_power(mem) {
+      self.enabled = false;
+    }
 
-      self.amplitude = ((self.sample(mem) as f32) / 15.) * volume;
+    if self.enabled {
+      if self.frequency_timer == 0 {
+        // There are 32 4-bit entries in the wave tale
+        self.frequency_clock = (self.frequency_clock + 1) % 32;
 
-      // reload frequency timer
-      self.frequency_timer = (2048 - self.frequency(mem)) * 4;
-      // There are 32 4-bit entries in the wave tale
-      self.frequency_clock = (self.frequency_clock + 1) % 32;
+        self.amplitude = ((self.sample(mem) as f32) / 16.) * self.volume;
+
+        // reload frequency timer
+        self.frequency_timer = (2048 - self.frequency(mem)) * 4;
+      } else {
+        self.frequency_timer -= 4;
+      }
     } else {
-      self.frequency_timer -= 4;
+      self.amplitude = 0.;
     }
   }
 }
 
+/**
+ * This stores the value of the sweep register for the first channel.
+ */
 #[derive(Serialize, Deserialize)]
-pub struct Square {
-  pub frequency_lsb: u16,
-  pub frequency_msb: u16,
-  pub volume_address: u16,
-  pub duty_address: u16,
-  pub wave_duty: u8,
-  pub frequency_timer: u16,
-  pub frequency_clock: u16,
-  pub amplitude: f32,
+struct SweepState {
+  period: u8,
+  negate: bool,
+  shift: u8,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Square {
+  frequency_lsb: u16,
+  frequency_msb: u16,
+  volume_address: u16,
+  duty_address: u16,
+  wave_duty: u8,
+  frequency_timer: u16,
+  frequency_clock: u16,
+  amplitude: f32,
+  enabled: bool,
 }
 
 enum AddMode {
@@ -184,6 +243,16 @@ enum AddMode {
 }
 
 impl Square {
+  /**
+   * Returns true if the channel has been triggered and should update it's shadow state. This
+   * function also resets the triggered value back to zero.
+   */
+  fn triggered(&self, mem: &mut GameboyState) -> bool {
+    let trigger = mem.core_read(self.frequency_msb);
+    mem.core_write(self.frequency_msb, trigger & 0b0111_1111);
+    isset8(trigger, 0b1000_0000)
+  }
+
   /// Read the desired frequency of the square wave from mem
   fn frequency(&self, mem: &mut GameboyState) -> u16 {
     // The 11 bit frequency is stored in the lowest three bits in frequency msb and the whole
@@ -192,6 +261,17 @@ impl Square {
 
     let lower = mem.core_read(self.frequency_lsb) as u16;
     upper + lower
+  }
+
+  /**
+   * Set the channel frequency by writing to the lsb and msb locations in
+   * memory.
+   */
+  fn set_frequency(&self, mem: &mut GameboyState, val: u16) {
+    mem.core_write(self.frequency_lsb, val as u8);
+    let existing_msb = mem.core_read(self.frequency_msb);
+    let new_msb = (existing_msb & 0b1111_1000) | ((val >> 8) as u8);
+    mem.core_write(self.frequency_msb, new_msb);
   }
 
   /**
@@ -283,6 +363,20 @@ impl Square {
     }
   }
 
+  /// Reload the frequency period
+  fn reload_frequency(&mut self, mem: &mut GameboyState) {
+    self.frequency_timer = (2048 - self.frequency(mem)) * 4;
+  }
+
+  /**
+   * Process a trigger event, setting the wave generator to enabled and reloading registers.
+   */
+  fn trigger(&mut self, mem: &mut GameboyState) {
+    self.enabled = true;
+    self.set_length(mem, 64);
+    self.reload_frequency(mem);
+  }
+
   /**
    * Gameboy square wave generators produce output through 4 duty cycles.
    *
@@ -290,20 +384,23 @@ impl Square {
    * instruction.
    */
   fn step(&mut self, mem: &mut GameboyState) {
-    if self.frequency_timer == 0 {
-      let volume = self.volume(mem);
+    if self.enabled {
+      if self.frequency_timer == 0 {
+        let volume = self.volume(mem);
 
-      self.amplitude = if DUTY_FUNCTIONS[self.duty(mem) as usize][self.frequency_clock as usize] {
-        (volume as f32) / 15.
+        self.amplitude = if DUTY_FUNCTIONS[self.duty(mem) as usize][self.frequency_clock as usize] {
+          (volume as f32) / 15.
+        } else {
+          -0.
+        };
+
+        self.reload_frequency(mem);
+        self.frequency_clock = (self.frequency_clock + 1) % 8;
       } else {
-        -0.
-      };
-
-      // reload frequency timer
-      self.frequency_timer = (2048 - self.frequency(mem)) * 4;
-      self.frequency_clock = (self.frequency_clock + 1) % 8;
+        self.frequency_timer -= 4;
+      }
     } else {
-      self.frequency_timer -= 4;
+      self.amplitude = 0.;
     }
   }
 }
@@ -325,7 +422,7 @@ impl Channels {
   fn step(&mut self, mem: &mut GameboyState) {
     self.channel_one.step(mem);
     self.channel_two.step(mem);
-    self.wave.step(mem);
+    //self.wave.step(mem);
   }
 
   /**
@@ -346,6 +443,16 @@ impl Channels {
 struct FrameSequencer {
   pub cycles: usize,
   pub frame_sequencer_cycles: usize,
+
+  /**
+   * True if sweep is currently enabled.
+   */
+  pub sweep: bool,
+
+  /**
+   * The last frequency seen for a channel when sweep was triggered.
+   */
+  pub shadow_frequency: u16,
 }
 
 impl FrameSequencer {
@@ -353,6 +460,8 @@ impl FrameSequencer {
     FrameSequencer {
       cycles: 0,
       frame_sequencer_cycles: 0,
+      shadow_frequency: 0,
+      sweep: false,
     }
   }
 
@@ -368,6 +477,48 @@ impl FrameSequencer {
    */
   fn clock_envelopes(&self) -> bool {
     self.frame_sequencer_cycles % 8 == 0
+  }
+
+  /**
+   * Returns true if the frame sequencer should process channel one sweep this cycle.
+   */
+  fn clock_sweep(&self) -> bool {
+    self.frame_sequencer_cycles % 4 == 0
+  }
+
+  /**
+   * Calculate the next frequency after a sweep.
+   */
+  fn next_sweep(&self, mem: &mut GameboyState) -> Option<u16> {
+    let sweep = sweep_parameters(mem);
+    if sweep.period > 0 {
+      let new_frequency = self.shadow_frequency >> sweep.shift;
+      let new_frequency = if sweep.negate {
+        !new_frequency
+      } else {
+        new_frequency
+      };
+      Some(new_frequency)
+    } else {
+      None
+    }
+  }
+
+  fn do_sweep_clock(&mut self, mem: &mut GameboyState, square: &mut Square) {
+    if self.sweep {
+      match self.next_sweep(mem) {
+        Some(new_frequency) => {
+          dec_sweep_period(mem);
+          if new_frequency >= 2048 {
+            square.enabled = false;
+          } else {
+            square.set_frequency(mem, new_frequency);
+            self.shadow_frequency = new_frequency;
+          }
+        }
+        None => {}
+      }
+    }
   }
 
   fn square_dec_envelope(mem: &mut GameboyState, square: &mut Square) {
@@ -412,6 +563,9 @@ impl FrameSequencer {
       FrameSequencer::dec_length_square(mem, &mut channels.channel_one);
       FrameSequencer::dec_length_square(mem, &mut channels.channel_two);
     }
+    if self.clock_sweep() {
+      self.do_sweep_clock(mem, &mut channels.channel_one);
+    }
     if self.clock_envelopes() {
       FrameSequencer::square_dec_envelope(mem, &mut channels.channel_one);
       FrameSequencer::square_dec_envelope(mem, &mut channels.channel_two);
@@ -440,10 +594,6 @@ pub struct Sound {
   channels: Channels,
   sequencer: FrameSequencer,
   t_cycles: usize,
-  #[serde(with = "approx_instant")]
-  pub last_step: Instant,
-  count: usize,
-  step: usize,
 }
 
 impl Sound {
@@ -451,7 +601,6 @@ impl Sound {
     Self {
       channels: Channels {
         channel_one: Square {
-          amplitude: 0.,
           frequency_lsb: 0xFF13,
           frequency_msb: 0xFF14,
           volume_address: 0xFF12,
@@ -459,9 +608,10 @@ impl Sound {
           wave_duty: 0,
           frequency_timer: 0,
           frequency_clock: 0,
+          amplitude: 0.,
+          enabled: false,
         },
         channel_two: Square {
-          amplitude: 0.,
           frequency_lsb: 0xFF18,
           frequency_msb: 0xFF19,
           volume_address: 0xFF17,
@@ -469,9 +619,11 @@ impl Sound {
           wave_duty: 0,
           frequency_timer: 0,
           frequency_clock: 0,
+          amplitude: 0.,
+          enabled: false,
         },
         wave: Wave {
-          enabled_address: 0xFF1A,
+          dac_address: 0xFF1A,
           amplitude: 0.,
           frequency_lsb: 0xFF1D,
           frequency_msb: 0xFF1E,
@@ -479,13 +631,12 @@ impl Sound {
           length_address: 0xFF1B,
           frequency_timer: 0,
           frequency_clock: 0,
+          volume: 0.,
+          enabled: false,
         },
       },
       sequencer: FrameSequencer::new(),
       t_cycles: 0,
-      last_step: Instant::now(),
-      count: 0,
-      step: 0,
     }
   }
 
@@ -497,35 +648,52 @@ impl Sound {
     sample_rate: usize,
     samples: &Sender<f32>,
   ) {
+    // TODO: We handle trigger logic here but it should live in its own place.
+    if self.channels.channel_one.triggered(mem) {
+      self.channels.channel_one.trigger(mem);
+      let params = sweep_parameters(mem);
+      if params.period != 0 || params.shift != 0 {
+        println!("Enabled sweep");
+        self.sequencer.sweep = true;
+        self.sequencer.shadow_frequency = self.channels.channel_one.frequency(mem);
+      }
+    }
+
+    if self.channels.channel_two.triggered(mem) {
+      self.channels.channel_two.trigger(mem);
+    }
+
+    if self.channels.wave.triggered(mem) {
+      println!("Wave enabled");
+      self.channels.wave.enabled = true;
+      self.channels.wave.set_length(mem, 255);
+      self.channels.wave.frequency_clock = 0;
+      self.channels.wave.reload_volume(mem);
+    }
+
+    // Now process the frame
+    let sample_divisor = (GAMEBOY_FREQUENCY / sample_rate) + 1;
     for _ in (0..cpu.registers.last_clock).step_by(4) {
       self.channels.step(mem);
       self.sequencer.step(mem, &mut self.channels);
       self.t_cycles += 4;
-      if self.t_cycles >= (GAMEBOY_FREQUENCY / sample_rate) {
+      if self.t_cycles >= sample_divisor {
         // We should generate a sample for cpal here
         samples.send(self.channels.amplitude(mem));
-        self.count += 1;
-        const RPT: usize = 44000;
-        if self.count % RPT == 0 {
-          println!(
-            "{} {:?}",
-            (RPT as f64) / self.last_step.elapsed().as_secs_f64(),
-            self.last_step.elapsed()
-          );
-          self.last_step = Instant::now();
-        }
         self.t_cycles = 0;
       }
     }
   }
 }
 
+/**
+ * Run launches an audio thread and begins sending samples to it.
+ */
 fn run<T: cpal::Sample + std::fmt::Debug>(
   device: &cpal::Device,
   config: &cpal::StreamConfig,
   recv: Receiver<f32>,
 ) -> Result<cpal::Stream, Box<dyn Error>> {
-  println!("Running");
   let channels = config.channels as usize;
 
   let err_fn = |err| eprintln!("an error occurred on stream: {}", err);

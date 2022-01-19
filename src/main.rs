@@ -1,3 +1,4 @@
+#![feature(duration_consts_float)]
 #![feature(drain_filter)]
 extern crate cpal;
 

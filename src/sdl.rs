@@ -188,7 +188,7 @@ pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> Result<(), Box<d
     .position_centered()
     .build()
     .unwrap();
-  let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+  let mut canvas = window.into_canvas()./*present_vsync().*/build().unwrap();
   let mut event_pump = sdl_context.event_pump().unwrap();
   let texture_creator = canvas.texture_creator();
 
