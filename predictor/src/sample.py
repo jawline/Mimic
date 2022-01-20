@@ -6,54 +6,54 @@ import os
 LOGGER = logging.getLogger('gbsd')
 LOGGER.setLevel(logging.DEBUG)
 
-NOP_CMD = 0
-DUTY_LL_CMD = 1
-VOLENVPER_CMD = 2
-FREQLSB_CMD = 3
-FREQMSB_CMD = 4
-
 TIME_OFFSET = 0
-COMMAND_OFFSET = 1
-CHANNEL_OFFSET = 2
-DUTY_OFFSET = 3
-LENGTH_OFFSET = 4
-VOL_OFFSET = 5
-ADD_MODE_OFFSET = 6
-PERIOD_OFFSET = 7
-FREQLSB_OFFSET = 8
-FREQMSB_OFFSET = 9
-LENGTH_ENABLE_OFFSET = 10
-TRIGGER_OFFSET = 11
-NUM_INP = 12
+NOP_COMMAND_OFFSET = 1
+DUTY_LL_CMD_OFFSET = 2
+VOLENVPER_CMD_OFFSET = 3
+FREQLSB_CMD_OFFSET = 4
+FREQMSB_CMD_OFFSET= 5
+CHANNEL_OFFSET = 6
+DUTY_OFFSET = 7
+LENGTH_OFFSET = 8
+VOL_OFFSET = 9
+ADD_MODE_OFFSET = 10
+PERIOD_OFFSET = 11
+FREQLSB_OFFSET = 12
+FREQMSB_OFFSET = 13
+LENGTH_ENABLE_OFFSET = 14
+TRIGGER_OFFSET = 15
+NUM_INP = 16
 
 WINDOW_SIZE = 32
 
 def fresh_input(command, channel, time):
-    return np.array([time, command, channel, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    newd = np.array([time, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    newd[command] = 1.
+    return newd
 
 def nop():
-    return fresh_input(NOP_CMD, 0, 0)
+    return fresh_input(NOP_CMD_OFFSET, 0, 0)
 
 def duty_ll(channel, parts, time):
-    inp = fresh_input(DUTY_LL_CMD, channel, time)
+    inp = fresh_input(DUTY_LL_CMD_OFFSET, channel, time)
     inp[DUTY_OFFSET] = float(parts[3]) / 2.
     inp[LENGTH_OFFSET] = float(parts[4]) / 64.
     return inp
 
 def volenvper(channel, parts, time):
-    inp = fresh_input(VOLENVPER_CMD, channel, time)
+    inp = fresh_input(VOLENVPER_CMD_OFFSET, channel, time)
     inp[VOL_OFFSET] = float(parts[3]) / 16.
     inp[ADD_MODE_OFFSET] = float(parts[4])
     inp[PERIOD_OFFSET] = float(parts[4]) / 7.
     return inp
 
 def freqlsb(channel, parts, time):
-    inp = fresh_input(FREQLSB_CMD, channel, time)
+    inp = fresh_input(FREQLSB_CMD_OFFSET, channel, time)
     inp[FREQLSB_OFFSET] = float(parts[3]) / 255.
     return inp
 
 def freqmsb(channel, parts, time):
-    inp = fresh_input(FREQMSB_CMD, channel, time)
+    inp = fresh_input(FREQMSB_CMD_OFFSET, channel, time)
     inp[FREQMSB_OFFSET] = float(parts[3]) / 7.
     inp[LENGTH_ENABLE_OFFSET] = float(bool(parts[4]))
     inp[TRIGGER_OFFSET] = float(bool(parts[5]))

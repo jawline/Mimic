@@ -15,18 +15,17 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
 
-        main = nn.Sequential(
+        self.main = nn.Sequential(
             nn.Linear(DIM, DIM),
             nn.ReLU(True),
             nn.Linear(DIM, DIM),
             nn.ReLU(True),
             nn.Linear(DIM, DIM),
             nn.ReLU(True),
-            nn.Linear(DIM, NUM_EVENTS_PER_ROUND),
+            nn.Linear(DIM, DIM),
         )
-        self.main = main
 
-    def forward(self, noise, real_data):
+    def forward(self, noise):
         output = self.main(noise)
         return output
 

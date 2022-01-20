@@ -365,9 +365,7 @@ impl GameboyState {
   }
 
   pub fn write_u8(&mut self, address: u16, val: u8, registers: &Registers) {
-
     if address == 0xFF10 {
-
       println!(
         "SWEEP {} AT {}",
         val,
@@ -417,11 +415,17 @@ impl GameboyState {
       let msb = val & 0b0000_0111;
       let le = isset8(val, 0b0100_0000);
       let trigger = isset8(val, 0b1000_0000);
-      println!("CH 1 FREQMSB {} {} {} AT {}", msb, le, trigger, registers.total_clock - self.last_clock);
+      println!(
+        "CH 1 FREQMSB {} {} {} AT {}",
+        msb,
+        le,
+        trigger,
+        registers.total_clock - self.last_clock
+      );
       self.last_clock = registers.total_clock;
     }
 
-    if address == 0xFF16{
+    if address == 0xFF16 {
       let duty = (val & 0b1100_0000) >> 6;
       let length = val & 0b0011_1111;
       println!(
@@ -461,7 +465,13 @@ impl GameboyState {
       let msb = val & 0b0000_0111;
       let le = isset8(val, 0b0100_0000);
       let trigger = isset8(val, 0b1000_0000);
-      println!("CH 2 FREQMSB {} {} {} AT {}", msb, le, trigger, registers.total_clock - self.last_clock);
+      println!(
+        "CH 2 FREQMSB {} {} {} AT {}",
+        msb,
+        le,
+        trigger,
+        registers.total_clock - self.last_clock
+      );
       self.last_clock = registers.total_clock;
     }
 
