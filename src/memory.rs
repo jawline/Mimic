@@ -365,28 +365,40 @@ impl GameboyState {
   }
 
   pub fn write_u8(&mut self, address: u16, val: u8, registers: &Registers) {
+
     if address == 0xFF10 {
+
       println!(
-        "CH 1 SWEEP {} AT {}",
+        "SWEEP {} AT {}",
         val,
         registers.total_clock - self.last_clock
       );
+
       self.last_clock = registers.total_clock;
     }
 
     if address == 0xFF11 {
+      let duty = (val & 0b1100_0000) >> 6;
+      let length = val & 0b0011_1111;
       println!(
-        "CH 1 DUTYLL {} AT {}",
-        val,
+        "CH 1 DUTYLL {} {} AT {}",
+        duty,
+        length,
         registers.total_clock - self.last_clock
       );
       self.last_clock = registers.total_clock;
     }
 
     if address == 0xFF12 {
+      let vol = (val & 0b1111_0000) >> 4;
+      let add_mode = (val & 0b0000_1000) >> 3;
+      let period = val & 0b0000_0111;
+
       println!(
-        "CH 1 VOLENVPER {} AT {}",
-        val,
+        "CH 1 VOLENVPER {} {} {} AT {}",
+        vol,
+        add_mode,
+        period,
         registers.total_clock - self.last_clock
       );
       self.last_clock = registers.total_clock;
@@ -402,22 +414,54 @@ impl GameboyState {
     }
 
     if address == 0xFF14 {
-      if isset8(val, 0b0100_0000) {
-        println!(
-          "CH 1 LENGTH_ENABLE AT {}",
-          registers.total_clock - self.last_clock
-        );
-      } else {
-        println!(
-          "CH 1 LENGTH_DISABLE AT {}",
-          registers.total_clock - self.last_clock
-        )
-      }
+      let msb = val & 0b0000_0111;
+      let le = isset8(val, 0b0100_0000);
+      let trigger = isset8(val, 0b1000_0000);
+      println!("CH 1 FREQMSB {} {} {} AT {}", msb, le, trigger, registers.total_clock - self.last_clock);
+      self.last_clock = registers.total_clock;
+    }
 
-      if isset8(val, 0b1000_0000) {
-        println!("CH 1 TRIGGER AT {}", 0);
-      }
+    if address == 0xFF16{
+      let duty = (val & 0b1100_0000) >> 6;
+      let length = val & 0b0011_1111;
+      println!(
+        "CH 2 DUTYLL {} {} AT {}",
+        duty,
+        length,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
 
+    if address == 0xFF17 {
+      let vol = (val & 0b1111_0000) >> 4;
+      let add_mode = (val & 0b0000_1000) >> 3;
+      let period = val & 0b0000_0111;
+
+      println!(
+        "CH 2 VOLENVPER {} {} {} AT {}",
+        vol,
+        add_mode,
+        period,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
+
+    if address == 0xFF18 {
+      println!(
+        "CH 2 FREQLSB {} AT {}",
+        val,
+        registers.total_clock - self.last_clock
+      );
+      self.last_clock = registers.total_clock;
+    }
+
+    if address == 0xFF19 {
+      let msb = val & 0b0000_0111;
+      let le = isset8(val, 0b0100_0000);
+      let trigger = isset8(val, 0b1000_0000);
+      println!("CH 2 FREQMSB {} {} {} AT {}", msb, le, trigger, registers.total_clock - self.last_clock);
       self.last_clock = registers.total_clock;
     }
 
