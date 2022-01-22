@@ -7,7 +7,7 @@ LOGGER = logging.getLogger('gbsd')
 LOGGER.setLevel(logging.DEBUG)
 
 TIME_OFFSET = 0
-NOP_COMMAND_OFFSET = 1
+NOP_CMD_OFFSET = 1
 DUTY_LL_CMD_OFFSET = 2
 VOLENVPER_CMD_OFFSET = 3
 FREQLSB_CMD_OFFSET = 4
@@ -27,10 +27,16 @@ NUM_CMD = FREQMSB_CMD_OFFSET
 
 WINDOW_SIZE = 32
 
-NORMALIZE_TIME_BY = float(4194304 * 10) # 1 second is 4194304 cycles so this is 10s
+NORMALIZE_TIME_BY = float(4194304 * 3) # 1 second is 4194304 cycles so this is 10s
+
+def norm(val, max_val):
+    return ((val / max_val) * 2.) - 1.
+
+def unnorm(val, max_val):
+    return ((val + 1.) / 2.) * max_val
 
 def fresh_input(command, channel, time):
-    newd = np.array([time, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    newd = np.array([norm(time, NORMALIZE_TIME_BY), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=float)
     newd[command] = 1.
     return newd
 
@@ -39,8 +45,8 @@ def nop():
 
 def duty_ll(channel, parts, time):
     inp = fresh_input(DUTY_LL_CMD_OFFSET, channel, time)
-    inp[DUTY_OFFSET] = float(parts[3]) / 2.
-    inp[LENGTH_OFFSET] = float(parts[4]) / 64.
+    inp[DUTY_OFFSET] = norm(float(parts[3]), 2.)
+    inp[LENGTH_OFFSET] = norm(float(parts[4]), 64.)
     return inp
 
 def volenvper(channel, parts, time):
@@ -52,12 +58,12 @@ def volenvper(channel, parts, time):
 
 def freqlsb(channel, parts, time):
     inp = fresh_input(FREQLSB_CMD_OFFSET, channel, time)
-    inp[FREQLSB_OFFSET] = float(parts[3]) / 255.
+    inp[FREQLSB_OFFSET] = norm(float(parts[3]), 255.)
     return inp
 
 def freqmsb(channel, parts, time):
     inp = fresh_input(FREQMSB_CMD_OFFSET, channel, time)
-    inp[FREQMSB_OFFSET] = float(parts[3]) / 7.
+    inp[FREQMSB_OFFSET] = norm(float(parts[3]), 7.)
     inp[LENGTH_ENABLE_OFFSET] = float(bool(parts[4]))
     inp[TRIGGER_OFFSET] = float(bool(parts[5]))
     return inp

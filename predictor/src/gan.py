@@ -1,5 +1,3 @@
-# Based on https://github.com/caogang/wgan-gp/blob/master/gan_toy.py
-
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
@@ -15,12 +13,8 @@ class TimeNet(nn.Module):
         super(TimeNet, self).__init__()
 
         self.main = nn.Sequential(
-            nn.Dropout(),
-            nn.Linear(512, sample.WINDOW_SIZE),
-            nn.ReLU(),
-            nn.Conv1d(1, 1, kernel_size=4),
-            nn.ReLU(),
-            nn.Linear(29, 1),
+            nn.Dropout(p=0.2),
+            nn.Linear(sample.WINDOW_SIZE, 1)
         )
 
     def forward(self, noise):
@@ -33,33 +27,28 @@ class CommandNet(nn.Module):
         super(CommandNet, self).__init__()
 
         self.main = nn.Sequential(
-            nn.Dropout(),
-            nn.Linear(DIM, sample.NUM_CMD),
-            nn.Softmax()
+            nn.Dropout(p=0.2),
+            nn.Linear(DIM, 64),
+            nn.ReLU(),
+            nn.Linear(64, sample.NUM_CMD),
+            nn.ReLU(),
+            nn.Softmax(dim=1)
         )
 
     def forward(self, noise):
         output = self.main(noise)
         return output
 
-
-class Discriminator(nn.Module):
+class FreqNet(nn.Module):
 
     def __init__(self):
-        super(Discriminator, self).__init__()
+        super(FreqNet, self).__init__()
 
-        main = nn.Sequential(
-            nn.Linear(DIM, DIM),
-            nn.ReLU(True),
-            nn.Linear(DIM, DIM),
-            nn.ReLU(True),
-            nn.Linear(DIM, DIM),
-            nn.ReLU(True),
-            nn.Linear(DIM, 1),
+        self.main = nn.Sequential(
+            nn.Dropout(p=0.2),
+            nn.Linear(sample.WINDOW_SIZE, 1)
         )
 
-        self.main = main
-
-    def forward(self, inputs):
-        output = self.main(inputs)
-        return output.view(-1)
+    def forward(self, noise):
+        output = self.main(noise)
+        return output
