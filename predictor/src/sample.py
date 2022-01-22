@@ -23,8 +23,11 @@ FREQMSB_OFFSET = 13
 LENGTH_ENABLE_OFFSET = 14
 TRIGGER_OFFSET = 15
 NUM_INP = 16
+NUM_CMD = FREQMSB_CMD_OFFSET
 
 WINDOW_SIZE = 32
+
+NORMALIZE_TIME_BY = float(4194304 * 10) # 1 second is 4194304 cycles so this is 10s
 
 def fresh_input(command, channel, time):
     newd = np.array([time, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
@@ -87,20 +90,29 @@ def samples_from_training_data(src, window_size=WINDOW_SIZE):
         LOGGER.error('Could not load {}: {}'.format(src, str(e)))
         raise StopIteration()
 
+    true_window_size = window_size + 1
+
     # Pad small samples with nop
-    while len(sample_data) < window_size:
+    while len(sample_data) < true_window_size:
         sample_data.append(nop())
 
     while True:
-        if len(sample_data) == window_size:
+
+        if len(sample_data) == true_window_size:
             sample = audio_data
         else:
             # Sample a random window from the audio file
-            start_idx = np.random.randint(0, len(sample_data) - window_size)
-            end_idx = start_idx + window_size
+            start_idx = np.random.randint(0, len(sample_data) - true_window_size)
+            end_idx = start_idx + true_window_size
             sample = sample_data[start_idx:end_idx]
-        sample = np.array(sample).flatten().astype(np.float32)
-        yield { 'X':sample }
+
+        sample_input = sample[0:window_size]
+        sample_output = sample[window_size:window_size+1]
+
+        sample_input = np.array(sample_input).flatten().astype(np.float32)
+        sample_output = np.array(sample_output).flatten().astype(np.float32)
+
+        yield { 'X':sample_input, 'Y': sample_output }
 
 def create_batch_generator(paths, batch_size):
     streamers = []

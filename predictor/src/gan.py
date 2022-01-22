@@ -10,19 +10,32 @@ import sample
 NUM_EVENTS_PER_ROUND = sample.WINDOW_SIZE
 DIM = sample.NUM_INP * NUM_EVENTS_PER_ROUND
 
-class Generator(nn.Module):
-
+class TimeNet(nn.Module):
     def __init__(self):
-        super(Generator, self).__init__()
+        super(TimeNet, self).__init__()
 
         self.main = nn.Sequential(
-            nn.Linear(DIM, DIM),
-            nn.ReLU(True),
-            nn.Linear(DIM, DIM),
-            nn.ReLU(True),
-            nn.Linear(DIM, DIM),
-            nn.ReLU(True),
-            nn.Linear(DIM, DIM),
+            nn.Dropout(),
+            nn.Linear(512, sample.WINDOW_SIZE),
+            nn.ReLU(),
+            nn.Conv1d(1, 1, kernel_size=4),
+            nn.ReLU(),
+            nn.Linear(29, 1),
+        )
+
+    def forward(self, noise):
+        output = self.main(noise)
+        return output
+
+class CommandNet(nn.Module):
+
+    def __init__(self):
+        super(CommandNet, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.Dropout(),
+            nn.Linear(DIM, sample.NUM_CMD),
+            nn.Softmax()
         )
 
     def forward(self, noise):
