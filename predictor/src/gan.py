@@ -14,7 +14,9 @@ class TimeNet(nn.Module):
 
         self.main = nn.Sequential(
             nn.Dropout(p=0.2),
-            nn.Linear(sample.WINDOW_SIZE, 1)
+            nn.Linear(sample.WINDOW_SIZE, 64),
+            nn.Sigmoid(),
+            nn.Linear(64, 1)
         )
 
     def forward(self, noise):
@@ -28,10 +30,30 @@ class CommandNet(nn.Module):
 
         self.main = nn.Sequential(
             nn.Dropout(p=0.2),
-            nn.Linear(DIM, 64),
+            nn.Linear(DIM, 512),
             nn.ReLU(),
-            nn.Linear(64, sample.NUM_CMD),
+            nn.Linear(512, 512),
+            nn.Sigmoid(),
+            nn.Linear(512, sample.NUM_CMD),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, noise):
+        output = self.main(noise)
+        return output
+
+class ChannelNet(nn.Module):
+
+    def __init__(self):
+        super(ChannelNet, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.Dropout(p=0.2),
+            nn.Linear(DIM, 512),
             nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.Sigmoid(),
+            nn.Linear(512, 2),
             nn.Softmax(dim=1)
         )
 
@@ -46,7 +68,9 @@ class FreqNet(nn.Module):
 
         self.main = nn.Sequential(
             nn.Dropout(p=0.2),
-            nn.Linear(sample.WINDOW_SIZE, 1)
+            nn.Linear(sample.WINDOW_SIZE, 64),
+            nn.Sigmoid(),
+            nn.Linear(64, 1)
         )
 
     def forward(self, noise):

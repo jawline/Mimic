@@ -11,7 +11,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 EPOCHS = 1
-ROUND_SZ = 10000
+ROUND_SZ = 500
 CUDA = torch.cuda.is_available()
 
 def extract_and_pad(data, cmd_offset, field_offset):
@@ -44,25 +44,31 @@ def train():
     # MSELoss ^2 the diff between pred and expectation, which might
     # go out of bounds of fp32 precision and causes nan gradients. We
     # pick a very small learning rate to compensate.
-    time_optimizer= optim.Adam(time_generator.parameters(), lr=0.001)
+    lr=0.001
+    time_optimizer= optim.Adam(time_generator.parameters(), lr=lr)
     time_criterion = nn.MSELoss()
 
+    channel_generator = gan.ChannelNet()
+    channel_optimizer= optim.Adam(channel_generator.parameters(), lr=lr)
+    channel_criterion = nn.CrossEntropyLoss()
+
     command_generator = gan.CommandNet()
-    command_optimizer= optim.Adam(command_generator.parameters(), lr=0.001)
+    command_optimizer= optim.Adam(command_generator.parameters(), lr=lr)
     command_criterion = nn.CrossEntropyLoss()
 
     # The two frequency generators are trained when we are predicting a
     # frequency command only
     freq_msb_generator = gan.FreqNet()
-    freq_msb_optimizer = optim.Adam(command_generator.parameters(), lr=0.001)
+    freq_msb_optimizer = optim.Adam(command_generator.parameters(), lr=lr)
     freq_msb_criterion = nn.MSELoss()
 
     freq_lsb_generator = gan.FreqNet()
-    freq_lsb_optimizer = optim.Adam(command_generator.parameters(), lr=0.001)
+    freq_lsb_optimizer = optim.Adam(command_generator.parameters(), lr=lr)
     freq_lsb_criterion = nn.MSELoss()
 
     if CUDA:
         time_generator = time_generator.cuda()
+        channel_generator = channel_generator.cuda()
         command_generator = command_generator.cuda()
         freq_msb_generator = freq_msb_generator.cuda()
         freq_lsb_generator = freq_lsb_generator.cuda()
@@ -84,12 +90,14 @@ def train():
 
           data_test = data['Y'][0]
           data_test_time = torch.Tensor(np.array([[data_test[0]]])).to(torch.float)
-          data_test_command= torch.Tensor(np.array([data_test[1:6]]))
+          data_test_channel = torch.Tensor(np.array([data_test[1:3]]))
+          data_test_command= torch.Tensor(np.array([data_test[3:8]]))
           data_test_freq_lsb = torch.Tensor(np.array([[data_test[sample.FREQLSB_OFFSET]]]))
           data_test_freq_msb = torch.Tensor(np.array([[data_test[sample.FREQMSB_OFFSET]]]))
 
           if CUDA:
               data_test_time = data_test_time.cuda()
+              data_test_channel = data_test_command.cuda()
               data_test_command = data_test_command.cuda()
               data_test_freq_lsb = data_test_freq_lsb.cuda()
               data_test_freq_msb = data_test_freq_msb.cuda()
@@ -134,18 +142,18 @@ def train():
         print("Freq MSB loss:", freq_msb_loss.item())
         print("Freq MSB last pred:", prediction_freq_msb, data_test_freq_msb)
 
-    return data['X'][0], time_generator, command_generator, freq_lsb_generator, freq_msb_generator
+    return data['X'][0], time_generator.eval(), command_generator.eval(), freq_lsb_generator.eval(), freq_msb_generator.eval()
 
 seed, time_generator, command_generator, freq_lsb_generator, freq_msb_generator = train()
 
 def pred_cmd(offset, cmd_pred):
     return offset == cmd_pred.argmax().item()
 
-for i in range(100):
+for i in range(10000):
 
     data_train_cmd, data_train_time, data_train_freq_lsb, data_train_freq_msb = prepare_data_train(seed)
 
-    next_time = time_generator(data_train_time)[0].item()
+    next_time = sample.unnorm(time_generator(data_train_time)[0].item(), sample.NORMALIZE_TIME_BY)
     next_cmd = command_generator(data_train_cmd)
 
     #print(next_time)
@@ -155,10 +163,13 @@ for i in range(100):
 
     if pred_cmd(sample.NOP_CMD_OFFSET - 1, next_cmd):
         fresh = sample.nop()
+        print("NOP - WHY DID I PREDICT A NO-OP?")
     elif pred_cmd(sample.DUTY_LL_CMD_OFFSET - 1, next_cmd):
         fresh = sample.duty_ll(1, [0, 0, 0, 0, 0, 0, 0], next_time)
+        print("DUTY LL TODO")
     elif pred_cmd(sample.VOLENVPER_CMD_OFFSET - 1, next_cmd):
         fresh = sample.volenvper(1, [0, 0, 0, 0, 0, 0, 0], next_time)
+        print("VOLENVPER TODO")
     elif pred_cmd(sample.FREQMSB_CMD_OFFSET - 1, next_cmd):
         pred = freq_msb_generator(data_train_freq_msb)[0].item()
         fresh = sample.freqmsb(1, [0, 0, 0, sample.unnorm(pred, 7.), 0, 0], next_time)
@@ -172,4 +183,4 @@ for i in range(100):
 
     seed = np.concatenate((seed[sample.NUM_INP:], fresh))
     #print("new seed", seed)
-    print(fresh)
+    #print(fresh)

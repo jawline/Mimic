@@ -7,25 +7,27 @@ LOGGER = logging.getLogger('gbsd')
 LOGGER.setLevel(logging.DEBUG)
 
 TIME_OFFSET = 0
-NOP_CMD_OFFSET = 1
-DUTY_LL_CMD_OFFSET = 2
-VOLENVPER_CMD_OFFSET = 3
-FREQLSB_CMD_OFFSET = 4
-FREQMSB_CMD_OFFSET= 5
-CHANNEL_OFFSET = 6
-DUTY_OFFSET = 7
-LENGTH_OFFSET = 8
-VOL_OFFSET = 9
-ADD_MODE_OFFSET = 10
-PERIOD_OFFSET = 11
-FREQLSB_OFFSET = 12
-FREQMSB_OFFSET = 13
-LENGTH_ENABLE_OFFSET = 14
-TRIGGER_OFFSET = 15
-NUM_INP = 16
+CH_1_OFFSET = 1
+CH_2_OFFSET = 2
+NOP_CMD_OFFSET = 3
+DUTY_LL_CMD_OFFSET = 4
+VOLENVPER_CMD_OFFSET = 5
+FREQLSB_CMD_OFFSET = 6
+FREQMSB_CMD_OFFSET= 7
+CHANNEL_OFFSET = 8
+DUTY_OFFSET = 9
+LENGTH_OFFSET = 10
+VOL_OFFSET = 11
+ADD_MODE_OFFSET = 12
+PERIOD_OFFSET = 13
+FREQLSB_OFFSET = 14
+FREQMSB_OFFSET = 15
+LENGTH_ENABLE_OFFSET = 16
+TRIGGER_OFFSET = 17
+NUM_INP = 18
 NUM_CMD = FREQMSB_CMD_OFFSET
 
-WINDOW_SIZE = 32
+WINDOW_SIZE = 128
 
 NORMALIZE_TIME_BY = float(4194304 * 3) # 1 second is 4194304 cycles so this is 10s
 
@@ -36,7 +38,13 @@ def unnorm(val, max_val):
     return ((val + 1.) / 2.) * max_val
 
 def fresh_input(command, channel, time):
-    newd = np.array([norm(time, NORMALIZE_TIME_BY), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=float)
+    newd = np.array([norm(time, NORMALIZE_TIME_BY), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=float)
+    if int(channel) == 1:
+        newd[CH_1_OFFSET] = 1.
+    elif int(channel) == 2:
+        newd[CH_2_OFFSET] = 1.
+    else:
+        raise "I didn't expect this"
     newd[command] = 1.
     return newd
 
