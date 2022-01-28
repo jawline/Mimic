@@ -1,1 +1,3 @@
 /target
+*.pyc
+.ipynb_checkpoints/*
