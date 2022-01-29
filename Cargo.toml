@@ -4,6 +4,14 @@ version = "0.1.0"
 authors = ["Blake Loring <blake@parsed.uk>"]
 edition = "2018"
 
+[[bin]]
+name = "emulator"
+path = "src/main.rs"
+
+[[bin]]
+name = "playback"
+path = "src/playback.rs"
+
 [dependencies]
 log = "0.4"
 env_logger = "0.7.1"
