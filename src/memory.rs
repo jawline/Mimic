@@ -84,8 +84,8 @@ impl RomChunk {
     Ok(RomChunk { bytes: buffer })
   }
 
-  pub fn empty() -> RomChunk {
-    RomChunk { bytes: Vec::new() }
+  pub fn empty(sz: usize) -> RomChunk {
+    RomChunk { bytes: vec![0; sz] }
   }
 
   fn wide_read_u8(&self, address: usize) -> u8 {

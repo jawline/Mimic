@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         RomChunk::from_file(&bios_file)?
       } else {
         skip_bios = true;
-        RomChunk::empty()
+        RomChunk::empty(256)
       };
 
       info!("loaded BIOS");
