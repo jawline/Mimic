@@ -76,11 +76,19 @@ where P: AsRef<Path>, {
     Ok(io::BufReader::new(file).lines())
 }
 
+fn try_bool_or_u8(s: &str) -> Result<bool, Box<dyn Error>> {
+    match s.parse::<bool>() {
+        Ok(v) => Ok(v),
+        Err(e) => Ok(s.parse::<u8>()? != 0)
+    }
+}
+
 fn parse_file(filename: &str) -> Result<Vec<Instruction>, Box<dyn Error>> {
     let mut res = Vec::new();
     let lines = read_lines(filename)?;
     for line in lines {
         let line = line?;
+        println!("{}", line);
         // TODO: I don't actually need to allocate here if I use iter functions
         let parts: Vec<String> = line.split(" ").map(|x| x.to_string()).collect();
         if parts[0] == "CH" && parts.len() > 5 {
@@ -94,8 +102,8 @@ fn parse_file(filename: &str) -> Result<Vec<Instruction>, Box<dyn Error>> {
                 },
                 "FREQMSB" => {
                     let frequency = parts[3].parse::<u8>()?;
-                    let length_enable = parts[4].parse::<bool>()?;
-                    let trigger = parts[5].parse::<bool>()?;
+                    let length_enable = try_bool_or_u8(&parts[4])?;
+                    let trigger = try_bool_or_u8(&parts[5])?;
                     Some(Type::Msb { frequency, length_enable, trigger })
                 },
                 "VOLENVPER" => {
