@@ -152,6 +152,7 @@ fn write_duty(m: &mut MachineState, addr: u16, duty: u8, load_length: u8) {
 }
 
 fn base_address(ch: usize) -> u16 {
+    println!("Channel: {}", ch);
     match ch {
         1 => 0xFF11,
         2 => 0xFF16,
