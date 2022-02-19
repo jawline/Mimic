@@ -40,7 +40,7 @@ struct Opts {
   #[clap(short, long)]
   rom: String,
   #[clap(short, long)]
-  sdl_mode: bool,
+  cli_mode: bool,
   #[clap(long)]
   cli_midpoint_rendering: bool,
   #[clap(long)]
@@ -109,7 +109,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
   };
 
-  if opts.sdl_mode {
+  if !opts.cli_mode {
     sdl::run(gameboy, &savestate_path)?;
     Ok(())
   } else {
