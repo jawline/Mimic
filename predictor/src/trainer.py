@@ -7,14 +7,18 @@ from torch import nn
 ROUND_SZ = 100
 
 def train(data_loader, load_fn, path, device):
+
     cpu = torch.device('cpu')
     command_generator, optimizer, scheduler = load_fn(path, device)
     criterion = nn.CrossEntropyLoss()
     running_loss = torch.zeros(1, device=device)
     data_loader = iter(data_loader)
+
     def step():
+
         print("Starting batch")
         running_loss.zero_()
+
         for i in range(ROUND_SZ):
 
             if i % (ROUND_SZ / 10) == 0:
@@ -38,9 +42,7 @@ def train(data_loader, load_fn, path, device):
 
             loss.backward()
             optimizer.step()
-            #print(loss.detach().item())
             running_loss.add_(loss.detach())
-            #print(running_loss)
 
             seq = seq.detach().to(cpu)
             del inputs
@@ -54,7 +56,8 @@ def train(data_loader, load_fn, path, device):
         torch.save(command_generator.state_dict(), "./" + name + ".model")
         torch.save(optimizer.state_dict(), "./" + name + ".optimizer")
 
-    i = 0
+    current_iteration = 0
+
     while True:
         loss = step()
         scheduler.step(loss)
@@ -65,12 +68,12 @@ def train(data_loader, load_fn, path, device):
         print("Saving checkpoint")
 
         # Timestamp every 10th epoch to test fits later
-        if i % 10 == 0:
+        if current_iteration % 10 == 0:
             save(str(int(datetime.now().timestamp())))
 
         save("./last.checkpoint")
         print("Saved checkpoint")
 
-        i += 1
+        current_iteration += 1
 
     return command_generator.eval()

@@ -13,7 +13,6 @@ from functools import reduce
 KERNEL_SIZE_SAMPLES=16
 KERNEL_SIZE=BYTES_PER_ENTRY * KERNEL_SIZE_SAMPLES
 NUM_LAYERS=4
-RECEPTIVE_FIELD_BYTES=KERNEL_SIZE*(2**4)
 
 class PositionalEncoding(nn.Module):
 
@@ -181,14 +180,17 @@ class AttentionNet(nn.Module):
 
 # Load a command net model, either initialized with random values (if path is None) otherwise from an existing network saved on disk.
 def load_command_net(path, device):
+
     lr = 0.01
     momentum=0.8
+
     command_generator = CommandNet()
     optimizer = optim.SGD(
         command_generator.parameters(),
         lr=lr,
         momentum=momentum
     )
+
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.97, min_lr=0.0001)
     command_generator = command_generator.to(device)
 

@@ -12,7 +12,12 @@ import math
 import numpy as np
 import pescador
 
-# Pytorch bits
+from sample import SampleDataset,MAX_WINDOW_SIZE
+from model import load_command_net
+from trainer import train
+from music_generator import generate_a_song
+
+# Pytorch setup
 import torch
 
 # Print human-interpretable outputs
@@ -25,17 +30,17 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
-from sample import SampleDataset,MAX_WINDOW_SIZE
-from model import load_command_net
-from trainer import train
-from music_generator import generate_a_song
-
 print("Would you like to [train] or [generate]:")
 line = sys.stdin.readline().strip()
 
 if line == "train":
+
+    # Create a standard data loader from our samples
     loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/",window_size=MAX_WINDOW_SIZE))
+
+    # Train a model with the data loader
     train(loader, load_command_net, "./last.checkpoint", device)
+
 elif line == "generate":
 
     # This loader is used as a seed to the NN and needs to
