@@ -465,6 +465,7 @@ impl GameboyState {
       let msb = val & 0b0000_0111;
       let le = isset8(val, 0b0100_0000);
       let trigger = isset8(val, 0b1000_0000);
+
       println!(
         "CH 2 FREQMSB {} {} {} AT {}",
         msb,
@@ -472,6 +473,7 @@ impl GameboyState {
         trigger,
         registers.total_clock - self.last_clock
       );
+
       self.last_clock = registers.total_clock;
     }
 

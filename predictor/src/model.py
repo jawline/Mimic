@@ -10,13 +10,13 @@ from torch import nn, optim
 from local_attention import LocalAttention
 from functools import reduce
 
-KERNEL_SIZE_SAMPLES=16
+KERNEL_SIZE_SAMPLES=4
 KERNEL_SIZE=BYTES_PER_ENTRY * KERNEL_SIZE_SAMPLES
 NUM_LAYERS=4
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout = 0.1, max_len = 2048):
+    def __init__(self, d_model, dropout = 0.1, max_len = 1024 * 10):
         super().__init__()
 
         assert(MAX_WINDOW_SIZE <= max_len)
@@ -86,7 +86,7 @@ class CommandNet(nn.Module):
 
         # The size of the receptive field is kernel size exponentially increased by the number
         # of layers because we are using dilations
-        self.receptive_field_size=kernel_size*(2**num_layers)
+        self.receptive_field_size=kernel_size**num_layers
 
     def receptive_field(self):
         return self.receptive_field_size

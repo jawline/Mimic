@@ -3,14 +3,7 @@ name = "gb_int"
 version = "0.1.0"
 authors = ["Blake Loring <blake@parsed.uk>"]
 edition = "2018"
-
-[[bin]]
-name = "emulator"
-path = "src/main.rs"
-
-[[bin]]
-name = "playback"
-path = "src/playback.rs"
+default-run = "emulator"
 
 [dependencies]
 log = "0.4"
@@ -26,3 +19,6 @@ cpal = "0.13.4"
 
 [profile.dev]
 overflow-checks = false
+
+[profile.release]
+debug = 1

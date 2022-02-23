@@ -6,7 +6,6 @@ use std::error::Error;
 use std::result::Result;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use std::time::Instant;
 
 // TODO: Refactor all the sound code to take a multiple of T-cycles rather than stepping by
 // four cycles every call.
@@ -422,7 +421,7 @@ impl Channels {
   fn step(&mut self, mem: &mut GameboyState) {
     self.channel_one.step(mem);
     self.channel_two.step(mem);
-    //self.wave.step(mem);
+    self.wave.step(mem);
   }
 
   /**
@@ -678,7 +677,7 @@ impl Sound {
       self.t_cycles += 4;
       if self.t_cycles >= sample_divisor {
         // We should generate a sample for cpal here
-        samples.send(self.channels.amplitude(mem));
+        samples.send(self.channels.amplitude(mem)).unwrap();
         self.t_cycles = 0;
       }
     }
@@ -704,15 +703,6 @@ fn run<T: cpal::Sample + std::fmt::Debug>(
     move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
       let mut written = 0;
 
-      /* TODO: Might need to write an empty frame if we haven't caught up, should test first
-       * though.  */
-
-      /*for frame in output.chunks_mut(channels) {
-          for channel_fr in &mut *frame {
-              *channel_fr = 0.;
-          }
-      }*/
-
       for frame in output.chunks_mut(channels) {
         if let Ok(sample) = recv.try_recv() {
           let sample = cpal::Sample::from::<f32>(&sample);
@@ -722,8 +712,6 @@ fn run<T: cpal::Sample + std::fmt::Debug>(
           written += 1;
         }
       }
-
-      //println!("{}", written);
 
       if written == 0 {
         for frame in output.chunks_mut(channels) {

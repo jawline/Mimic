@@ -1,36 +1,17 @@
-#![feature(duration_consts_float)]
-#![feature(drain_filter)]
-extern crate cpal;
-
-mod clock;
-mod cpu;
-mod frame_timer;
-mod instruction;
-mod instruction_data;
-mod machine;
-mod memory;
-mod ppu;
-mod register;
-mod sdl;
-mod sound;
-mod terminal;
-mod util;
-
-use crate::sound::Sound;
-use clock::Clock;
-use cpu::Cpu;
-use instruction::InstructionSet;
 use log::info;
-use machine::{Machine, MachineState};
-use memory::{GameboyState, RomChunk};
-use ppu::Ppu;
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use std::{thread, time};
-
 use clap::{AppSettings, Clap};
+
+use gb_int::sound::{self, Sound};
+use gb_int::clock::Clock;
+use gb_int::cpu::Cpu;
+use gb_int::machine::{MachineState};
+use gb_int::memory::{GameboyState, RomChunk};
+use gb_int::ppu::Ppu;
 
 /// This doc string acts as a help message when the user runs '--help'
 /// as do all doc strings on fields
@@ -79,7 +60,7 @@ where P: AsRef<Path>, {
 fn try_bool_or_u8(s: &str) -> Result<bool, Box<dyn Error>> {
     match s.parse::<bool>() {
         Ok(v) => Ok(v),
-        Err(e) => Ok(s.parse::<u8>()? != 0)
+        Err(_invalid_bool_error) => Ok(s.parse::<u8>()? != 0)
     }
 }
 
@@ -165,7 +146,7 @@ fn main() -> Result<(), Box<dyn Error>> {
   let opts: Opts = Opts::parse();
   let instructions = parse_file(&opts.playback_file)?;
   println!("{:?}", instructions);
-  let (_device, _stream, sample_rate, sound_tx) = crate::sound::open_device()?;
+  let (_device, _stream, sample_rate, sound_tx) = sound::open_device()?;
 
   info!("preparing initial state");
 
@@ -206,7 +187,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             Type::Duty { duty, length_load } => {
                 write_duty(&mut gameboy_state, base_address(todo.channel), duty, length_load);
             }
-            _ => { println!("unfinished"); }
         }
 
         elapsed = 0;
@@ -221,5 +201,5 @@ fn main() -> Result<(), Box<dyn Error>> {
     thread::sleep(ten_millis);
   }
 
-  Ok(())
+  // TODO: Find a better way than looping forever - we should be able to test when our buffer is completely empty
 }
