@@ -39,12 +39,12 @@ if line == "train":
     loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/",window_size=MAX_WINDOW_SIZE))
 
     # Train a model with the data loader
-    train(loader, load_command_net, "./last.checkpoint", device)
+    train(loader, load_command_net, None, device)
 
 elif line == "generate":
 
     # This loader is used as a seed to the NN and needs to
-    # start on a complete sample (starrt_at_sample=True)
+    # start on a complete sample (start_at_sample=True)
     # because we need to know which byte we are in within
     # the current sample when we generate new samples byte
     # by byte

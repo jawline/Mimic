@@ -115,6 +115,7 @@ class CommandNet(nn.Module):
 
         return o
 
+# WIP Replacement for the CausalConv that uses local attention
 class AttentionResBlock(nn.Module):
     def __init__(self, input_channels, output_channels, kernel_size, skip_channels, dilation=1):
         super(AttentionResBlock, self).__init__()
