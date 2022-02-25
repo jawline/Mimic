@@ -8,7 +8,7 @@ import logging
 import os
 import math
 
-# Data preperation
+# Data preparation
 import numpy as np
 import pescador
 
@@ -36,7 +36,7 @@ line = sys.stdin.readline().strip()
 if line == "train":
 
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/",window_size=MAX_WINDOW_SIZE))
+    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
 
     # Train a model with the data loader
     train(loader, load_command_net, None, device)
