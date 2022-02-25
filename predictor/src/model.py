@@ -67,7 +67,7 @@ class ResidualBlock(nn.Module):
 
 # When using dilations the effective lookback is KERNEL_SIZE^num_layers
 class CommandNet(nn.Module):
-    def __init__(self, skip_channels=256, num_blocks=2, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=KERNEL_SIZE): 
+    def __init__(self, skip_channels=256, num_blocks=8, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=KERNEL_SIZE): 
         super(CommandNet, self).__init__()
 
         self.embed = nn.Embedding(skip_channels, skip_channels)
