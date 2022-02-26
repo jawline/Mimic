@@ -26,6 +26,7 @@ pub struct Machine {
 }
 
 impl Machine {
+
   pub fn save_state(&self, filename: &str) -> Result<(), Box<dyn Error>> {
     let file = File::create(filename)?;
     ser::into_writer(&self.state, file)?;

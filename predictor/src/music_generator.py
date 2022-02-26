@@ -8,7 +8,7 @@ from sample import BYTES_PER_ENTRY, command_of_bytes, command_to_bytes, print_fe
 # This block allocates some linear memory we
 # feed the new predictions into and use as a
 # rolling window for the NN so we don't need
-# to memmove as often
+# to move memory as often
 class MovingWindow():
 
     def __init__(self, seed, device):
@@ -54,7 +54,7 @@ def prepare_seed(loader, command_generator, device):
 
 def generate_a_song(loader, load_fn, path, device):
 
-  # A convienience reference to the CPU
+  # A convenience reference to the CPU
   cpu = torch.device('cpu')
 
   # Load an instance of the model
@@ -78,5 +78,4 @@ def generate_a_song(loader, load_fn, path, device):
                   print_feature(last_sample, file=f)
               except BaseException as err:
                   print("pred was not valid because:", err)
-
       del pred

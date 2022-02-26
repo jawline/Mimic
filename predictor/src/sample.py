@@ -13,7 +13,7 @@ CMD_MSB = 2
 CMD_LSB = 3
 CMD_COUNT = 4
 
-# These offsets demark the type of data i
+# These offsets mark the type of data index in sample form (not model form)
 TIME_OFFSET = 0
 CH_OFFSET = 1
 CMD_OFFSET = 2
@@ -25,7 +25,7 @@ SIZE_OF_INPUT_FIELDS = 6
 # The maximum number of samples we will send to the model in a single iteration
 MAX_WINDOW_SIZE = 4096
 
-# The gameboy cycles this many times per second. This is the
+# The Gameboy cycles this many times per second. This is the
 # measurement of time we use in our TIME_OFFSET values
 M_CYCLES_PER_SECOND = 4194304.
 

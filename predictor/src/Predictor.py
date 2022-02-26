@@ -30,16 +30,23 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
-print("Would you like to [train] or [generate]:")
+print("Would you like a [fresh] model, to [train] and existing model or [generate] music:")
 line = sys.stdin.readline().strip()
 
-if line == "train":
+if line == "fresh":
 
     # Create a standard data loader from our samples
     loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
 
     # Train a model with the data loader
     train(loader, load_command_net, None, device)
+elif line == "train":
+
+    # Create a standard data loader from our samples
+    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
+
+    # Train a model with the data loader
+    train(loader, load_command_net, "./last.checkpoint", device)
 
 elif line == "generate":
 

@@ -10,9 +10,9 @@ from torch import nn, optim
 from local_attention import LocalAttention
 from functools import reduce
 
-KERNEL_SIZE_SAMPLES=4
+KERNEL_SIZE_SAMPLES=2
 KERNEL_SIZE=BYTES_PER_ENTRY * KERNEL_SIZE_SAMPLES
-NUM_LAYERS=4
+NUM_LAYERS=9
 
 class PositionalEncoding(nn.Module):
 
