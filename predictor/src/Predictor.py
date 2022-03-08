@@ -13,7 +13,7 @@ import numpy as np
 import pescador
 
 from sample import SampleDataset,MAX_WINDOW_SIZE
-from model import load_command_net
+from model import load_command_net, load_attention_net
 from trainer import train
 from music_generator import generate_a_song
 
@@ -33,20 +33,22 @@ else:
 print("Would you like a [fresh] model, to [train] and existing model or [generate] music:")
 line = sys.stdin.readline().strip()
 
+model = load_attention_net
+
 if line == "fresh":
 
     # Create a standard data loader from our samples
     loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
 
     # Train a model with the data loader
-    train(loader, load_command_net, None, device)
+    train(loader, model, None, device)
 elif line == "train":
 
     # Create a standard data loader from our samples
     loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
 
     # Train a model with the data loader
-    train(loader, load_command_net, "./last.checkpoint", device)
+    train(loader, model, "./last.checkpoint", device)
 
 elif line == "generate":
 
@@ -60,4 +62,4 @@ elif line == "generate":
     out_of_sample_loader = torch.utils.data.DataLoader(SampleDataset("../../out_of_sample/", window_size=MAX_WINDOW_SIZE, start_at_sample=True))
 
     # Generate a song using the out of sample loader
-    generate_a_song(out_of_sample_loader, load_command_net, "./last.checkpoint", device)
+    generate_a_song(out_of_sample_loader, model, "./last.checkpoint", device)

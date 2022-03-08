@@ -32,13 +32,8 @@ def train(data_loader, load_fn, path, device):
 
             with autocast():
                 outputs = command_generator(inputs)
-
-                # Backprop only on the datapoints that had at least half a k kernel
-                #backprop_l = int(min(KERNEL_SIZE / 2, len(seq) / 2))
-                #backprop_inputs = outputs[:,:,backprop_l:]
-                #backprop_outputs = labels[:,backprop_l:]
-
-                loss = criterion(outputs, labels)
+                #print("Shapes: ", outputs.view(-1, 256).shape, labels.reshape(-1).shape)
+                loss = criterion(outputs.view(-1, 256), labels.reshape(-1))
 
             loss.backward()
             optimizer.step()

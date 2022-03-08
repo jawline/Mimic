@@ -38,10 +38,15 @@ class MovingWindow():
         # Slice the current window
         return self.seq[self.start:self.end()]
 
+def nearest_multiple(x, base):
+    return base * round(x / base)
+
 def prepare_seed(loader, command_generator, device):
 
   # Cut the seed to the receptive window of our model so that it executes faster
-  seed = next(iter(loader))[0][:command_generator.receptive_field()]
+  seed = next(iter(loader))[0][-nearest_multiple(command_generator.receptive_field(), BYTES_PER_ENTRY) + BYTES_PER_ENTRY:]
+
+  print("Seed shape: ", seed.shape)
 
   # Write the seed values out to a file for debugging
   with open('seed.txt', 'w') as f:
