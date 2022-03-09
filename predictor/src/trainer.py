@@ -4,7 +4,7 @@ import torch
 from torch.cuda.amp import autocast
 from torch import nn
 
-ROUND_SZ = 100
+ROUND_SZ = 10000
 
 def train(data_loader, load_fn, path, device):
 
@@ -31,7 +31,7 @@ def train(data_loader, load_fn, path, device):
             optimizer.zero_grad()
 
             with autocast():
-                outputs = command_generator(inputs)
+                outputs = command_generator(inputs, command_generator.get_tgt_mask(inputs.size(1)).to(device))
                 #print("Shapes: ", outputs.view(-1, 256).shape, labels.reshape(-1).shape)
                 loss = criterion(outputs.view(-1, 256), labels.reshape(-1))
 

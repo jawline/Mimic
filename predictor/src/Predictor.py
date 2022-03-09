@@ -38,14 +38,14 @@ model = load_attention_net
 if line == "fresh":
 
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
+    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=4, prefetch_factor=32)
 
     # Train a model with the data loader
     train(loader, model, None, device)
 elif line == "train":
 
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=1, prefetch_factor=4)
+    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=4, prefetch_factor=32)
 
     # Train a model with the data loader
     train(loader, model, "./last.checkpoint", device)

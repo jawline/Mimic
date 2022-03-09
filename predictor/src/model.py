@@ -15,7 +15,7 @@ NUM_LAYERS=12
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout = 0.1, max_len = 1024 * 10):
+    def __init__(self, d_model, dropout = 0.1, max_len = 1024 * 32):
         super().__init__()
 
         assert(MAX_WINDOW_SIZE <= max_len)
@@ -123,28 +123,50 @@ class CommandNet(nn.Module):
         return o
 
 class AttentionNet(nn.Module):
+
     def __init__(self, skip_channels=256, num_blocks=4, num_layers=5, num_hidden=256, kernel_size=KERNEL_SIZE):
         super(AttentionNet, self).__init__()
 
         self.embed = nn.Embedding(skip_channels, skip_channels)
+        self.positional_embed = PositionalEncoding(skip_channels)
 
-        encoder_layers = nn.TransformerEncoderLayer(256, 8, 256, 0.1)
-        self.encode = nn.TransformerEncoder(encoder_layers, 4)
+        self.transformer = nn.Transformer(d_model=256, batch_first=True)
 
-        self.decode = nn.Linear(256, 256)
-
-        self.transformer = nn.Transformer()
+        self.final = nn.Linear(256, 256)
 
         self.receptive_field_size = KERNEL_SIZE*NUM_LAYERS
 
-    def forward(self, x):
+    # Generate a input mask mask matrix of [(len, len)] where each row 0 < i <= len has i zeros and then (len - i) -infinities.
+    # This permits all of the data up until the current datapoint to be considered but masks out any after the current datapoint.
+    # Eg: 
+    #
+    # [[0., -inf, -inf, -inf, -inf],
+    #  [0.,   0., -inf, -inf, -inf],
+    #  [0.,   0.,   0., -inf, -inf],
+    #  [0.,   0.,   0.,   0., -inf],
+    #  [0.,   0.,   0.,   0.,   0.]]
+    #
+    # (Based on code from  https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1)
+    def get_tgt_mask(self, size):
+        # Lower triangular matrix makes a matrix (size, size) where column[i] has i False rows followed by size - i True rows
+        # e.g, column[0] is all True and the final column is all False except for the final element which is True.
+        mask = torch.tril(torch.ones(size, size) == 1) 
+        # Create a float tensor of size mask where 
+        mask = mask.float().masked_fill(mask == True, 0.).masked_fill(mask == False, float('-inf')) 
+        return mask
+
+    # First we convert our inputs to byte-embedding (vectors of 256 values)
+    # next we positionally encode our embeddings
+    # after that, we pass or sequence into a transformer model
+    # finally, we pass the output of the transformer into a final linear layer
+    # and softmax the output (normalize so everything is close to either zero
+    # or one).
+    def forward(self, x, tgt_mask):
         x = self.embed(x)
-        x = self.encode(x) 
-        #print("Shape before decode: ", x.shape)
-        x = self.decode(x)
-        #print("Shape after decode: ", x.shape)
+        x = self.positional_embed(x)
+        x = self.transformer(x, x, tgt_mask)
+        x = self.final(x)
         x = F.log_softmax(x, dim=-1)
-        #print ("Shape after softmax: ", x.shape, x)
         return x
 
     def receptive_field(self):
