@@ -6,9 +6,15 @@ from torch import nn
 
 ROUND_SZ = 10000
 
-def train(data_loader, load_fn, path, device):
+def train(data_loader, load_fn, model_dir, load_path, device):
 
     cpu = torch.device('cpu')
+
+    # Send none to load_fn if load_path is None otherwise append the model dir to it
+    path = None
+    if load_path != None:
+        path = model_dir + load_path
+
     command_generator, optimizer, scheduler = load_fn(path, device)
     criterion = nn.CrossEntropyLoss()
     running_loss = torch.zeros(1, device=device)
@@ -64,9 +70,9 @@ def train(data_loader, load_fn, path, device):
 
         # Timestamp every 10th epoch to test fits later
         if current_iteration % 10 == 0:
-            save(str(int(datetime.now().timestamp())))
+            save(model_dir + "/" + str(int(datetime.now().timestamp())))
 
-        save("./last.checkpoint")
+        save(model_dir + "./last.checkpoint")
         print("Saved checkpoint")
 
         current_iteration += 1

@@ -8,6 +8,9 @@ import logging
 import os
 import math
 
+# Argument parsing
+import argparse
+
 # Data preparation
 import numpy as np
 import pescador
@@ -30,27 +33,38 @@ if torch.cuda.is_available():
 else:
     device = torch.device('cpu')
 
-print("Would you like a [fresh] model, to [train] and existing model or [generate] music:")
-line = sys.stdin.readline().strip()
+parser = argparse.ArgumentParser(description="Train a model or generate a song with an existing model")
+
+parser.add_argument('--mode', required=True)
+parser.add_argument('--model-dir', required=True)
+parser.add_argument('--training-data', required=True)
+parser.add_argument('--test-data', required=True)
+
+args = parser.parse_args()
 
 model = load_attention_net
 
-if line == "fresh":
+mode = args.mode
+training_data = args.training_data
+test_data = args.test_data
+model_dir = args.model_dir
+
+if mode == "fresh":
 
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=4, prefetch_factor=32)
+    loader = torch.utils.data.DataLoader(SampleDataset(training_data, window_size=MAX_WINDOW_SIZE), num_workers=4, prefetch_factor=32)
 
     # Train a model with the data loader
-    train(loader, model, None, device)
-elif line == "train":
+    train(loader, model, model_dir, None, device)
+elif mode == "train":
 
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset("../../training_data/", window_size=MAX_WINDOW_SIZE), num_workers=4, prefetch_factor=32)
+    loader = torch.utils.data.DataLoader(SampleDataset(training_data, window_size=MAX_WINDOW_SIZE), num_workers=4, prefetch_factor=32)
 
     # Train a model with the data loader
-    train(loader, model, "./last.checkpoint", device)
+    train(loader, model, model_dir, "./last.checkpoint", device)
 
-elif line == "generate":
+elif mode == "generate":
 
     # This loader is used as a seed to the NN and needs to
     # start on a complete sample (start_at_sample=True)
@@ -59,7 +73,7 @@ elif line == "generate":
     # by byte
     # We do not always train exactly on a sample when
     # training, which is why this is a flag.
-    out_of_sample_loader = torch.utils.data.DataLoader(SampleDataset("../../out_of_sample/", window_size=MAX_WINDOW_SIZE, start_at_sample=True))
+    out_of_sample_loader = torch.utils.data.DataLoader(SampleDataset(test_data, window_size=MAX_WINDOW_SIZE, start_at_sample=True))
 
     # Generate a song using the out of sample loader
-    generate_a_song(out_of_sample_loader, model, "./last.checkpoint", device)
+    generate_a_song(out_of_sample_loader, model, model_dir + "/last.checkpoint", device)
