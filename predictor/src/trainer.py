@@ -10,8 +10,11 @@ def train(data_loader, load_fn, model_dir, load_path, device):
 
     cpu = torch.device('cpu')
 
+    print("Train called with: ", model_dir, load_path)
+
     # Send none to load_fn if load_path is None otherwise append the model dir to it
     path = None
+
     if load_path != None:
         path = model_dir + load_path
 
@@ -54,6 +57,7 @@ def train(data_loader, load_fn, model_dir, load_path, device):
         return result
 
     def save(name):
+        print("Saving model to path: " + name)
         torch.save(command_generator.state_dict(), "./" + name + ".model")
         torch.save(optimizer.state_dict(), "./" + name + ".optimizer")
 
@@ -72,7 +76,8 @@ def train(data_loader, load_fn, model_dir, load_path, device):
         if current_iteration % 10 == 0:
             save(model_dir + "/" + str(int(datetime.now().timestamp())))
 
-        save(model_dir + "./last.checkpoint")
+        save(model_dir + "/last.checkpoint")
+
         print("Saved checkpoint")
 
         current_iteration += 1

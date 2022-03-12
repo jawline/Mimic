@@ -190,6 +190,7 @@ def load_model(model, path, device):
     # This needs to be after to because the optimizer decides what device to send the tensors to based on the
     # device of the model.
     if path != None:
+        print("Loading from " + path)
         model.load_state_dict(torch.load(path + ".model"))
         optimizer.load_state_dict(torch.load(path + ".optimizer"))
         #scheduler = torch.load(path + ".scheduler")
