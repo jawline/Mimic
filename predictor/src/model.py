@@ -10,7 +10,6 @@ from torch import nn, optim
 from local_attention import LocalAttention
 from functools import reduce
 
-KERNEL_SIZE=7*4
 NUM_LAYERS=12
 
 class PositionalEncoding(nn.Module):
@@ -65,7 +64,7 @@ class ResidualBlock(nn.Module):
 # with a fixed receptive window (the number of previous data points considered when predicting the
 # next data point).
 class CommandNet(nn.Module):
-    def __init__(self, skip_channels=256, num_blocks=4, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=KERNEL_SIZE, dilations=False): 
+    def __init__(self, skip_channels=256, num_blocks=4, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=7*4, dilations=False): 
         super(CommandNet, self).__init__()
 
         self.embed = nn.Embedding(skip_channels, skip_channels)
@@ -124,7 +123,7 @@ class CommandNet(nn.Module):
 
 class AttentionNet(nn.Module):
 
-    def __init__(self, skip_channels=256, num_blocks=4, num_layers=5, num_hidden=256, kernel_size=KERNEL_SIZE):
+    def __init__(self, skip_channels=256, num_blocks=4, num_layers=5, num_hidden=256):
         super(AttentionNet, self).__init__()
 
         self.embed = nn.Embedding(skip_channels, skip_channels)

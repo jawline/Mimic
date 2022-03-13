@@ -48,7 +48,7 @@ parser.add_argument('--test-data', required=True)
 
 args = parser.parse_args()
 
-model = load_attention_net
+model = load_command_net
 
 mode = args.mode
 training_data = args.training_data
