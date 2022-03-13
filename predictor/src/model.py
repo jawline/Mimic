@@ -184,7 +184,7 @@ def load_model(model, path, device):
         momentum=momentum
     )
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0001)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.95, min_lr=0.0001)
     model = model.to(device)
 
     # This needs to be after to because the optimizer decides what device to send the tensors to based on the

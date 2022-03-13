@@ -1,4 +1,4 @@
-    Finished release [optimized + debuginfo] target(s) in 0.03s
+    Finished release [optimized + debuginfo] target(s) in 0.14s
      Running `target/release/emulator --rom '/home/blake/training-sources-gb/Chase H.Q. (U) (V1.1) ['\!'].gb'`
 Starting to play
 CH 1 VOLENVPER 0 0 0 AT 24528
@@ -204,6 +204,14 @@ CH 2 FREQMSB 6 false false AT 28
 CH 1 FREQLSB 237 AT 67696
 CH 1 FREQMSB 5 false false AT 28
 CH 2 FREQLSB 66 AT 56
+CH 2 FREQMSB 6 false false AT 28
+CH 1 FREQLSB 235 AT 67212
+CH 1 FREQMSB 5 false false AT 28
+CH 2 FREQLSB 64 AT 56
+CH 2 FREQMSB 6 false false AT 28
+CH 1 FREQLSB 233 AT 67440
+CH 1 FREQMSB 5 false false AT 28
+CH 2 FREQLSB 62 AT 56
 CH 2 FREQMSB 6 false false AT 28
 thread 'main' panicked at 'not implemented', src/sdl.rs:30:9
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
