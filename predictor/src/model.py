@@ -10,7 +10,7 @@ from torch import nn, optim
 from local_attention import LocalAttention
 from functools import reduce
 
-NUM_LAYERS=12
+NUM_LAYERS=20
 
 class PositionalEncoding(nn.Module):
 
@@ -47,15 +47,15 @@ class ResidualBlock(nn.Module):
         self.conv_sig = CausalConv1d(input_channels, output_channels, kernel_size, dilation)
         self.sig = nn.Sigmoid()
 
-        self.conv_tan = CausalConv1d(input_channels, output_channels, kernel_size, dilation)
-        self.tanh = nn.Tanh()
+        # self.conv_tan = CausalConv1d(input_channels, output_channels, kernel_size, dilation)
+        # self.tanh = nn.Tanh()
 
         #separate weights for residual and skip channels
         self.conv_r = nn.Conv1d(output_channels, output_channels, 1)
         self.conv_s = nn.Conv1d(output_channels, skip_channels, 1)
 
     def forward(self, x):
-        o = self.sig(self.conv_sig(x)) * self.tanh(self.conv_tan(x))
+        o = self.sig(self.conv_sig(x)) # * self.tanh(self.conv_tan(x))
         skip = self.conv_s(o)
         residual = self.conv_r(o)
         return residual, skip
@@ -64,11 +64,12 @@ class ResidualBlock(nn.Module):
 # with a fixed receptive window (the number of previous data points considered when predicting the
 # next data point).
 class CommandNet(nn.Module):
-    def __init__(self, skip_channels=256, num_blocks=4, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=7*4, dilations=False): 
+    def __init__(self, skip_channels=256, num_blocks=4, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=7*8, dilations=False): 
         super(CommandNet, self).__init__()
 
         self.embed = nn.Embedding(skip_channels, skip_channels)
         self.positional_embedding = PositionalEncoding(skip_channels)
+        self.dropout = nn.Dropout(p=0.2)
         self.causal_conv = CausalConv1d(skip_channels, num_hidden, kernel_size)
         self.res_stack = nn.ModuleList()
 
@@ -99,27 +100,28 @@ class CommandNet(nn.Module):
 
     def forward(self, x):
 
-        o = self.embed(x)
-        o = self.positional_embedding(o)
-        o = o.permute(0,2,1)
-        o = self.causal_conv(o)
+        x = self.embed(x)
+        x = self.positional_embedding(x)
+        x = self.dropout(x)
+        x = x.permute(0,2,1)
+        x = self.causal_conv(x)
 
         skip_vals = []
 
         #run res blocks
         for i, layer in enumerate(self.res_stack):
-            o, s = layer(o)
+            x, s = layer(x)
             skip_vals.append(s)
 
         #sum skip values and pass to last portion of network
-        o = o + reduce((lambda a,b: a+b), skip_vals)
+        x = x + reduce((lambda a,b: a+b), skip_vals)
 
-        o = self.relu1(o)
-        o = self.conv1(o)
-        o = self.relu2(o)
-        o = self.conv2(o)
+        x = self.relu1(x)
+        x = self.conv1(x)
+        x = self.relu2(x)
+        x = self.conv2(x)
 
-        return o
+        return x
 
 class AttentionNet(nn.Module):
 
