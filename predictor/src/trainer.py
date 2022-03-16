@@ -4,7 +4,7 @@ import torch
 from torch.cuda.amp import autocast
 from torch import nn
 
-ROUND_SZ = 1000
+ROUND_SZ = 10000
 
 def train(data_loader, load_fn, model_dir, load_path, device):
 
