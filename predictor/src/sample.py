@@ -1,17 +1,18 @@
 import sys
 import numpy as np
 import os
+import time
 
 import pescador
 import torch
 
 # These commands enumerate the different kind of instruction we can send to each channel.
 # Note: not every command is legal for every channel, invalid commands will be ignored.
-CMD_VOLENVPER = 0
-CMD_DUTYLL = 1
-CMD_MSB = 2
-CMD_LSB = 3
-CMD_COUNT = 4
+CMD_VOLENVPER = 1
+CMD_DUTYLL = 2
+CMD_MSB = 3
+CMD_LSB = 4
+CMD_COUNT = 5
 
 # These offsets mark the type of data index in sample form (not model form)
 TIME_OFFSET = 0
@@ -23,7 +24,7 @@ PARAM3_OFFSET = 5
 SIZE_OF_INPUT_FIELDS = 6
 
 # The maximum number of samples we will send to the model in a single iteration
-MAX_WINDOW_SIZE = 256
+MAX_WINDOW_SIZE = 129
 
 # The Gameboy cycles this many times per second. This is the
 # measurement of time we use in our TIME_OFFSET values
@@ -179,21 +180,29 @@ def samples_from_training_data(src, window_size, start_at_sample):
     except Exception as e:
         LOGGER.error('Could not load {}: {}'.format(src, str(e)))
         raise StopIteration()
-        
+    
     sample_data = np.array([command_to_bytes(x) for x in sample_data]).flatten()
 
+    # If the sample is less than the window size then left pad it
+    if len(sample_data) < window_size:
+        sample_data = np.pad(sample_data, (window_size - len(sample_data), 0))
+
+    sample_data = torch.Tensor(sample_data).long()
+
     while True:
-        if len(sample_data) < window_size:
-            sample = sample_data
+
+        if len(sample_data) - window_size == 0:
+            # small samples present the whole file
+            start_idx = 0
         else:
             # Sample a random window from the audio file
             start_idx = np.random.randint(0, len(sample_data) - window_size)
-            
-            # If we should start on a sample boundary then round to the nearest multiple of sample boundary from the start
-            if start_at_sample:
-                start_idx = BYTES_PER_ENTRY * round(start_idx / BYTES_PER_ENTRY)
+        
+        # If we should start on a sample boundary then round to the nearest multiple of sample boundary from the start
+        if start_at_sample:
+            start_idx = BYTES_PER_ENTRY * round(start_idx / BYTES_PER_ENTRY)
 
-            sample = sample_data[start_idx:(start_idx + window_size)]
+        sample = sample_data[start_idx:(start_idx + window_size)]
 
         yield sample
 
@@ -229,4 +238,8 @@ class SampleDataset(torch.utils.data.IterableDataset):
 
     def __iter__(self):
         while True:
-             yield next(self.loader)
+             #start = time.perf_counter()
+             nv = next(self.loader)
+             #end = time.perf_counter()
+             #print(end - start)
+             yield nv

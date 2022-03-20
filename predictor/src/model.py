@@ -10,7 +10,10 @@ from torch import nn, optim
 from local_attention import LocalAttention
 from functools import reduce
 
-NUM_LAYERS=4
+# Transformers go crazy and start outputting NaN if the LR is too high early for the first few epochs, but
+# the LR can be increased after some initial weights are adjusted. We use this gradual warmup scheduler
+# to automate that process.
+from adaptive_warmup import Scheduler as AdaptiveWarmup
 
 class PositionalEncoding(nn.Module):
 
@@ -54,7 +57,7 @@ class ResidualBlock(nn.Module):
         self.conv_r = nn.Conv1d(output_channels, output_channels, 1)
         self.conv_s = nn.Conv1d(output_channels, skip_channels, 1)
 
-        self.norm = nn.BatchNorm1d(dim)
+        self.norm = nn.BatchNorm1d(output_channels)
 
     def forward(self, x):
         o = self.sig(self.conv_sig(x)) # * self.tanh(self.conv_tan(x))
@@ -66,7 +69,7 @@ class ResidualBlock(nn.Module):
 # with a fixed receptive window (the number of previous data points considered when predicting the
 # next data point).
 class CommandNet(nn.Module):
-    def __init__(self, skip_channels=256, num_blocks=4, num_layers=NUM_LAYERS, num_hidden=256, kernel_size=7*8, dilations=False): 
+    def __init__(self, skip_channels=256, num_blocks=4, num_layers=10, num_hidden=256, kernel_size=7*8, dilations=False): 
         super(CommandNet, self).__init__()
 
         self.embed = nn.Embedding(skip_channels, skip_channels)
@@ -82,10 +85,10 @@ class CommandNet(nn.Module):
                 else:
                     self.res_stack.append(ResidualBlock(num_hidden, num_hidden, kernel_size, skip_channels=skip_channels))
 
-        self.relu1 = nn.ReLU()
         self.conv1 = nn.Conv1d(skip_channels, skip_channels, 1)
-        self.relu2 = nn.ReLU()
+        self.relu1 = nn.ReLU()
         self.conv2 = nn.Conv1d(skip_channels, skip_channels, 1)
+        self.relu2 = nn.ReLU()
 
         # When using dilations the effective lookback is KERNEL_SIZE^num_layers otherwise it is KERNEL_SIZE*num_layers
         if dilations:
@@ -94,7 +97,7 @@ class CommandNet(nn.Module):
             self.receptive_field_size=kernel_size**num_layers
         else:
             # If we don't use dilations then the receptive field size is linear in the number of layers
-            self.receptive_field_size=(kernel_size*num_layers)
+            self.receptive_field_size=(kernel_size*num_layers*num_blocks)
 
     def receptive_field(self):
         return self.receptive_field_size
@@ -118,6 +121,7 @@ class CommandNet(nn.Module):
 
         x = self.relu1(x)
         x = self.conv1(x)
+
         x = self.relu2(x)
         x = self.conv2(x)
 
@@ -125,36 +129,62 @@ class CommandNet(nn.Module):
 
 class AttentionBlock(nn.Module):
 
-    def __init__(self, dim, kernel_size, window_size):
+    def __init__(self, dim, heads):
         super(AttentionBlock, self).__init__() 
 
-        self.conv_q = CausalConv1d(dim, dim, kernel_size)
-        self.conv_k = CausalConv1d(dim, dim, kernel_size)
-        self.conv_v = CausalConv1d(dim, dim, kernel_size)
+        self.dim = dim
+        self.heads = heads
 
-        self.attention = LocalAttention(dim=dim, window_size=window_size, causal=True, autopad=True)
-        self.conv = nn.Conv1d(dim, dim, 1)
+        self.q = nn.Linear(dim, dim)
+        self.k = nn.Linear(dim, dim)
+        self.v = nn.Linear(dim, dim)
+        
+        # We run this linear layer on every input after computing attention
+        self.final = nn.Linear(dim, dim)
 
-        self.sig = nn.Sigmoid()
+        self.attention = LocalAttention(causal=True, dim=dim, window_size=101, dropout=0.1)
         self.norm = nn.BatchNorm1d(dim)
 
     def forward(self, x):
-        q = self.conv_q(x)
-        k = self.conv_k(x)
-        v = self.conv_v(x)
-        x = x.permute(0, 2, 1)
-        #print(x.shape)
-        x = self.attention(q.permute(0, 2, 1), k.permute(0, 2, 1), v.permute(0, 2, 1)).permute(0, 2, 1)
-        #print(x)
-        #x = self.sig(x)
-        x = self.conv(x)
 
-        x = self.norm(x)
-        return x 
+        # Input shape is (batch_size, dim, inp-window)
+        batch_size = x.size(0)
+
+        # Bring the shape back to (bs, inp-window, byte probabilities)
+        x = x.permute(0, 2, 1)
+
+        # Get q k and v by a run through out linear layer
+        q = self.q(x)
+        k = self.k(x)
+        v = self.v(x)
+
+        # Reshape tensors so that we have (batch_size, head, inp-size / head, dim)
+        q = q.view(batch_size, -1, self.heads, self.dim).permute(0, 2, 1, 3)
+        k = k.view(batch_size, -1, self.heads, self.dim).permute(0, 2, 1, 3)
+        v = v.view(batch_size, -1, self.heads, self.dim).permute(0, 2, 1, 3)
+
+        # print(q.shape, mask.shape)
+
+        # this will yield self.heads attention scores 
+        x = self.attention(q, k, v)
+
+        # Reverse the previous permute so we are back to (batch_size, inp-size / head, head, dim)
+        x = x.contiguous().permute(0, 2, 1, 3).contiguous()
+
+        # Reshape the tensor to (batch_size, inp_size, dim)
+        x = x.view(batch_size, -1, self.dim) 
+
+        # Execute a final layer on each input
+        x = self.final(x)
+         
+        # Batch normalize the result
+        # x = self.norm(x)
+
+        return x.permute(0, 2, 1)
 
 class AttentionNet(nn.Module):
 
-    def __init__(self, num_layers=3):
+    def __init__(self, num_layers=6):
         super(AttentionNet, self).__init__()
 
         dim = 256
@@ -164,31 +194,36 @@ class AttentionNet(nn.Module):
         kernel_size=7*4
 
         self.causal_conv = CausalConv1d(dim, dim, kernel_size=kernel_size)
-        
+       
+        self.attn_stack = nn.ModuleList()
         self.res_stack = nn.ModuleList()
 
         for i in range(num_layers):
-            self.res_stack.append(AttentionBlock(dim, kernel_size, 2048))
+            self.attn_stack.append(AttentionBlock(dim, 9))
+            self.res_stack.append(ResidualBlock(256, 256, kernel_size, skip_channels=256))
 
         # Bring it all back
         self.relu = nn.ReLU()
         self.conv = nn.Conv1d(dim, dim, 1)
 
-        self.final = nn.Linear(256, 256)
-
-        self.receptive_field_size = 4096
+        self.receptive_field_size = 512 * 7
 
     def forward(self, x):
         x = self.embed(x)
         x = self.positional_embed(x)
-        key = x
+
         x = x.permute(0,2,1)
         x = self.causal_conv(x)
 
-        for i, layer in enumerate(self.res_stack):
-            #print("Pre-res:", x.shape)
-            x = layer(x)
-            #print("Post-res:", x.shape)
+        skip_vals = []
+
+        #run res blocks
+        for i in range(0, len(self.res_stack)):
+            x = self.attn_stack[i](x)
+            x, s = self.res_stack[i](x)
+            skip_vals.append(s)
+
+        # x = x + reduce((lambda a,b: a+b), skip_vals)
 
         x = self.conv(x)
         x = self.relu(x)
@@ -198,19 +233,57 @@ class AttentionNet(nn.Module):
     def receptive_field(self):
         return self.receptive_field_size
 
+def generate_square_subsequent_mask(sz, device):
+    mask = (torch.triu(torch.ones((sz, sz), device=device)) == 1).transpose(0, 1)
+    mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+    return mask
+
+class TransformerNet(nn.Module):
+    def __init__(self):
+        super(TransformerNet, self).__init__()
+        self.embed = nn.Embedding(256, 256)
+        self.pos = PositionalEncoding(256)
+        self.transformer = nn.Transformer(d_model = 256, nhead = 16, num_encoder_layers = 12, batch_first=True)
+
+    def forward(self, x):
+        device = x.device
+
+        # Mask is a square matrix of [ true | false ] where each [row, column] is true if the input at step row can
+        # be based on the data at step column
+        # i.e, [[True, False]] means that the first input can use the first input but not the second
+        # mask = torch.tril(torch.ones(3590, 3590)).bool().to(device)
+        # TODO: This won't change much so precompute a maximum mask to speed stuff up
+        mask = generate_square_subsequent_mask(x.size(1), device)
+
+        x = self.embed(x)
+        x = self.pos(x)
+        x = self.transformer(src = x, tgt = x, src_mask = mask, tgt_mask = mask)
+        x = F.log_softmax(x, dim = -1)
+        return x
+
+def lr_criterion(epoch, last_lr, last_loss, current_lr, current_loss):
+    if epoch > 2:
+        if last_loss < current_loss:
+            return last_lr
+        else:
+            return None
+    else:
+        return None
+
 # Load a command net model, either initialized with random values (if path is None) otherwise from an existing network saved on disk.
 def load_model(model, path, device):
 
-    lr = 0.0001
-    momentum=0.8
-
-    optimizer = optim.SGD(
+    optimizer = optim.Adam(
         model.parameters(),
-        lr=lr,
-        momentum=momentum
+        lr = 0.000001,
     )
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.95, min_lr=0.0001)
+    # optimizer = optim.SGD ( model.parameters(), lr = 0.001 )
+    scheduler_lr = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=2)
+
+    # This scheduler expects step to be called with step(epoch, loss)
+    scheduler = AdaptiveWarmup(optimizer, start_lr=0.000001, end_lr=0.001, num_steps=10, criterion=lr_criterion, underlying_scheduler=scheduler_lr)
+
     model = model.to(device)
 
     # This needs to be after to because the optimizer decides what device to send the tensors to based on the
@@ -228,3 +301,6 @@ def load_command_net(path, device):
 
 def load_attention_net(path, device):
     return load_model(AttentionNet(), path, device)
+
+def load_transformer_net(path, device):
+    return load_model(TransformerNet(), path, device)

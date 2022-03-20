@@ -4,6 +4,8 @@ import torch
 from torch.cuda.amp import autocast
 from torch import nn
 
+from sample import MAX_WINDOW_SIZE
+
 ROUND_SZ = 10000
 
 def train(data_loader, load_fn, model_dir, load_path, device):
@@ -33,18 +35,21 @@ def train(data_loader, load_fn, model_dir, load_path, device):
             if i % (ROUND_SZ / 10) == 0:
                 print("Batch completion:", (float(i) / float(ROUND_SZ)) * 100., "%")
 
-            seq = next(data_loader).long().to(device)
+            seq = next(data_loader).to(device)
             inputs = seq[:,:-1]
             labels = seq[:,1:]
 
             optimizer.zero_grad()
-
-            with autocast():
-                #outputs = command_generator(inputs, command_generator.get_tgt_mask(inputs.size(1)).to(device))
-                #print("Shapes: ", outputs.view(-1, 256).shape, labels.reshape(-1).shape)
-                outputs = command_generator(inputs)
-                loss = criterion(outputs, labels)
-                #loss = criterion(outputs.view(-1, 256), labels.reshape(-1))
+            #torch.autograd.set_detect_anomaly(True)
+            #outputs = command_generator(inputs, command_generator.get_tgt_mask(inputs.size(1)).to(device))
+            #print("Shapes: ", outputs.view(-1, 256).shape, labels.reshape(-1).shape)
+            logits = command_generator(inputs) 
+            logits = logits.reshape(-1, logits.shape[-1])
+            labels = labels.reshape(-1)
+            #print(logits.shape, labels.shape)
+            loss = criterion(logits, labels)
+            #print("Loss:", loss)
+            #loss = criterion(outputs.view(-1, 256), labels.reshape(-1))
 
             loss.backward()
             optimizer.step()
@@ -63,10 +68,16 @@ def train(data_loader, load_fn, model_dir, load_path, device):
         torch.save(command_generator.state_dict(), "./" + name + ".model")
         torch.save(optimizer.state_dict(), "./" + name + ".optimizer")
 
-    current_iteration = 0
+    epoch = 1
 
     while True:
+
+        print("Pre-step LR:", optimizer.param_groups[0]['lr'])
+
+        # Do a ROUND_SZ of training and backprop
         loss = step()
+
+        # Feed the current epoch and loss (1-indexed not 0-indexed) into our scheduler function to adjust the LR
         scheduler.step(loss)
 
         print("Loss:", loss.item())
@@ -75,13 +86,13 @@ def train(data_loader, load_fn, model_dir, load_path, device):
         print("Saving checkpoint")
 
         # Timestamp every 10th epoch to test fits later
-        if current_iteration % 10 == 0:
+        if epoch % 10 == 0:
             save(model_dir + "/" + str(int(datetime.now().timestamp())))
 
         save(model_dir + "/last.checkpoint")
 
         print("Saved checkpoint")
 
-        current_iteration += 1
+        epoch += 1
 
     return command_generator.eval()
