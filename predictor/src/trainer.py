@@ -6,7 +6,7 @@ from torch import nn
 
 from sample import MAX_WINDOW_SIZE
 
-ROUND_SZ = 10000
+ROUND_SZ = 100
 
 def train(data_loader, load_fn, model_dir, load_path, device):
 
@@ -43,7 +43,7 @@ def train(data_loader, load_fn, model_dir, load_path, device):
             #torch.autograd.set_detect_anomaly(True)
             #outputs = command_generator(inputs, command_generator.get_tgt_mask(inputs.size(1)).to(device))
             #print("Shapes: ", outputs.view(-1, 256).shape, labels.reshape(-1).shape)
-            logits = command_generator(inputs) 
+            logits = command_generator(inputs, labels) 
             logits = logits.reshape(-1, logits.shape[-1])
             labels = labels.reshape(-1)
             #print(logits.shape, labels.shape)

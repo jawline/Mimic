@@ -24,7 +24,7 @@ PARAM3_OFFSET = 5
 SIZE_OF_INPUT_FIELDS = 6
 
 # The maximum number of samples we will send to the model in a single iteration
-MAX_WINDOW_SIZE = 129
+MAX_WINDOW_SIZE = 128
 
 # The Gameboy cycles this many times per second. This is the
 # measurement of time we use in our TIME_OFFSET values
@@ -126,7 +126,7 @@ def command_of_bytes(byte_arr):
     d[TIME_OFFSET] = int32_of_bytes(byte_arr[0:4])
     d[CH_OFFSET] = int8_of_bytes(byte_arr[4:5])
     if d[CH_OFFSET] != 1 and d[CH_OFFSET] != 2:
-        raise Exception("bad channel prediction")
+        raise Exception("bad channel prediction " + str(d[CH_OFFSET]))
     d[CMD_OFFSET] = int8_of_bytes(byte_arr[5:6])
     unmerge_params(d[CMD_OFFSET], d, byte_arr[6])
     return d

@@ -44,7 +44,7 @@ def nearest_multiple(x, base):
 def prepare_seed(loader, command_generator, device):
 
   # Cut the seed to the receptive window of our model so that it executes faster
-  seed = next(iter(loader))[0][-nearest_multiple(command_generator.receptive_field(), BYTES_PER_ENTRY) + BYTES_PER_ENTRY:]
+  seed = next(iter(loader))[0]
 
   print("Seed shape: ", seed.shape)
 
@@ -71,14 +71,17 @@ def generate_a_song(loader, load_fn, path, device):
 
   with open('output.txt', 'w') as f:
       for i in range(BYTES_PER_ENTRY * 10000):
-          seq = window.window().unsqueeze(0)
-          pred = command_generator(seq).detach().to(cpu).permute(0,2,1).squeeze(0)[-1]
+          source = window.window()[0:-1].unsqueeze(0)
+          target = window.window()[1:].unsqueeze(0)
+          print(source, target)
+          pred = command_generator(source, target).detach().to(cpu).squeeze(0)[-1]
           pred = Categorical(logits=pred).sample()
           window.append(pred)
 
           if (i + 1) % BYTES_PER_ENTRY == 0:
               try:
                   last_sample = window.window()[-BYTES_PER_ENTRY:].detach().cpu().numpy().astype(np.uint8)
+                  print(last_sample)
                   last_sample = command_of_bytes(last_sample)
                   print_feature(last_sample, file=f)
               except BaseException as err:

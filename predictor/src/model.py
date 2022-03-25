@@ -33,7 +33,7 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:x.size(0)]
 
 class CausalConv1d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, **kwargs):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, **kwargs):
         super(CausalConv1d, self).__init__()
         self.pad = (kernel_size - 1) * dilation
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size , dilation=dilation, **kwargs)
@@ -43,34 +43,72 @@ class CausalConv1d(nn.Module):
         x = F.pad(x, (self.pad, 0))
         return self.conv(x)
 
-class ResidualBlock(nn.Module):
-    def __init__(self, input_channels, output_channels, kernel_size, skip_channels, dilation=1):
-        super(ResidualBlock, self).__init__()
+class Pointwise(nn.Module):
+    def __init__(self, dim, hfactor, kernel_size):
+        super(Pointwise, self).__init__()
 
-        self.conv_sig = CausalConv1d(input_channels, output_channels, kernel_size, dilation)
-        self.sig = nn.Sigmoid()
+        layers = [
+            nn.Conv1d(dim, expanded_dim, 1),
+            nn.Sigmoid(),
+            nn.Conv1d(expanded_dim, dim, 1),
+        ]
 
-        # self.conv_tan = CausalConv1d(input_channels, output_channels, kernel_size, dilation)
-        # self.tanh = nn.Tanh()
-
-        #separate weights for residual and skip channels
-        self.conv_r = nn.Conv1d(output_channels, output_channels, 1)
-        self.conv_s = nn.Conv1d(output_channels, skip_channels, 1)
-
-        self.norm = nn.BatchNorm1d(output_channels)
+        self.transform = nn.Sequential(layers)
 
     def forward(self, x):
-        o = self.sig(self.conv_sig(x)) # * self.tanh(self.conv_tan(x))
-        skip = self.conv_s(o)
-        residual = self.conv_r(o)
-        return self.norm(residual), skip
+        return self.transform(x) 
 
-# A model that uses convolutions as a network to predict the next byte in a variable length sequence
-# with a fixed receptive window (the number of previous data points considered when predicting the
-# next data point).
+"
+A residual block trains a layer to predict the residual of a previous
+output (i.e, how much do we need to nudge the output by the get the
+correct result).
+"
+class ResidualBlock(nn.Module):
+    def __init__(self, layer):
+        super(ResidualBlock, self).__init__()
+        self.layer = layer
+
+    def forward(x):
+        return x + self.layer(x)
+
+"
+This layer combines a causal convolution layer and a residual layer together, optionally
+batch normalizing the output. A stack of these blocks forms our CausalConv model.
+"
+class CausalConvModelLayer(nn.Module):
+    def __init__(self, dim, hfactor, kernel_size, batch_norm, dilation):
+        super(ResidualBlock, self).__init__()
+
+        causal = CausalConv1d(dim, dim, kernel_size, dilation)
+        residual = ResidualBlock(Pointwise(dim, hfactor, batch_norm)
+
+        layers = [causal, residual]
+        
+        if batch_norm:
+            layers.append(BatchNorm1d(dim))
+
+        self.layer = nn.Sequential(layers)
+
+    def forward(self, x):
+        return self.layer(x)
+
+"
+A model that uses convolutions as a network to predict the next byte in a variable length sequence
+with a fixed receptive window (the number of previous data points considered when predicting the
+next data point). Formed from a series of stacked CausalConvLMLayers.
+
+hfactor marks the number factor by which the dimensions should be expanded when doing the pointwise
+layers (e.g, Conv(256, 256 * [hfactor]))
+
+When dilations is true num_blocks sets the number of stacked blocks of [layers], if [dilations] is not true then
+num_blocks should be one.
+"
 class CommandNet(nn.Module):
-    def __init__(self, skip_channels=256, num_blocks=4, num_layers=10, num_hidden=256, kernel_size=7*8, dilations=False): 
+    def __init__(self, skip_channels=256, num_blocks=1, num_layers=10, num_hidden=256, kernel_size=7*8, dilations=False): 
         super(CommandNet, self).__init__()
+
+        if not dilations:
+            assert(num_blocks == 1)
 
         self.embed = nn.Embedding(skip_channels, skip_channels)
         self.positional_embedding = PositionalEncoding(skip_channels)
@@ -243,9 +281,9 @@ class TransformerNet(nn.Module):
         super(TransformerNet, self).__init__()
         self.embed = nn.Embedding(256, 256)
         self.pos = PositionalEncoding(256)
-        self.transformer = nn.Transformer(d_model = 256, nhead = 16, num_encoder_layers = 12, batch_first=True)
+        self.transformer = nn.Transformer(d_model = 256, nhead = 8, num_encoder_layers = 8, num_decoder_layers = 8, batch_first=True)
 
-    def forward(self, x):
+    def forward(self, x, tgt):
         device = x.device
 
         # Mask is a square matrix of [ true | false ] where each [row, column] is true if the input at step row can
@@ -257,7 +295,11 @@ class TransformerNet(nn.Module):
 
         x = self.embed(x)
         x = self.pos(x)
-        x = self.transformer(src = x, tgt = x, src_mask = mask, tgt_mask = mask)
+
+        tgt = self.embed(tgt)
+        tgt = self.pos(tgt)
+
+        x = self.transformer(src = x, tgt = tgt, src_mask = mask, tgt_mask = mask)
         x = F.log_softmax(x, dim = -1)
         return x
 
@@ -273,16 +315,13 @@ def lr_criterion(epoch, last_lr, last_loss, current_lr, current_loss):
 # Load a command net model, either initialized with random values (if path is None) otherwise from an existing network saved on disk.
 def load_model(model, path, device):
 
-    optimizer = optim.Adam(
+    optimizer = optim.AdamW(
         model.parameters(),
-        lr = 0.000001,
+        lr = 0.0001,
     )
 
     # optimizer = optim.SGD ( model.parameters(), lr = 0.001 )
-    scheduler_lr = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=2)
-
-    # This scheduler expects step to be called with step(epoch, loss)
-    scheduler = AdaptiveWarmup(optimizer, start_lr=0.000001, end_lr=0.001, num_steps=10, criterion=lr_criterion, underlying_scheduler=scheduler_lr)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=1)
 
     model = model.to(device)
 
@@ -293,6 +332,9 @@ def load_model(model, path, device):
         model.load_state_dict(torch.load(path + ".model"))
         optimizer.load_state_dict(torch.load(path + ".optimizer"))
         #scheduler = torch.load(path + ".scheduler")
+    else:
+        # Fresh model so start with some adaptive warmup
+        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler, pass_through_loss_to_underlying=True)
 
     return model, optimizer, scheduler
 
