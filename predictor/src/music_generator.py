@@ -44,7 +44,8 @@ def nearest_multiple(x, base):
 def prepare_seed(loader, command_generator, device):
 
   # Cut the seed to the receptive window of our model so that it executes faster
-  seed = next(iter(loader))[0]
+  receptive_field = command_generator.receptive_field()
+  seed = next(iter(loader))[0][0:receptive_field]
 
   print("Seed shape: ", seed.shape)
 
@@ -53,7 +54,7 @@ def prepare_seed(loader, command_generator, device):
       for i in range(0, len(seed), BYTES_PER_ENTRY):
           print("Seed value :", i, seed.shape)
           cmd = command_of_bytes(seed[i:i+BYTES_PER_ENTRY])
-          print_feature(cmd, file=f)
+          print_feature(cmd, file=f) 
 
   return MovingWindow(seed, device)
 
@@ -71,10 +72,7 @@ def generate_a_song(loader, load_fn, path, device):
 
   with open('output.txt', 'w') as f:
       for i in range(BYTES_PER_ENTRY * 10000):
-          source = window.window()[0:-1].unsqueeze(0)
-          target = window.window()[1:].unsqueeze(0)
-          print(source, target)
-          pred = command_generator(source, target).detach().to(cpu).squeeze(0)[-1]
+          pred = command_generator.predict(window.window()).detach().to(cpu)[0][-1]
           pred = Categorical(logits=pred).sample()
           window.append(pred)
 

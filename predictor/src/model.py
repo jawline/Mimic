@@ -106,7 +106,7 @@ When dilations is true num_blocks sets the number of stacked blocks of [layers],
 num_blocks should be one.
 """
 class GameboyNet(nn.Module):
-    def __init__(self, dim=256, num_blocks=1, num_layers=10, hfactor=4, kernel_size=7*8, dilations=False, batch_norm=True): 
+    def __init__(self, dim=256, num_blocks=1, num_layers=10, hfactor=4, kernel_size=BYTES_PER_ENTRY*8, dilations=False, batch_norm=True): 
         super(GameboyNet, self).__init__()
 
         if not dilations:
@@ -147,6 +147,14 @@ class GameboyNet(nn.Module):
         x = self.layers(x)
         x = self.finalize(x)
         return x
+
+    """
+    Calls forward and then permutes the result back to (batch_size, input_size, embedding_dim)
+    from (batch_size, embedding_dim, input_size).
+    """
+    def predict(self, x):
+        return self.forward(x).permute(0, 2, 1)
+        
 
 def lr_criterion(epoch, last_lr, last_loss, current_lr, current_loss):
     if epoch > 2:
