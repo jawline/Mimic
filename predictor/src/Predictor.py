@@ -16,7 +16,7 @@ import numpy as np
 import pescador
 
 from sample import SampleDataset,MAX_WINDOW_SIZE
-from model import load_command_net, load_attention_net, load_transformer_net
+from model import load_gameboy_net
 from trainer import train
 from music_generator import generate_a_song
 
@@ -48,9 +48,7 @@ parser.add_argument('--test-data', required=True)
 
 args = parser.parse_args()
 
-#model = load_command_net
-#model = load_attention_net
-model = load_transformer_net
+model = load_gameboy_net
 
 mode = args.mode
 training_data = args.training_data
