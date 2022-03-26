@@ -108,7 +108,7 @@ class AttentionBlock(nn.Module):
             dim = dim,
             window_size = 256,
             causal = True,
-            look_backward = 4,
+            look_backward = 8,
             look_forward = 0,
             dropout = 0.0,
             autopad = True,
@@ -136,56 +136,37 @@ class PermutedAttentionBlock(nn.Module):
         x = x.permute(0, 2, 1)
         return x
 
+class ModelLayer(nn.Module):
+    def __init__(self, causal, dim, hfactor, batch_norm, layer_dropout):
+        super(ModelLayer, self).__init__()
+        residual = ResidualBlock(Pointwise(dim, hfactor, batch_norm))
+        layers = [causal, residual]
+        
+        if batch_norm:
+            layers.append(nn.BatchNorm1d(dim))
+
+        if layer_dropout is not None:
+            layers.append(nn.Dropout(p=layer_dropout))
+
+        self.layer = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.layer(x)
+
 """
 This layer combines a causal convolution layer and a residual layer together, optionally
 batch normalizing the output. A stack of these blocks forms our CausalConv model.
 """
-class CausalConvModelLayer(nn.Module):
-    def __init__(self, dim, hfactor, kernel_size, batch_norm, dilation, layer_dropout):
-        super(CausalConvModelLayer, self).__init__()
+def CausalConvModelLayer(dim, hfactor, kernel_size, batch_norm, dilation, layer_dropout):
+    return ModelLayer(CausalConv1d(dim, dim, kernel_size, dilation), dim, hfactor, batch_norm, layer_dropout)
 
-        causal = CausalConv1d(dim, dim, kernel_size, dilation)
-        residual = ResidualBlock(Pointwise(dim, hfactor, batch_norm))
-
-        layers = [causal, residual]
-        
-        if batch_norm:
-            layers.append(nn.BatchNorm1d(dim))
-
-        if layer_dropout is not None:
-            layers.append(nn.Dropout(p=layer_dropout))
-
-        self.layer = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.layer(x)
 
 """
 This layer combines an attention block and a residual layer together, optionally
 batch normalizing the output.
-
-TODO: This and CausalConvModelLayer above could be merged since only the causal
-step changes between them.
 """
-class AttentionModelLayer(nn.Module):
-    def __init__(self, dim, hfactor, batch_norm, layer_dropout):
-        super(AttentionModelLayer, self).__init__()
-
-        causal = PermutedAttentionBlock(dim)
-        residual = ResidualBlock(Pointwise(dim, hfactor, batch_norm))
-
-        layers = [causal, residual]
-        
-        if batch_norm:
-            layers.append(nn.BatchNorm1d(dim))
-
-        if layer_dropout is not None:
-            layers.append(nn.Dropout(p=layer_dropout))
-
-        self.layer = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.layer(x)
+def AttentionModelLayer(dim, hfactor, batch_norm, layer_dropout):
+    return ModelLayer(PermutedAttentionBlock(dim), dim, hfactor, batch_norm, layer_dropout)
 
 """
 A model that combines layers of either convolutions or local attention to predict the next byte in
@@ -198,14 +179,11 @@ When [dilations] is true [num_blocks] sets the number of stacked blocks of [laye
 num_blocks should be one.
 """
 class GameboyNet(nn.Module):
-    def __init__(self, dim=256, num_blocks=1, layer_spec=["attention", "attention", "attention", "attention"], hfactor=4, layer_dropout=0, kernel_size=BYTES_PER_ENTRY*30, dilations=False, batch_norm=True): 
+    def __init__(self, dim=256, num_blocks=1, layer_spec=["convolution", "attention", "convolution", "attention", "convolution", "attention"], hfactor=4, layer_dropout=0, kernel_size=BYTES_PER_ENTRY*30, dilations=False, batch_norm=True): 
         super(GameboyNet, self).__init__()
 
         if not dilations:
             assert(num_blocks == 1)
-
-        # First we embed and then add positional encodings to our input
-        self.prepare_input = nn.Sequential(*[nn.Embedding(dim, dim)])
        
         def dilation(i):
             if dilations:
@@ -216,11 +194,24 @@ class GameboyNet(nn.Module):
         def make_layer(i):
             spec = layer_spec[i]
             if spec == "attention":
-                return AttentionModelLayer(dim, hfactor, batch_norm=batch_norm, layer_dropout=layer_dropout)
-            else if spec == "convolution":
-                return ConvModelLayer(dim, hfactor, kernel_size, batch_norm=batch_norm, dilation=dilation(i), layer_dropout=layer_dropout)
+                return AttentionModelLayer(
+                        dim=dim,
+                        hfactor=hfactor,
+                        batch_norm=batch_norm,
+                        layer_dropout=layer_dropout)
+            elif spec == "convolution":
+                return CausalConvModelLayer(
+                        dim=dim,
+                        hfactor=hfactor,
+                        kernel_size=kernel_size,
+                        batch_norm=batch_norm,
+                        dilation=dilation(i),
+                        layer_dropout=layer_dropout)
 
         num_layers = len(layer_spec)
+
+        # First we embed and then add positional encodings to our input
+        self.prepare_input = nn.Sequential(*[nn.Embedding(dim, dim)])
 
         # Build the core of our model by stacking [layers] CausalConvModelLayer instances on top of each other.
         layers = [make_layer(layer_idx) for layer_idx in range(num_layers) for _block in range(num_blocks)]
@@ -229,6 +220,7 @@ class GameboyNet(nn.Module):
         # Combine all the channels and then activate as a final step
         self.finalize = nn.Sequential(*[nn.Conv1d(dim, dim, 1), nn.ReLU()])
 
+        # TODO: This is wrong if we are using attention
         # When using dilations the effective lookback is KERNEL_SIZE^num_layers otherwise it is KERNEL_SIZE*num_layers
         if dilations:
             # The size of the receptive field is kernel size exponentially increased by the number
@@ -258,6 +250,9 @@ class GameboyNet(nn.Module):
         return x.permute(0, 2, 1)
         
 
+"""
+Stop warming up if loss starts increasing
+"""
 def lr_criterion(epoch, last_lr, last_loss, current_lr, current_loss):
     if epoch > 2:
         if last_loss < current_loss:
