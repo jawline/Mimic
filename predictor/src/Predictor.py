@@ -71,7 +71,7 @@ def generate_from(path):
     # by byte
     # We do not always train exactly on a sample when
     # training, which is why this is a flag.
-    out_of_sample_loader = torch.utils.data.DataLoader(SampleDataset(test_data, window_size=MAX_WINDOW_SIZE, start_at_sample=True))
+    out_of_sample_loader = torch.utils.data.DataLoader(SampleDataset(test_data, window_size=MAX_WINDOW_SIZE * 100, start_at_sample=True))
 
     # Generate a song using the out of sample loader
     generate_a_song(out_of_sample_loader, model, model_dir + path, device)

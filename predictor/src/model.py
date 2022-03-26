@@ -98,6 +98,44 @@ class ResidualBlock(nn.Module):
     def forward(self, x):
         return x + self.layer(x)
 
+class AttentionBlock(nn.Module):
+    def __init__(self, dim):
+        super(AttentionBlock, self).__init__()
+        self.q = nn.Linear(dim, dim)
+        self.k = nn.Linear(dim, dim)
+        self.v = nn.Linear(dim, dim)
+        self.attn = LocalAttention(
+            dim = dim,
+            window_size = 256,
+            causal = True,
+            look_backward = 4,
+            look_forward = 0,
+            dropout = 0.0,
+            autopad = True,
+            exact_windowsize = False)
+
+    def forward(self, x):
+        q = self.q(x)
+        k = self.k(x)
+        v = self.v(x)
+        x = self.attn(q, k, v)
+        return x
+
+"""
+When used with the ConvLM we need to permute the dimensions
+before using a self attention layer since the conv representation is (batch_sz, dim, seq_size) but LocalAttention expects (batch_sz, seq_size, dim).
+"""
+class PermutedAttentionBlock(nn.Module):
+    def __init__(self, dim):
+        super(PermutedAttentionBlock, self).__init__()
+        self.attn = AttentionBlock(dim)
+
+    def forward(self, x):
+        x = x.permute(0, 2, 1)
+        x = self.attn(x)
+        x = x.permute(0, 2, 1)
+        return x
+
 """
 This layer combines a causal convolution layer and a residual layer together, optionally
 batch normalizing the output. A stack of these blocks forms our CausalConv model.
@@ -123,18 +161,44 @@ class CausalConvModelLayer(nn.Module):
         return self.layer(x)
 
 """
-A model that uses convolutions as a network to predict the next byte in a variable length sequence
-with a fixed receptive window (the number of previous data points considered when predicting the
-next data point). Formed from a series of stacked CausalConvLMLayers.
+This layer combines an attention block and a residual layer together, optionally
+batch normalizing the output.
+
+TODO: This and CausalConvModelLayer above could be merged since only the causal
+step changes between them.
+"""
+class AttentionModelLayer(nn.Module):
+    def __init__(self, dim, hfactor, batch_norm, layer_dropout):
+        super(AttentionModelLayer, self).__init__()
+
+        causal = PermutedAttentionBlock(dim)
+        residual = ResidualBlock(Pointwise(dim, hfactor, batch_norm))
+
+        layers = [causal, residual]
+        
+        if batch_norm:
+            layers.append(nn.BatchNorm1d(dim))
+
+        if layer_dropout is not None:
+            layers.append(nn.Dropout(p=layer_dropout))
+
+        self.layer = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.layer(x)
+
+"""
+A model that combines layers of either convolutions or local attention to predict the next byte in
+a variable length sequence.
 
 hfactor marks the number factor by which the dimensions should be expanded when doing the pointwise
 layers (e.g, Conv(256, 256 * [hfactor]))
 
-When dilations is true num_blocks sets the number of stacked blocks of [layers], if [dilations] is not true then
+When [dilations] is true [num_blocks] sets the number of stacked blocks of [layers], if [dilations] is not true then
 num_blocks should be one.
 """
 class GameboyNet(nn.Module):
-    def __init__(self, dim=256, num_blocks=1, num_layers=10, hfactor=4, layer_dropout=0.1, kernel_size=BYTES_PER_ENTRY*8, dilations=False, batch_norm=True): 
+    def __init__(self, dim=256, num_blocks=1, layer_spec=["attention", "attention", "attention", "attention"], hfactor=4, layer_dropout=0, kernel_size=BYTES_PER_ENTRY*30, dilations=False, batch_norm=True): 
         super(GameboyNet, self).__init__()
 
         if not dilations:
@@ -143,14 +207,23 @@ class GameboyNet(nn.Module):
         # First we embed and then add positional encodings to our input
         self.prepare_input = nn.Sequential(*[nn.Embedding(dim, dim)])
        
-        def dilation(layer_index):
+        def dilation(i):
             if dilations:
                 return 2**i
             else:
                 return 1
 
+        def make_layer(i):
+            spec = layer_spec[i]
+            if spec == "attention":
+                return AttentionModelLayer(dim, hfactor, batch_norm=batch_norm, layer_dropout=layer_dropout)
+            else if spec == "convolution":
+                return ConvModelLayer(dim, hfactor, kernel_size, batch_norm=batch_norm, dilation=dilation(i), layer_dropout=layer_dropout)
+
+        num_layers = len(layer_spec)
+
         # Build the core of our model by stacking [layers] CausalConvModelLayer instances on top of each other.
-        layers = [CausalConvModelLayer(dim, hfactor, kernel_size, batch_norm=batch_norm, dilation=dilation(layer_idx), layer_dropout=layer_dropout) for layer_idx in range(num_layers) for _block in range(num_blocks)]
+        layers = [make_layer(layer_idx) for layer_idx in range(num_layers) for _block in range(num_blocks)]
         self.layers = nn.Sequential(*layers)
 
         # Combine all the channels and then activate as a final step
@@ -181,7 +254,8 @@ class GameboyNet(nn.Module):
     from (batch_size, embedding_dim, input_size).
     """
     def predict(self, x):
-        return self.forward(x).permute(0, 2, 1)
+        x = self.forward(x)
+        return x.permute(0, 2, 1)
         
 
 def lr_criterion(epoch, last_lr, last_loss, current_lr, current_loss):
