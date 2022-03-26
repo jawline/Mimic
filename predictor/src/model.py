@@ -8,13 +8,20 @@ import torch
 import torch.nn.functional as F
 from torch import nn, optim
 from local_attention import LocalAttention
-from functools import reduce
 
 # Transformers go crazy and start outputting NaN if the LR is too high early for the first few epochs, but
 # the LR can be increased after some initial weights are adjusted. We use this gradual warmup scheduler
 # to automate that process.
 from adaptive_warmup import Scheduler as AdaptiveWarmup
 
+"""
+Positional encoding steps encode information about where we are in a sequence of data into the data
+allowing a model to change how it responds to an input value based on where it occurs in a sequence
+of inputs.
+
+TODO: Currently there is no clear identifier for where we are in a piece of music so I don't think
+that PositionalEncoding should add anything to the model, but maybe I am misunderstanding it's usage
+"""
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model, max_len = 1024 * 32):
@@ -49,8 +56,7 @@ a causal convolution padding on the same input would look like:
     x[4] = kernel([1, 2, 3, 4, 5])
 
 If the convolution has a dilation > 1 then we will multiply the amount of padding by [dilation]
-to account for the extra data points considered in the dilated convolution since dilated convolutions
-consider every [dilation]'th element in the input.
+because dilated convolutions consider every [dilation * kernel_size] inputs around a target output.
 """
 class CausalConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation, **kwargs):
@@ -59,7 +65,6 @@ class CausalConv1d(nn.Module):
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size , dilation=dilation, **kwargs)
 
     def forward(self, x):
-        #pad here to only add to the left side
         x = F.pad(x, (self.pad, 0))
         return self.conv(x)
 
@@ -98,7 +103,7 @@ This layer combines a causal convolution layer and a residual layer together, op
 batch normalizing the output. A stack of these blocks forms our CausalConv model.
 """
 class CausalConvModelLayer(nn.Module):
-    def __init__(self, dim, hfactor, kernel_size, batch_norm, dilation):
+    def __init__(self, dim, hfactor, kernel_size, batch_norm, dilation, layer_dropout):
         super(CausalConvModelLayer, self).__init__()
 
         causal = CausalConv1d(dim, dim, kernel_size, dilation)
@@ -108,6 +113,9 @@ class CausalConvModelLayer(nn.Module):
         
         if batch_norm:
             layers.append(nn.BatchNorm1d(dim))
+
+        if layer_dropout is not None:
+            layers.append(nn.Dropout(p=layer_dropout))
 
         self.layer = nn.Sequential(*layers)
 
@@ -126,14 +134,14 @@ When dilations is true num_blocks sets the number of stacked blocks of [layers],
 num_blocks should be one.
 """
 class GameboyNet(nn.Module):
-    def __init__(self, dim=256, num_blocks=1, num_layers=10, hfactor=4, kernel_size=BYTES_PER_ENTRY*8, dilations=False, batch_norm=True): 
+    def __init__(self, dim=256, num_blocks=1, num_layers=10, hfactor=4, layer_dropout=0.1, kernel_size=BYTES_PER_ENTRY*8, dilations=False, batch_norm=True): 
         super(GameboyNet, self).__init__()
 
         if not dilations:
             assert(num_blocks == 1)
 
         # First we embed and then add positional encodings to our input
-        self.prepare_input = nn.Sequential(*[nn.Embedding(dim, dim), PositionalEncoding(dim)])
+        self.prepare_input = nn.Sequential(*[nn.Embedding(dim, dim)])
        
         def dilation(layer_index):
             if dilations:
@@ -142,7 +150,7 @@ class GameboyNet(nn.Module):
                 return 1
 
         # Build the core of our model by stacking [layers] CausalConvModelLayer instances on top of each other.
-        layers = [CausalConvModelLayer(dim, hfactor, kernel_size, batch_norm, dilation(layer_idx)) for layer_idx in range(num_layers) for _block in range(num_blocks)]
+        layers = [CausalConvModelLayer(dim, hfactor, kernel_size, batch_norm=batch_norm, dilation=dilation(layer_idx), layer_dropout=layer_dropout) for layer_idx in range(num_layers) for _block in range(num_blocks)]
         self.layers = nn.Sequential(*layers)
 
         # Combine all the channels and then activate as a final step
