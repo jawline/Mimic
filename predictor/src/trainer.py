@@ -6,7 +6,7 @@ from torch import nn
 
 from sample import MAX_WINDOW_SIZE
 
-ROUND_SZ = 10000
+ROUND_SZ = 1000
 
 def train(data_loader, load_fn, model_dir, load_path, device):
 
