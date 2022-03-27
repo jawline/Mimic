@@ -179,7 +179,15 @@ When [dilations] is true [num_blocks] sets the number of stacked blocks of [laye
 num_blocks should be one.
 """
 class GameboyNet(nn.Module):
-    def __init__(self, dim=256, num_blocks=1, layer_spec=["convolution", "attention", "convolution", "attention", "convolution", "attention"], hfactor=4, layer_dropout=0, kernel_size=BYTES_PER_ENTRY*30, dilations=False, batch_norm=True): 
+    def __init__(self,
+            dim=256,
+            num_blocks=1,
+            layer_spec=["convolution", "attention", "convolution", "attention", "convolution", "attention"],
+            hfactor=4,
+            layer_dropout=0.1,
+            kernel_size=BYTES_PER_ENTRY*30,
+            dilations=False,
+            batch_norm=True): 
         super(GameboyNet, self).__init__()
 
         if not dilations:
@@ -262,7 +270,10 @@ def lr_criterion(epoch, last_lr, last_loss, current_lr, current_loss):
     else:
         return None
 
-# Load a command net model, either initialized with random values (if path is None) otherwise from an existing network saved on disk.
+"""
+Load a model, either initialized with random values if [path] is None or from an existing network
+saved on disk if [path] is a string.
+"""
 def load_model(model, path, device):
 
     optimizer = optim.AdamW(

@@ -5,10 +5,10 @@ import numpy as np
 
 from sample import BYTES_PER_ENTRY, command_of_bytes, command_to_bytes, print_feature
 
-# This block allocates some linear memory we
-# feed the new predictions into and use as a
-# rolling window for the NN so we don't need
-# to move memory as often
+"""
+This block allocates some linear memory we feed new predictions into and use as a
+rolling window for the NN so we don't need to move memory as often.
+"""
 class MovingWindow():
 
     def __init__(self, seed, device):
@@ -55,9 +55,9 @@ def prepare_seed(loader, command_generator, device):
   # We do this after printing the seed so we can hear more of the song than
   # actually goes into the model (lets us listen to see if it's just learned
   # a sequence or come up with something novel)
-  print("Seed shape: ", seed.shape)
-  receptive_field = command_generator.receptive_field()
-  seed = seed[0:receptive_field]
+  #print("Seed shape: ", seed.shape)
+  #receptive_field = command_generator.receptive_field()
+  #seed = seed[0:receptive_field]
 
   return MovingWindow(seed, device)
 

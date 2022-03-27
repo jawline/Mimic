@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+base=$(basename "$1")
+mkdir -p training_data/${base}/
+cargo run --release -- --rom "$1" &> "training_data/${base}/$2"
