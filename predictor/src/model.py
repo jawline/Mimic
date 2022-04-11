@@ -108,9 +108,9 @@ class AttentionBlock(nn.Module):
             dim = dim,
             window_size = 512,
             causal = True,
-            look_backward = 8,
+            look_backward = 1,
             look_forward = 0,
-            dropout = 0.0,
+            dropout = 0.1,
             autopad = True,
             exact_windowsize = False)
 
@@ -125,10 +125,10 @@ class AttentionBlock(nn.Module):
 When used with the ConvLM we need to permute the dimensions
 before using a self attention layer since the conv representation is (batch_sz, dim, seq_size) but LocalAttention expects (batch_sz, seq_size, dim).
 """
-class PermutedAttentionBlock(nn.Module):
+class PermutedResidualAttentionBlock(nn.Module):
     def __init__(self, dim):
-        super(PermutedAttentionBlock, self).__init__()
-        self.attn = AttentionBlock(dim)
+        super(PermutedResidualAttentionBlock, self).__init__()
+        self.attn = ResidualBlock(AttentionBlock(dim))
 
     def forward(self, x):
         x = x.permute(0, 2, 1)
@@ -166,7 +166,7 @@ This layer combines an attention block and a residual layer together, optionally
 batch normalizing the output.
 """
 def AttentionModelLayer(dim, hfactor, batch_norm, layer_dropout):
-    return ModelLayer(PermutedAttentionBlock(dim), dim, hfactor, batch_norm, layer_dropout)
+    return ModelLayer(PermutedResidualAttentionBlock(dim), dim, hfactor, batch_norm, layer_dropout)
 
 """
 A model that combines layers of either convolutions or local attention to predict the next byte in
@@ -182,9 +182,9 @@ class GameboyNet(nn.Module):
     def __init__(self,
             dim=256,
             num_blocks=1,
-            layer_spec=["convolution", "convolution", "convolution", "convolution", "convolution", "convolution"],
+            layer_spec=["attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention"],
             hfactor=4,
-            layer_dropout=0.1,
+            layer_dropout=0.0,
             kernel_size=BYTES_PER_ENTRY*30,
             dilations=False,
             batch_norm=True): 
@@ -282,7 +282,9 @@ def load_model(model, path, device):
     )
 
     # optimizer = optim.SGD ( model.parameters(), lr = 0.001 )
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=1)
+    scheduler_plateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=1)
+    scheduler_step = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    scheduler = optim.lr_scheduler.ChainedScheduler([scheduler_plateau, scheduler_step])
 
     model = model.to(device)
 

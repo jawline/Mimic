@@ -6,7 +6,7 @@ from torch import nn
 
 from sample import MAX_WINDOW_SIZE
 
-ROUND_SZ = 2000
+ROUND_SZ = 1000
 
 def train(data_loader, validation_loader, load_fn, model_dir, load_path, device):
 
@@ -109,8 +109,8 @@ def train(data_loader, validation_loader, load_fn, model_dir, load_path, device)
             else:
                 tolerence_validation = tolerence_validation_base
 
-            if tolerence_validation <= 0:
-                sys.exit("Early exit because validation loss has stopped going down")
+            #if tolerence_validation <= 0:
+            #    sys.exit("Early exit because validation loss has stopped going down")
         last_validation = validation_loss
 
         print("Saved checkpoint")
