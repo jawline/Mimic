@@ -15,7 +15,7 @@ import argparse
 import numpy as np
 import pescador
 
-from sample import SampleDataset,MAX_WINDOW_SIZE
+from sample import SampleDataset,MAX_WINDOW_SIZE,split_training_dir_into_training_and_test_dir
 from model import load_gameboy_net
 from trainer import train
 from music_generator import generate_a_song
@@ -45,6 +45,7 @@ parser.add_argument('--mode', required=True)
 parser.add_argument('--model-dir', required=True)
 parser.add_argument('--training-data', required=True)
 parser.add_argument('--test-data', required=True)
+parser.add_argument('--source-dir', required=False)
 
 args = parser.parse_args()
 
@@ -57,10 +58,13 @@ model_dir = args.model_dir
 
 def train_from(path):
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset(training_data, window_size=MAX_WINDOW_SIZE), num_workers=6, batch_size=8, prefetch_factor=128, pin_memory=True, persistent_workers=True)
+    loader = torch.utils.data.DataLoader(SampleDataset(training_data, window_size=MAX_WINDOW_SIZE), num_workers=6, batch_size=4, prefetch_factor=128, pin_memory=True, persistent_workers=True)
+
+    test_loader = torch.utils.data.DataLoader(SampleDataset(test_data, window_size=MAX_WINDOW_SIZE), num_workers=6, batch_size=1, prefetch_factor=128, pin_memory=True, persistent_workers=True)
+
 
     # Train a model with the data loader
-    train(loader, model, model_dir, path, device)
+    train(loader, test_loader, model, model_dir, path, device)
 
 def generate_from(path):
 
@@ -82,3 +86,5 @@ elif mode == "train":
     train_from("last.checkpoint")
 elif mode == "generate":
     generate_from("last.checkpoint")
+elif mode == "split_data":
+    split_training_dir_into_training_and_test_dir(args.source_dir, training_data, test_data)

@@ -106,7 +106,7 @@ class AttentionBlock(nn.Module):
         self.v = nn.Linear(dim, dim)
         self.attn = LocalAttention(
             dim = dim,
-            window_size = 256,
+            window_size = 512,
             causal = True,
             look_backward = 8,
             look_forward = 0,
@@ -182,7 +182,7 @@ class GameboyNet(nn.Module):
     def __init__(self,
             dim=256,
             num_blocks=1,
-            layer_spec=["convolution", "attention", "convolution", "attention", "convolution", "attention"],
+            layer_spec=["convolution", "convolution", "convolution", "convolution", "convolution", "convolution"],
             hfactor=4,
             layer_dropout=0.1,
             kernel_size=BYTES_PER_ENTRY*30,

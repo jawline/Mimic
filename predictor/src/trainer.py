@@ -6,9 +6,9 @@ from torch import nn
 
 from sample import MAX_WINDOW_SIZE
 
-ROUND_SZ = 1000
+ROUND_SZ = 2000
 
-def train(data_loader, load_fn, model_dir, load_path, device):
+def train(data_loader, validation_loader, load_fn, model_dir, load_path, device):
 
     cpu = torch.device('cpu')
 
@@ -24,18 +24,19 @@ def train(data_loader, load_fn, model_dir, load_path, device):
     criterion = nn.CrossEntropyLoss()
     running_loss = torch.zeros(1, device=device)
     data_loader = iter(data_loader)
+    validation_loader = iter(validation_loader)
 
-    def step():
+    def step(ldr, sz, backprop):
 
         print("Starting batch")
         running_loss.zero_()
 
-        for i in range(ROUND_SZ):
+        for i in range(sz):
 
-            if i % (ROUND_SZ / 10) == 0:
-                print("Batch completion:", (float(i) / float(ROUND_SZ)) * 100., "%")
+            if i % (sz / 10) == 0:
+                print("Batch completion:", (float(i) / float(sz)) * 100., "%")
 
-            seq = next(data_loader).to(device)
+            seq = next(ldr).to(device)
             inputs = seq[:,:-1]
             labels = seq[:,1:]
 
@@ -51,8 +52,9 @@ def train(data_loader, load_fn, model_dir, load_path, device):
             #print("Loss:", loss)
             #loss = criterion(outputs.view(-1, 256), labels.reshape(-1))
 
-            loss.backward()
-            optimizer.step()
+            if backprop:
+                loss.backward()
+                optimizer.step()
             running_loss.add_(loss.detach())
 
             seq = seq.detach().to(cpu)
@@ -60,7 +62,7 @@ def train(data_loader, load_fn, model_dir, load_path, device):
             del labels
             del seq
 
-        result = running_loss / ROUND_SZ
+        result = running_loss / sz
         return result
 
     def save(name):
@@ -69,27 +71,47 @@ def train(data_loader, load_fn, model_dir, load_path, device):
         torch.save(optimizer.state_dict(), "./" + name + ".optimizer")
 
     epoch = 1
+   
+    tolerence_validation_base = 4
+    tolerence_validation = tolerence_validation_base
+    last_validation = None
 
     while True:
 
         print("Pre-step LR:", optimizer.param_groups[0]['lr'])
 
         # Do a ROUND_SZ of training and backprop
-        loss = step()
+        loss = step(data_loader, ROUND_SZ, True)
 
         # Feed the current epoch and loss (1-indexed not 0-indexed) into our scheduler function to adjust the LR
         scheduler.step(loss)
 
+        # Do a round 10 of validation with no backprop
+        validation_loss = step(validation_loader, 200, False)
+
         print("Loss:", loss.item())
+        print("Validation loss:", validation_loss.item())
         print("LR:", optimizer.param_groups[0]['lr'])
 
         print("Saving checkpoint")
 
         # Timestamp every 10th epoch to test fits later
-        if epoch % 10 == 0:
+        if epoch % 3 == 0:
             save(model_dir + "/" + str(int(datetime.now().timestamp())))
 
         save(model_dir + "/last.checkpoint")
+
+        if last_validation != None:
+
+            if validation_loss > last_validation:
+                print("Decremented tolerence because validation loss went down")
+                tolerence_validation = tolerence_validation - 1
+            else:
+                tolerence_validation = tolerence_validation_base
+
+            if tolerence_validation <= 0:
+                sys.exit("Early exit because validation loss has stopped going down")
+        last_validation = validation_loss
 
         print("Saved checkpoint")
 
