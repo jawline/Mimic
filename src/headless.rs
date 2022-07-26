@@ -62,10 +62,10 @@ pub fn run(mut gameboy_state: Machine) -> Result<(), Box<dyn Error>> {
 
           // Every 10 seconds for a second press some buttons
           if (seconds / 10) % 10 == 0 {
-            print!("Pressing some random buttons");
+            println!("Pressing some random buttons");
             random_button(&mut gameboy_state, &mut rng);
           } else {
-            print!("Doing nothing");
+            println!("Doing nothing");
             reset_buttons(&mut gameboy_state);
           }
         }
