@@ -42,6 +42,7 @@ pub fn run(mut gameboy_state: Machine) -> Result<(), Box<dyn Error>> {
 
   let mut last_frameset = Instant::now();
   let mut frames = 0;
+  let mut total_frames = 0;
   let mut seconds = 0;
   let mut rng = thread_rng();
 
@@ -54,20 +55,23 @@ pub fn run(mut gameboy_state: Machine) -> Result<(), Box<dyn Error>> {
     match state {
       PpuStepState::VBlank => {
         frames = frames + 1;
-        if last_frameset.elapsed().as_secs_f64() > 1. {
-          println!("Framerate: {}", frames);
-          frames = 0;
+        total_frames = total_frames + 1;
+
+        if total_frames % 60 == 0 {
           seconds += 1;
-          last_frameset = Instant::now();
 
           // Every 10 seconds for a second press some buttons
           if (seconds / 10) % 10 == 0 {
-            println!("Pressing some random buttons");
             random_button(&mut gameboy_state, &mut rng);
           } else {
-            println!("Doing nothing");
             reset_buttons(&mut gameboy_state);
           }
+        }
+
+        if last_frameset.elapsed().as_secs_f64() > 1. {
+          println!("Multiplier: {}", frames / 60);
+          frames = 0;
+          last_frameset = Instant::now();
         }
       }
       _ => {}
