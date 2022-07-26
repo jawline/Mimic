@@ -5,3 +5,5 @@
 *.model
 *.scheduler
 *.optimizer
+
+mechanical_data/

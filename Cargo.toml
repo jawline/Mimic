@@ -16,6 +16,7 @@ clap = "3.0.0-beta.2"
 serde = "1.0.130"
 ciborium = "0.1.0"
 cpal = "0.13.4"
+rand = "0.8.5"
 
 [profile.dev]
 overflow-checks = false
