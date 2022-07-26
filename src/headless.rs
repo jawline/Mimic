@@ -14,8 +14,8 @@ pub fn run(mut gameboy_state: Machine) -> Result<(), Box<dyn Error>> {
   let mut pixel_buffer = vec![0; GB_SCREEN_WIDTH as usize * GB_SCREEN_HEIGHT as usize * 3];
   let (sound_tx, sound_rx) = mpsc::channel();
 
-  let now = Instant::now();
-  let mut steps = 0;
+  let mut last_frameset = Instant::now();
+  let mut frames = 0;
 
   loop {
     let state = gameboy_state.step(&mut pixel_buffer, 1_000_000_000, &sound_tx);
@@ -24,13 +24,15 @@ pub fn run(mut gameboy_state: Machine) -> Result<(), Box<dyn Error>> {
     while let Ok(_) = sound_rx.try_recv() {}
 
     match state {
-      PpuStepState::VBlank => {}
+      PpuStepState::VBlank => {
+        frames = frames + 1;
+        if last_frameset.elapsed().as_secs_f64() > 1. {
+          println!("Framerate: {}", frames);
+          frames = 0;
+          last_frameset = Instant::now();
+        }
+      }
       _ => {}
-    }
-    steps += 1;
-    if steps % 100000 == 0 {
-      let time_running = now.elapsed().as_secs_f64();
-      info!("Average step rate of {}/s", steps as f64 / time_running);
     }
   }
 }
