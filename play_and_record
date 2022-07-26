@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 base=$(basename "$1" .gb | tr '[:upper:]' '[:lower:]' | sed s/\(u\)//)
 mkdir -p "mechanical_data/${base}/"
-cargo run --release -- --mode headless --rom "$1" &> "mechanical_data/${base}/$2"
+cargo run --release -- --mode headless --rom "$1" --disable-sound --disable-framebuffer &> "mechanical_data/${base}/$2"

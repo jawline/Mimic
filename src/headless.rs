@@ -1,13 +1,13 @@
 use std::error::Error;
-use std::time::Instant;
 use std::sync::mpsc;
+use std::time::Instant;
 
 use crate::cpu::{Cpu, JOYPAD};
 use crate::machine::Machine;
-use crate::ppu::{PpuStepState, BYTES_PER_ROW, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
-use log::{info, trace};
+use crate::ppu::{PpuStepState, GB_SCREEN_HEIGHT, GB_SCREEN_WIDTH};
+use log::info;
 
-pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> Result<(), Box<dyn Error>> {
+pub fn run(mut gameboy_state: Machine) -> Result<(), Box<dyn Error>> {
   info!("preparing screen");
 
   // The pixel buffer is ignored (ideally it will be flagged off to avoid drawing costs)
@@ -30,10 +30,7 @@ pub fn run(mut gameboy_state: Machine, savestate_path: &str) -> Result<(), Box<d
     steps += 1;
     if steps % 100000 == 0 {
       let time_running = now.elapsed().as_secs_f64();
-      info!(
-        "Average step rate of {}/s",
-        steps as f64 / time_running
-      );
+      info!("Average step rate of {}/s", steps as f64 / time_running);
     }
   }
 }

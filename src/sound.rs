@@ -646,7 +646,13 @@ impl Sound {
     mem: &mut GameboyState,
     sample_rate: usize,
     samples: &Sender<f32>,
+    disable_sound: bool,
   ) {
+    // If the sound is disabled do not do any work, including update internal state.
+    if disable_sound {
+      return;
+    }
+
     // TODO: We handle trigger logic here but it should live in its own place.
     if self.channels.channel_one.triggered(mem) {
       self.channels.channel_one.trigger(mem);

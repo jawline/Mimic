@@ -1,18 +1,18 @@
 use std::error::Error;
 
-use gb_int::sound::Sound;
 use gb_int::clock::Clock;
 use gb_int::cpu::Cpu;
+use gb_int::headless;
 use gb_int::instruction::InstructionSet;
 use gb_int::machine::{Machine, MachineState};
 use gb_int::memory::{GameboyState, RomChunk};
 use gb_int::ppu::Ppu;
 use gb_int::sdl;
+use gb_int::sound::Sound;
 use gb_int::terminal;
-use gb_int::headless;
 
-use log::info;
 use clap::{AppSettings, Clap};
+use log::info;
 
 /// This doc string acts as a help message when the user runs '--help'
 /// as do all doc strings on fields
@@ -37,6 +37,10 @@ struct Opts {
   no_threshold: bool,
   #[clap(long, default_value = "4")]
   frameskip_rate: u32,
+  #[clap(short, long)]
+  disable_sound: bool,
+  #[clap(short, long)]
+  disable_framebuffer: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -48,7 +52,11 @@ fn main() -> Result<(), Box<dyn Error>> {
   let mut skip_bios = opts.skip_bios;
   let savestate_path = format!("{}.save", rom_file);
 
-  let gameboy = match Machine::load_state(&savestate_path) {
+  let gameboy = match Machine::load_state(
+    &savestate_path,
+    opts.disable_sound,
+    opts.disable_framebuffer,
+  ) {
     Ok(machine) => machine,
     Err(_) => {
       info!("loading BIOS: {:#?} TEST: {}", bios_file, rom_file);
@@ -91,6 +99,8 @@ fn main() -> Result<(), Box<dyn Error>> {
       Machine {
         state: gameboy_state,
         instruction_set: InstructionSet::new(),
+        disable_sound: opts.disable_sound,
+        disable_framebuffer: opts.disable_framebuffer,
       }
     }
   };
@@ -109,9 +119,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     Ok(())
   } else if opts.mode == "headless" {
-      headless::run(gameboy, &savestate_path)?;
-      Ok(())
+    headless::run(gameboy)?;
+    Ok(())
   } else {
-      panic!("opts.mode must be one of sdl|terminal|headless but was {}", opts.mode)
+    panic!(
+      "opts.mode must be one of sdl|terminal|headless but was {}",
+      opts.mode
+    )
   }
 }

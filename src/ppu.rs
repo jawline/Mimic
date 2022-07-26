@@ -267,7 +267,11 @@ impl Ppu {
     palette[(v & 0x3) as usize]
   }
 
-  fn render_line(&mut self, mem: &mut GameboyState, pixels: &mut [u8]) {
+  fn render_line(&mut self, mem: &mut GameboyState, pixels: &mut [u8], disable_framebuffer: bool) {
+    if disable_framebuffer {
+      return;
+    }
+
     if self.current_line >= GB_SCREEN_HEIGHT as u8 {
       return;
     }
@@ -464,7 +468,13 @@ impl Ppu {
     self.update_scanline(mem, registers);
   }
 
-  pub fn step(&mut self, cpu: &mut Cpu, mem: &mut GameboyState, draw: &mut [u8]) -> PpuStepState {
+  pub fn step(
+    &mut self,
+    cpu: &mut Cpu,
+    mem: &mut GameboyState,
+    draw: &mut [u8],
+    disable_framebuffer: bool,
+  ) -> PpuStepState {
     self.cycles_in_mode += cpu.registers.last_clock;
     trace!(
       "Ppu mode {:?} step by {} to {}",
@@ -483,7 +493,7 @@ impl Ppu {
       }
       Mode::VRAM => {
         if self.cycles_in_mode >= 172 {
-          self.render_line(mem, draw);
+          self.render_line(mem, draw, disable_framebuffer);
           self.enter_mode(Mode::HBLANK, mem, &cpu.registers);
         }
         PpuStepState::None
