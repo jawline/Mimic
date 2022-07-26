@@ -14,4 +14,5 @@ pub mod register;
 pub mod sdl;
 pub mod sound;
 pub mod terminal;
+pub mod headless;
 pub mod util;

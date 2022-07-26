@@ -9,6 +9,7 @@ use gb_int::memory::{GameboyState, RomChunk};
 use gb_int::ppu::Ppu;
 use gb_int::sdl;
 use gb_int::terminal;
+use gb_int::headless;
 
 use log::info;
 use clap::{AppSettings, Clap};
@@ -25,7 +26,7 @@ struct Opts {
   #[clap(short, long)]
   rom: String,
   #[clap(short, long)]
-  cli_mode: bool,
+  mode: String,
   #[clap(long)]
   cli_midpoint_rendering: bool,
   #[clap(long)]
@@ -94,10 +95,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
   };
 
-  if !opts.cli_mode {
+  if opts.mode == "sdl" {
     sdl::run(gameboy, &savestate_path)?;
     Ok(())
-  } else {
+  } else if opts.mode == "terminal" {
     terminal::run(
       gameboy,
       &savestate_path,
@@ -107,5 +108,10 @@ fn main() -> Result<(), Box<dyn Error>> {
       !opts.no_threshold,
     )?;
     Ok(())
+  } else if opts.mode == "headless" {
+      headless::run(gameboy, &savestate_path)?;
+      Ok(())
+  } else {
+      panic!("opts.mode must be one of sdl|terminal|headless but was {}", opts.mode)
   }
 }
