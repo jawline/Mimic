@@ -297,7 +297,7 @@ def load_model(model, path, device):
         #scheduler = torch.load(path + ".scheduler")
     else:
         # Fresh model so start with some adaptive warmup
-        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler, pass_through_loss_to_underlying=True)
+        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler, pass_through_loss_to_underlying=False)
 
     return model, optimizer, scheduler
 
