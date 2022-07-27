@@ -282,9 +282,7 @@ def load_model(model, path, device):
     )
 
     # optimizer = optim.SGD ( model.parameters(), lr = 0.001 )
-    scheduler_plateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=1)
-    scheduler_step = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-    scheduler = optim.lr_scheduler.ChainedScheduler([scheduler_plateau, scheduler_step])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=1) 
 
     model = model.to(device)
 
@@ -297,7 +295,7 @@ def load_model(model, path, device):
         #scheduler = torch.load(path + ".scheduler")
     else:
         # Fresh model so start with some adaptive warmup
-        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler, pass_through_loss_to_underlying=False)
+        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler_plateau, pass_through_loss_to_underlying=True)
 
     return model, optimizer, scheduler
 
