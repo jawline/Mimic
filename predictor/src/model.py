@@ -182,7 +182,7 @@ class GameboyNet(nn.Module):
     def __init__(self,
             dim=256,
             num_blocks=1,
-            layer_spec=["attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention"],
+            layer_spec=["attention" for i in range(20)],
             hfactor=4,
             layer_dropout=0.0,
             kernel_size=BYTES_PER_ENTRY*30,
@@ -295,7 +295,7 @@ def load_model(model, path, device):
         #scheduler = torch.load(path + ".scheduler")
     else:
         # Fresh model so start with some adaptive warmup
-        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler_plateau, pass_through_loss_to_underlying=True)
+        scheduler = AdaptiveWarmup(optimizer, start_lr=0.00000001, end_lr=0.0001, num_steps=5, criterion=lr_criterion, underlying_scheduler=scheduler, pass_through_loss_to_underlying=True)
 
     return model, optimizer, scheduler
 
