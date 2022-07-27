@@ -3,10 +3,12 @@ import numpy as np
 import os
 import time
 import random
-
 import torch
-
 import shutil
+
+
+class SampleSize(Exception):
+    pass
 
 # These commands enumerate the different kind of instruction we can send to each channel.
 # Note: not every command is legal for every channel, invalid commands will be ignored.
@@ -70,7 +72,7 @@ def command_of_parts(command, channel, parts, time):
         inp[PARAM2_OFFSET] = parse_bool(parts[4])
         inp[PARAM3_OFFSET] = parse_bool(parts[5])
     else:
-        raise "this should not happen"
+        raise Exception("this should not happen")
     return inp
 
 def int32_as_bytes(ival):
@@ -96,7 +98,7 @@ def merge_params(data):
     elif command == CMD_MSB:
         return data[PARAM1_OFFSET]  | (data[PARAM2_OFFSET] << 6) | (data[PARAM3_OFFSET] << 7)
     else:
-        raise "this should not happen"
+        raise Exception("this should not happen")
 
 def unmerge_params(command, data,v ):
     if command == CMD_DUTYLL:
@@ -177,28 +179,25 @@ def load_raw_data(src, window_size):
 
     # If the sample is less than the window size then ignore it
     # TODO: Left pad again?
-    if len(sample_data) < (window_size * 2):
+    if len(sample_data) < (window_size * BYTES_PER_ENTRY) * 2:
         raise Exception('Bad file')
 
     return torch.Tensor(sample_data).long()
 
 def samples_from_training_data(sample_data, window_size, start_at_sample):
 
-    print("Spinning up sample loader")
-
     # Scale the window size by the bytes per entry
     window_size = window_size * BYTES_PER_ENTRY
 
-    print("Loaded the data")
-
     while True:
-
-        if len(sample_data) > window_size == 0:
-            # small samples present the whole file
-            start_idx = 0
+        
+        start_idx = 0
+        if len(sample_data) < window_size:
+            raise SampleSize()
         else:
             # Sample a random window from the audio file
-            start_idx = np.random.randint(0, len(sample_data) - window_size)
+            high = len(sample_data) - window_size
+            start_idx = np.random.randint(0, high)
         
         # If we should start on a sample boundary then round to the nearest multiple of sample boundary from the start
         if start_at_sample:
@@ -255,10 +254,17 @@ class SampleDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         while True:
              start = time.perf_counter()
-             nv = next(self.loader)
+             try:
+                nv = next(self.loader)
+                yield nv
+             except StopIteration:
+                 print("StopIter?")
+                 return
+             except SampleSize as e:
+                 print("Sample size error")
+                 pass
              end = time.perf_counter()
              #print(end - start)
-             yield nv
 
 def copy_file(src_file, dst_dir):
     os.makedirs(dst_dir + '/' + os.path.dirname(src_file), exist_ok=True)

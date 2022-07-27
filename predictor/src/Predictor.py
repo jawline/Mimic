@@ -58,7 +58,7 @@ model_dir = args.model_dir
 
 def train_from(path):
     # Create a standard data loader from our samples
-    loader = torch.utils.data.DataLoader(SampleDataset(training_data, window_size=MAX_WINDOW_SIZE), num_workers=1, batch_size=4, prefetch_factor=128, pin_memory=True, persistent_workers=True)
+    loader = torch.utils.data.DataLoader(SampleDataset(training_data, window_size=MAX_WINDOW_SIZE), num_workers=4, batch_size=4, prefetch_factor=128, pin_memory=True, persistent_workers=True)
 
     test_loader = torch.utils.data.DataLoader(SampleDataset(test_data, window_size=MAX_WINDOW_SIZE), num_workers=1, batch_size=1, prefetch_factor=128, pin_memory=True, persistent_workers=True)
 
