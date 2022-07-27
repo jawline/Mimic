@@ -182,7 +182,7 @@ class GameboyNet(nn.Module):
     def __init__(self,
             dim=256,
             num_blocks=1,
-            layer_spec=["attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention"],
+            layer_spec=["attention", "attention", "attention", "attention", "attention", "attention", "attention", "attention"],
             hfactor=4,
             layer_dropout=0.0,
             kernel_size=BYTES_PER_ENTRY*30,

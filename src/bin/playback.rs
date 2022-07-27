@@ -71,7 +71,7 @@ fn parse_file(filename: &str) -> Result<Vec<Instruction>, Box<dyn Error>> {
   let lines = read_lines(filename)?;
   for line in lines {
     let line = line?;
-    println!("{}", line);
+    println!("LINE: {}", line);
     // TODO: I don't actually need to allocate here if I use iter functions
     let parts: Vec<String> = line.split(" ").map(|x| x.to_string()).collect();
     if parts[0] == "CH" && parts.len() > 5 {
@@ -79,7 +79,6 @@ fn parse_file(filename: &str) -> Result<Vec<Instruction>, Box<dyn Error>> {
       let at: usize = parts[parts.len() - 1].parse::<usize>()?;
       if let Some(type_) = match parts[2].as_str() {
         "FREQLSB" => {
-          println!("FREQLSB");
           let frequency = parts[3].parse::<u8>()?;
           Some(Type::Lsb { frequency })
         }
@@ -95,7 +94,7 @@ fn parse_file(filename: &str) -> Result<Vec<Instruction>, Box<dyn Error>> {
         }
         "VOLENVPER" => {
           let volume = parts[3].parse::<u8>()?;
-          let add = parts[4].parse::<u8>()? != 0;
+          let add = try_bool_or_u8(&parts[4])?;
           let period = parts[5].parse::<u8>()?;
           Some(Type::Vol {
             volume,
@@ -109,13 +108,14 @@ fn parse_file(filename: &str) -> Result<Vec<Instruction>, Box<dyn Error>> {
           Some(Type::Duty { duty, length_load })
         }
         &_ => {
+            println!("FAILED ON LINE");
           /* There is a lot of other noise in stdouts so this isn't necessarily an error */
           None
         }
       } {
         res.push(Instruction { at, channel, type_ });
       }
-    }
+    } else {  } 
   }
   Ok(res)
 }
@@ -164,7 +164,6 @@ fn main() -> Result<(), Box<dyn Error>> {
   env_logger::init();
   let opts: Opts = Opts::parse();
   let instructions = parse_file(&opts.playback_file)?;
-  println!("{:?}", instructions);
   let (_device, _stream, sample_rate, sound_tx) = sound::open_device()?;
 
   info!("preparing initial state");

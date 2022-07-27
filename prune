@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+timestamp=$(date +%s)
+mkdir -p "pruned/${timestamp}/"
+cargo run --release --bin pruner -- --recording "$1" --out "pruned/${timestamp}/"

@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-cargo run --release --bin playback -- --playback-file ${1}
+cargo run --release --bin playback -- --playback-file "${1}"

@@ -23,6 +23,8 @@ def train(data_loader, validation_loader, load_fn, model_dir, load_path, device)
     command_generator, optimizer, scheduler = load_fn(path, device)
     criterion = nn.CrossEntropyLoss()
     running_loss = torch.zeros(1, device=device)
+
+    print("Next data loader")
     data_loader = iter(data_loader)
     validation_loader = iter(validation_loader)
 

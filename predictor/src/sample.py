@@ -4,7 +4,6 @@ import os
 import time
 import random
 
-import pescador
 import torch
 
 import shutil
@@ -61,7 +60,7 @@ def command_of_parts(command, channel, parts, time):
     elif command == CMD_VOLENVPER:
         inp[PARAM1_OFFSET] = int(parts[3])
         inp[PARAM2_OFFSET] = parse_bool(parts[4])
-        inp[PARAM3_OFFSET] = int(parts[4])
+        inp[PARAM3_OFFSET] = int(parts[5])
     elif command == CMD_LSB:
         inp[PARAM1_OFFSET] = int(parts[3])
         inp[PARAM2_OFFSET] = 0
@@ -171,30 +170,30 @@ def load_training_data(src):
             data.append(new_item)
     return data
 
-@pescador.streamable
-def samples_from_training_data(src, window_size, start_at_sample):
+def load_raw_data(src, window_size):
+
+    sample_data = load_training_data(src)    
+    sample_data = np.array([command_to_bytes(x) for x in sample_data]).flatten()
+
+    # If the sample is less than the window size then ignore it
+    # TODO: Left pad again?
+    if len(sample_data) < (window_size * 2):
+        raise Exception('Bad file')
+
+    return torch.Tensor(sample_data).long()
+
+def samples_from_training_data(sample_data, window_size, start_at_sample):
+
+    print("Spinning up sample loader")
 
     # Scale the window size by the bytes per entry
     window_size = window_size * BYTES_PER_ENTRY
 
-    sample_data = None
-    try:
-        sample_data = load_training_data(src)
-    except Exception as e:
-        LOGGER.error('Could not load {}: {}'.format(src, str(e)))
-        raise StopIteration()
-    
-    sample_data = np.array([command_to_bytes(x) for x in sample_data]).flatten()
-
-    # If the sample is less than the window size then left pad it
-    if len(sample_data) < window_size:
-        sample_data = np.pad(sample_data, (window_size - len(sample_data), 0))
-
-    sample_data = torch.Tensor(sample_data).long()
+    print("Loaded the data")
 
     while True:
 
-        if len(sample_data) - window_size == 0:
+        if len(sample_data) > window_size == 0:
             # small samples present the whole file
             start_idx = 0
         else:
@@ -210,11 +209,23 @@ def samples_from_training_data(src, window_size, start_at_sample):
         yield sample
 
 def create_batch_generator(paths, window_size, start_at_sample):
+
     streamers = []
+
     for path in paths:
-        streamers.append(samples_from_training_data(path, window_size, start_at_sample))
-    mux = pescador.StochasticMux(streamers, n_active=1, rate=1).iterate()
-    return mux
+        print("Loading ", path)
+        try:
+            streamers.append(load_raw_data(path, window_size))
+        except Exception as e:
+            print("Caught and ignoring file exception: ", e)
+
+    streamers = [samples_from_training_data(sample_data, window_size, start_at_sample) for sample_data in streamers]
+
+    print("Done loading streams")
+
+    while True:
+        stream = random.randrange(0, len(streamers))
+        yield next(streamers[stream])
 
 def training_files(dirp):
     return [
@@ -239,11 +250,13 @@ class SampleDataset(torch.utils.data.IterableDataset):
         # Add one to window_size so that we have window size labels and inputs
         self.loader = create_data_split(files, window_size=MAX_WINDOW_SIZE + 1, start_at_sample=start_at_sample)
 
+        print("Created the loader")
+
     def __iter__(self):
         while True:
-             #start = time.perf_counter()
+             start = time.perf_counter()
              nv = next(self.loader)
-             #end = time.perf_counter()
+             end = time.perf_counter()
              #print(end - start)
              yield nv
 
