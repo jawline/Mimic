@@ -2,9 +2,12 @@ use clap::{AppSettings, Clap};
 use log::info;
 use std::error::Error;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Write};
 use std::path::Path;
+use std::sync::mpsc;
 use std::{thread, time};
+
+use hound;
 
 use gb_int::clock::Clock;
 use gb_int::cpu::Cpu;
@@ -20,7 +23,9 @@ use gb_int::sound::{self, Sound};
 #[clap(setting = AppSettings::ColoredHelp)]
 struct Opts {
   #[clap(short, long)]
-  playback_file: String,
+  file: String,
+  #[clap(short, long)]
+  output: String,
 }
 
 #[derive(Debug)]
@@ -164,8 +169,10 @@ fn base_address(ch: usize) -> u16 {
 fn main() -> Result<(), Box<dyn Error>> {
   env_logger::init();
   let opts: Opts = Opts::parse();
-  let instructions = parse_file(&opts.playback_file)?;
-  let (_device, _stream, sample_rate, sound_tx) = sound::open_device()?;
+  let instructions = parse_file(&opts.file)?;
+
+  let sample_rate = 48000;
+  let (sound_tx, sound_rx) = mpsc::channel();
 
   info!("preparing initial state");
 
@@ -182,6 +189,15 @@ fn main() -> Result<(), Box<dyn Error>> {
   };
 
   gameboy_state.cpu.registers.last_clock = 4;
+
+  let wav_spec = hound::WavSpec {
+    channels: 1,
+    sample_rate: sample_rate as u32,
+    bits_per_sample: 16,
+    sample_format: hound::SampleFormat::Int,
+  };
+
+  let mut writer = hound::WavWriter::create(opts.output, wav_spec)?;
 
   let mut next = 0;
   let mut elapsed = 0;
@@ -248,12 +264,13 @@ fn main() -> Result<(), Box<dyn Error>> {
       &sound_tx,
       false,
     );
+
+    while let Ok(sample) = sound_rx.try_recv() {
+      writer.write_sample((sample * (i16::MAX as f32)) as i16)?;
+    }
   }
 
-  loop {
-    let ten_millis = time::Duration::from_millis(10);
-    thread::sleep(ten_millis);
-  }
+  println!("Written");
 
-  // TODO: Find a better way than looping forever - we should be able to test when our buffer is completely empty
+  Ok(())
 }

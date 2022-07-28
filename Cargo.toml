@@ -17,9 +17,7 @@ serde = "1.0.130"
 ciborium = "0.1.0"
 cpal = "0.13.4"
 rand = "0.8.5"
+hound = "3.4.0"
 
 [profile.dev]
 overflow-checks = false
-
-[profile.release]
-debug = 1

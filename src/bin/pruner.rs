@@ -1,12 +1,12 @@
 use clap::{AppSettings, Clap};
+use rand::{thread_rng, Rng};
+use std::cmp::{max, min};
 use std::error::Error;
+use std::fmt;
 use std::fs::File;
+use std::io::Write;
 use std::io::{self, BufRead};
 use std::path::Path;
-use std::cmp::{min, max};
-use std::fmt;
-use std::io::Write;
-use rand::{Rng, thread_rng};
 
 /// This doc string acts as a help message when the user runs '--help'
 /// as do all doc strings on fields
@@ -49,16 +49,40 @@ struct Instruction {
 }
 
 impl fmt::Display for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Type::*;
-        match self.type_ {
-            Lsb { frequency } => write!(f, "CH {} FREQLSB {} AT {}", self.channel, frequency, self.at),
-            Msb { trigger, length_enable, frequency, } => write!(f, "CH {} FREQMSB {} {} {} AT {}", self.channel, frequency, length_enable, trigger, self.at),
-            Vol { volume, add, period } => write!(f, "CH {} VOLENVPER {} {} {} AT {}", self.channel, volume, add, period, self.at),
-            Duty { duty, length_load } => write!(f, "CH {} DUTYLL {} {} AT {}", self.channel, duty, length_load, self.at),
-        }
-        //write!(f, "({}, {})", self.x, self.y)
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    use Type::*;
+    match self.type_ {
+      Lsb { frequency } => write!(
+        f,
+        "CH {} FREQLSB {} AT {}",
+        self.channel, frequency, self.at
+      ),
+      Msb {
+        trigger,
+        length_enable,
+        frequency,
+      } => write!(
+        f,
+        "CH {} FREQMSB {} {} {} AT {}",
+        self.channel, frequency, length_enable, trigger, self.at
+      ),
+      Vol {
+        volume,
+        add,
+        period,
+      } => write!(
+        f,
+        "CH {} VOLENVPER {} {} {} AT {}",
+        self.channel, volume, add, period, self.at
+      ),
+      Duty { duty, length_load } => write!(
+        f,
+        "CH {} DUTYLL {} {} AT {}",
+        self.channel, duty, length_load, self.at
+      ),
     }
+    //write!(f, "({}, {})", self.x, self.y)
+  }
 }
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where
@@ -152,13 +176,13 @@ fn find_repeating_subsequence(cycles: &[Instruction]) -> Vec<Instruction> {
 
   while i > 0 && j > 0 {
     if dp[offset(cycles, i, j)] == dp[offset(cycles, i - 1, j - 1)] + 1 {
-        sequence.push(cycles[i - 1]);
-        i -= 1;
-        j -= 1;
-    } else if dp[offset(cycles, i, j)] == dp[offset(cycles, i-1, j)] {
-        i -= 1;
+      sequence.push(cycles[i - 1]);
+      i -= 1;
+      j -= 1;
+    } else if dp[offset(cycles, i, j)] == dp[offset(cycles, i - 1, j)] {
+      i -= 1;
     } else {
-        j -= 1;
+      j -= 1;
     }
   }
 
@@ -180,11 +204,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut file = File::create(path)?;
     let limit = rng.gen_range(0..instructions.len());
     for instruction in &instructions[limit..min(limit + 10000, instructions.len())] {
-        write!(file, "{}\n", instruction)?;
+      write!(file, "{}\n", instruction)?;
     }
   }
 
-    /* 
+  /*
   let mut locations: HashMap<Instruction, Vec<usize>> = HashMap::new();
   let mut i = 0;
   for instruction in &instructions {
