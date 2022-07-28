@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+while true; do
+  timestamp=$(date +%s)
+  echo "Preparing a run"
+  timeout 5m python3 predictor/src/Predictor.py --mode generate --model-dir local.model/ --training-data ./pruned --test-data ./training_data
+  echo "Saving " ${timestamp}
+  mkdir -p samples/${timestamp}/
+  cp output.txt samples/${timestamp}/
+  cp seed.txt samples/${timestamp}/
+done

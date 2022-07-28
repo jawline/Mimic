@@ -28,7 +28,7 @@ PARAM3_OFFSET = 5
 SIZE_OF_INPUT_FIELDS = 6
 
 # The maximum number of samples we will send to the model in a single iteration
-MAX_WINDOW_SIZE = 128
+MAX_WINDOW_SIZE = 256
 
 # The Gameboy cycles this many times per second. This is the
 # measurement of time we use in our TIME_OFFSET values

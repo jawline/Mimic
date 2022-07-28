@@ -87,4 +87,5 @@ def generate_a_song(loader, load_fn, path, device):
                   print_feature(last_sample, file=f)
               except BaseException as err:
                   print("pred was not valid because:", err)
+                  raise Exception('early exit')
       del pred
