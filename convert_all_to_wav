@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+cargo build --release
+find "$1" -name "output.txt" -print0 | xargs -0 -I {} -P 16 ./convert_to_wav "{}" "$2"

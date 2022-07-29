@@ -1,2 +1,3 @@
 #!/usr/bin/env bash
+cargo build --release
 find "$1" -name "*.gb" -print0 | xargs -0 -I {} -P 24 timeout 5m ./play_and_record "{}"

@@ -2,4 +2,4 @@
 base=$(basename "$1" .gb | tr '[:upper:]' '[:lower:]' | sed s/\(u\)//)
 timestamp=$(date +%s)
 mkdir -p "mechanical_data/${base}/"
-cargo run --release -- --mode headless --rom "$1" --disable-sound --disable-framebuffer &> "mechanical_data/${base}/${timestamp}"
+./target/release/emulator --mode headless --rom "$1" --disable-sound --disable-framebuffer &> "mechanical_data/${base}/${timestamp}"

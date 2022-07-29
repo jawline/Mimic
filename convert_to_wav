@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+BASE="$1"
+NEW="$2/$(date +%s).wav"
+echo "Converting $1 to ${NEW}"
+./target/release/recording_to_file --file "$1" --output "${NEW}"
