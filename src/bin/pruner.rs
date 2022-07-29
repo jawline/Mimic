@@ -198,7 +198,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
   let mut rng = thread_rng();
 
-  for i in 0..2 {
+  for i in 0..4 {
     let path = format!("{}/{}", opts.out, i);
     println!("Writing next file to {}", path);
     let mut file = File::create(path)?;

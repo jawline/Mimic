@@ -282,7 +282,7 @@ def load_model(model, path, device):
     )
 
     # optimizer = optim.SGD ( model.parameters(), lr = 0.001 )
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.9, min_lr=0.0000000001, patience=1) 
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.98, min_lr=0.0000000001, patience=1) 
 
     model = model.to(device)
 
