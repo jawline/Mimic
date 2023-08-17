@@ -1,10 +1,13 @@
 use std::time::{Duration, SystemTime};
 
 const FRAME_TIME_IN_SECONDS: f64 = 1. / 59.71540070833901659232620059483728860926694;
-pub const FRAME_TIME: Duration = Duration::from_secs_f64(FRAME_TIME_IN_SECONDS);
+
+pub fn frame_time() -> Duration {
+  Duration::from_secs_f64(FRAME_TIME_IN_SECONDS)
+}
 
 pub struct FrameTimer {
-  /// This can be increased by a factor of FRAME_TIME to introduce frame skip
+  /// This can be increased by a factor of frame_time() to introduce frame skip
   frame_interval: Duration,
   /// Time of last frame draw
   last_frame: SystemTime,
@@ -13,7 +16,7 @@ pub struct FrameTimer {
 impl FrameTimer {
   pub fn new(skip_rate: u32) -> Self {
     FrameTimer {
-      frame_interval: FRAME_TIME * skip_rate,
+      frame_interval: frame_time() * skip_rate,
       last_frame: SystemTime::now(),
     }
   }

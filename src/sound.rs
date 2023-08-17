@@ -6,7 +6,6 @@ use std::error::Error;
 use std::result::Result;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use std::time::Instant;
 
 // TODO: Refactor all the sound code to take a multiple of T-cycles rather than stepping by
 // four cycles every call.
@@ -422,14 +421,15 @@ impl Channels {
   fn step(&mut self, mem: &mut GameboyState) {
     self.channel_one.step(mem);
     self.channel_two.step(mem);
-    //self.wave.step(mem);
+    self.wave.step(mem);
   }
 
   /**
    * Get the mixed amplitude of all channels now.
    */
   fn amplitude(&self, mem: &mut GameboyState) -> f32 {
-    self.channel_one.amplitude(mem) + self.channel_two.amplitude(mem) + self.wave.amplitude(mem)
+    (self.channel_one.amplitude(mem) + self.channel_two.amplitude(mem) + self.wave.amplitude(mem))
+      / 3.
   }
 }
 
@@ -647,13 +647,18 @@ impl Sound {
     mem: &mut GameboyState,
     sample_rate: usize,
     samples: &Sender<f32>,
+    disable_sound: bool,
   ) {
+    // If the sound is disabled do not do any work, including update internal state.
+    if disable_sound {
+      return;
+    }
+
     // TODO: We handle trigger logic here but it should live in its own place.
     if self.channels.channel_one.triggered(mem) {
       self.channels.channel_one.trigger(mem);
       let params = sweep_parameters(mem);
       if params.period != 0 || params.shift != 0 {
-        println!("Enabled sweep");
         self.sequencer.sweep = true;
         self.sequencer.shadow_frequency = self.channels.channel_one.frequency(mem);
       }
@@ -664,7 +669,6 @@ impl Sound {
     }
 
     if self.channels.wave.triggered(mem) {
-      println!("Wave enabled");
       self.channels.wave.enabled = true;
       self.channels.wave.set_length(mem, 255);
       self.channels.wave.frequency_clock = 0;
@@ -672,14 +676,14 @@ impl Sound {
     }
 
     // Now process the frame
-    let sample_divisor = (GAMEBOY_FREQUENCY / sample_rate) + 1;
-    for _ in (0..cpu.registers.last_clock).step_by(4) {
+    let sample_divisor = (GAMEBOY_FREQUENCY / sample_rate) - 3;
+    for _ in (0..cpu.registers.cycles_elapsed_during_last_step).step_by(4) {
       self.channels.step(mem);
       self.sequencer.step(mem, &mut self.channels);
       self.t_cycles += 4;
       if self.t_cycles >= sample_divisor {
         // We should generate a sample for cpal here
-        samples.send(self.channels.amplitude(mem));
+        samples.send(self.channels.amplitude(mem)).unwrap();
         self.t_cycles = 0;
       }
     }
@@ -705,15 +709,6 @@ fn run<T: cpal::Sample + std::fmt::Debug>(
     move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
       let mut written = 0;
 
-      /* TODO: Might need to write an empty frame if we haven't caught up, should test first
-       * though.  */
-
-      /*for frame in output.chunks_mut(channels) {
-          for channel_fr in &mut *frame {
-              *channel_fr = 0.;
-          }
-      }*/
-
       for frame in output.chunks_mut(channels) {
         if let Ok(sample) = recv.try_recv() {
           let sample = cpal::Sample::from::<f32>(&sample);
@@ -723,8 +718,6 @@ fn run<T: cpal::Sample + std::fmt::Debug>(
           written += 1;
         }
       }
-
-      //println!("{}", written);
 
       if written == 0 {
         for frame in output.chunks_mut(channels) {
@@ -738,8 +731,6 @@ fn run<T: cpal::Sample + std::fmt::Debug>(
   )?;
 
   stream.play()?;
-
-  println!("Starting to play");
 
   Ok(stream)
 }

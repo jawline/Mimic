@@ -4,8 +4,7 @@ use crate::memory::GameboyState;
 use crate::memory::{isset16, isset32, isset8};
 use crate::register::{SmallWidthRegister, WideRegister};
 use crate::util::{
-  carries_add16_signed_8bit, carries_add8, carries_add8_with_carry, carries_sub16_signed_8bit,
-  carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
+  carries_add8, carries_add8_with_carry, carries_sub8_with_carry, half_carry_add8, half_carry_sub8,
 };
 use log::trace;
 
@@ -67,7 +66,7 @@ pub fn ld_mem_r16_immediate(
   let val = memory.read_u8(registers.pc() + 1);
   registers.inc_pc(2);
   let addr = registers.read_r16(additional.wide_reg_dst);
-  memory.write_u8(addr, val);
+  memory.write_u8(addr, val, registers);
 }
 
 /// Load immediate loads a 8 bit value following this instruction places it in a small register
@@ -94,7 +93,7 @@ pub fn ld_reg8_mem_reg16(
   // Store the provided 8-bit register to the location pointed to by the 16-bit dst register
   let reg_val = registers.read_r8(additional.small_reg_one);
   let mem_dst = registers.read_r16(additional.wide_reg_dst);
-  memory.write_u8(mem_dst, reg_val);
+  memory.write_u8(mem_dst, reg_val, registers);
 
   // Increment the PC by one once finished
   registers.inc_pc(1);
@@ -170,7 +169,7 @@ pub fn inc_mem_r16(
   let result = l + 1;
 
   // Increment by one and modify memory
-  memory.write_u8(addr, result);
+  memory.write_u8(addr, result, registers);
   registers.set_flags(result == 0, false, half_carry_add8(l, 1), registers.carry());
 }
 
@@ -187,7 +186,7 @@ pub fn dec_mem_r16(
   let result = l - 1;
 
   // Increment by one and modify memory
-  memory.write_u8(addr, result);
+  memory.write_u8(addr, result, registers);
 
   registers.set_flags(result == 0, true, half_carry_sub8(l, 1), registers.carry());
 }
@@ -397,7 +396,7 @@ fn ld_ff00_imm_r8(
   let add_v: u16 = memory.read_u8(registers.pc() + 1).into();
 
   let rval = registers.read_r8(additional.small_reg_dst);
-  memory.write_u8(0xFF00 + add_v, rval);
+  memory.write_u8(0xFF00 + add_v, rval, registers);
   registers.inc_pc(2);
 }
 
@@ -424,7 +423,7 @@ fn ld_ff00_r8_r8(
 ) {
   let addr_offset: u16 = registers.read_r8(additional.small_reg_one) as u16;
   let rval = registers.read_r8(additional.small_reg_dst);
-  memory.write_u8(0xFF00 + addr_offset, rval);
+  memory.write_u8(0xFF00 + addr_offset, rval, registers);
   registers.inc_pc(1);
 }
 
@@ -708,7 +707,11 @@ fn load_immediate_wide_register(
   let load_address = memory.read_u16(registers.pc() + 1);
 
   // Write the contents of wide register one to that location
-  memory.write_u16(load_address, registers.read_r16(additional.wide_reg_one));
+  memory.write_u16(
+    load_address,
+    registers.read_r16(additional.wide_reg_one),
+    registers,
+  );
 
   // Increment the PC by one once finished
   registers.inc_pc(3);
@@ -723,7 +726,11 @@ fn load_indirect_nn_small_register(
   let load_address = memory.read_u16(registers.pc() + 1);
 
   // Write the contents of wide register one to that location
-  memory.write_u8(load_address, registers.read_r8(additional.small_reg_one));
+  memory.write_u8(
+    load_address,
+    registers.read_r8(additional.small_reg_one),
+    registers,
+  );
 
   // Increment the PC by one once finished
   registers.inc_pc(3);
@@ -740,7 +747,7 @@ fn ldi_mem_r16_val_r8(
 ) {
   let wide_reg = registers.read_r16(additional.wide_reg_dst);
   let target = registers.read_r8(additional.small_reg_one);
-  memory.write_u8(wide_reg, target);
+  memory.write_u8(wide_reg, target, registers);
   registers.write_r16(additional.wide_reg_dst, wide_reg.wrapping_add(1));
   registers.inc_pc(1);
 }
@@ -768,7 +775,7 @@ fn ldd_mem_r16_val_r8(
 ) {
   let wide_reg = registers.read_r16(additional.wide_reg_dst);
   let target = registers.read_r8(additional.small_reg_one);
-  memory.write_u8(wide_reg, target);
+  memory.write_u8(wide_reg, target, registers);
   registers.write_r16(additional.wide_reg_dst, wide_reg.wrapping_sub(1));
   registers.inc_pc(1);
 }
@@ -808,12 +815,30 @@ fn add_r16_r16(
   registers.inc_pc(1);
 }
 
+fn register_plus_signed_8_bit_immediate(acc: i16, immediate: i8, registers: &mut Registers) -> i16 {
+  let signed_immediate: i16 = ((immediate & 127) - (immediate & (-128))) as i16;
+  let result = acc + signed_immediate;
+
+  if signed_immediate >= 0 {
+    let carry = ((acc & 0xFF) + signed_immediate) > 0xFF;
+    let half_carry = ((acc & 0xF) + signed_immediate) > 0xF;
+    registers.set_flags(false, false, half_carry, carry);
+  } else {
+    let carry = (result & 0xFF) <= (acc & 0xFF);
+    let half_carry = (result & 0xF) <= (acc & 0xF);
+    registers.set_flags(false, false, half_carry, carry);
+  }
+
+  result
+}
+
 /// Add an immediate byte (signed) to a wide register
 fn add_r16_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
-  let l = registers.read_r16(additional.wide_reg_dst);
-  let add_v = memory.read_u8(registers.pc() + 1);
-  let result = register_plus_signed_8_bit_immediate(l, add_v, registers);
-
+  let result = register_plus_signed_8_bit_immediate(
+    registers.read_r16(additional.wide_reg_dst) as i16,
+    memory.read_u8(registers.pc() + 1) as i8,
+    registers,
+  ) as u16;
   registers.write_r16(additional.wide_reg_dst, result);
   registers.inc_pc(2);
 }
@@ -827,35 +852,17 @@ fn ld_r16_r16(registers: &mut Registers, _memory: &mut GameboyState, additional:
   );
 }
 
-fn register_plus_signed_8_bit_immediate(
-  mut acc: u16,
-  immediate: u8,
-  registers: &mut Registers,
-) -> u16 {
-  if isset8(immediate, 0x80) {
-    let immediate = (!immediate) + 1;
-    let (half_carry, carry) = carries_sub16_signed_8bit(acc, immediate);
-    let immediate = immediate as u16;
-    acc -= immediate;
-    registers.set_flags(false, false, half_carry, carry);
-  } else {
-    let (half_carry, carry) = carries_add16_signed_8bit(acc, immediate);
-    acc += immediate as u16;
-    registers.set_flags(false, false, half_carry, carry);
-  }
-
-  acc
-}
-
 /// Add an immediate byte (signed) to wide reg one and then save it to wide reg dst
 fn ld_r16_r16_plus_n(
   registers: &mut Registers,
   memory: &mut GameboyState,
   additional: &InstructionData,
 ) {
-  let l = registers.read_r16(additional.wide_reg_one);
-  let add_v = memory.read_u8(registers.pc() + 1);
-  let result = register_plus_signed_8_bit_immediate(l, add_v, registers);
+  let result = register_plus_signed_8_bit_immediate(
+    registers.read_r16(additional.wide_reg_one) as i16,
+    memory.read_u8(registers.pc() + 1) as i8,
+    registers,
+  ) as u16;
 
   registers.write_r16(additional.wide_reg_dst, result);
   registers.inc_pc(2);
@@ -894,7 +901,7 @@ fn jump_relative_signed_immediate(
   let byte = memory.read_u8(registers.pc() + 1) as i8;
   registers.inc_pc(2);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
-    registers.last_clock = 4;
+    registers.cycles_elapsed_during_last_step += 4;
     registers.jump_relative(byte);
   }
 }
@@ -903,7 +910,7 @@ fn jump_relative_signed_immediate(
 fn ret(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
   registers.inc_pc(1);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
-    registers.last_clock = 12;
+    registers.cycles_elapsed_during_last_step += 12;
     let ret_pc = registers.stack_pop16(memory);
     registers.set_pc(ret_pc);
   }
@@ -947,7 +954,7 @@ fn jump_immediate(
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
-    registers.last_clock = 4;
+    registers.cycles_elapsed_during_last_step += 4;
     registers.set_pc(target_address);
   }
 }
@@ -974,7 +981,7 @@ fn call_immediate(
   let target_address = memory.read_u16(registers.pc() + 1);
   registers.inc_pc(3);
   if (registers.flags() & additional.flag_mask) == additional.flag_expected {
-    registers.last_clock = 12;
+    registers.cycles_elapsed_during_last_step += 12;
     registers.stack_push16(registers.pc(), memory);
     registers.set_pc(target_address);
   }
@@ -1073,6 +1080,7 @@ fn ccf(registers: &mut Registers, _memory: &mut GameboyState, _additional: &Inst
 
 /// Push current PC to stack then jump to n (8-bit immediate)
 fn rst_n(registers: &mut Registers, memory: &mut GameboyState, additional: &InstructionData) {
+  trace!("RST {:x}", additional.code);
   registers.inc_pc(1);
   registers.stack_push16(registers.pc(), memory);
   registers.set_pc(additional.code as u16);
@@ -2465,7 +2473,7 @@ pub fn instruction_set() -> Vec<Instruction> {
     InstructionData::const_default().with_flag(ZERO_FLAG, ZERO_FLAG)
   );
 
-  let escape = instr!("ESCAPE", 4, escape, InstructionData::const_default());
+  let escape = instr!("ESCAPE", 0, escape, InstructionData::const_default());
 
   let callz = instr!(
     "callz NN",
@@ -2994,7 +3002,7 @@ fn ext_rlc_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = rlc_core(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn rrc_core(current: u8, registers: &mut Registers) -> u8 {
@@ -3020,7 +3028,7 @@ fn ext_rrc_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = rrc_core(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_rl(reg: u8, registers: &mut Registers) -> u8 {
@@ -3046,7 +3054,7 @@ fn ext_rl_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_rl(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_rr(reg: u8, registers: &mut Registers) -> u8 {
@@ -3072,7 +3080,7 @@ fn ext_rr_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_rr(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_sla(reg: u8, registers: &mut Registers) -> u8 {
@@ -3098,7 +3106,7 @@ fn ext_sla_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_sla(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_sra(reg: u8, registers: &mut Registers) -> u8 {
@@ -3125,7 +3133,7 @@ fn ext_sra_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_sra(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn core_swap(reg: u8, registers: &mut Registers) -> u8 {
@@ -3155,7 +3163,7 @@ fn ext_swap_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = core_swap(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn srl_core(current: u8, registers: &mut Registers) -> u8 {
@@ -3179,7 +3187,7 @@ fn ext_srl_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = srl_core(current, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
   registers.inc_pc(1);
 }
 
@@ -3234,7 +3242,7 @@ fn ext_res_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = res_core(current, additional.bit, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 fn set_core(current: u8, bit: u8, _registers: &mut Registers) -> u8 {
@@ -3259,7 +3267,7 @@ fn ext_set_indirect_r16(
   let address = registers.read_r16(additional.wide_reg_dst);
   let current = memory.read_u8(address);
   let result = set_core(current, additional.bit, registers);
-  memory.write_u8(address, result);
+  memory.write_u8(address, result, registers);
 }
 
 /// The extended set is a systematic. This produces an 8-instruction row from it

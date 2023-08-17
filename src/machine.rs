@@ -23,6 +23,8 @@ pub struct MachineState {
 pub struct Machine {
   pub state: MachineState,
   pub instruction_set: InstructionSet,
+  pub disable_sound: bool,
+  pub disable_framebuffer: bool,
 }
 
 impl Machine {
@@ -32,12 +34,18 @@ impl Machine {
     Ok(())
   }
 
-  pub fn load_state(filename: &str) -> Result<Self, Box<dyn Error>> {
+  pub fn load_state(
+    filename: &str,
+    disable_sound: bool,
+    disable_framebuffer: bool,
+  ) -> Result<Self, Box<dyn Error>> {
     let file = File::open(filename)?;
     let new_state: MachineState = de::from_reader(file)?;
     Ok(Self {
       state: new_state,
       instruction_set: InstructionSet::new(),
+      disable_sound,
+      disable_framebuffer,
     })
   }
 
@@ -51,19 +59,27 @@ impl Machine {
       .state
       .cpu
       .step(&mut self.state.memory, &self.instruction_set);
+    self.state.cpu.registers.total_clock +=
+      self.state.cpu.registers.cycles_elapsed_during_last_step as usize;
+
     self.state.clock.step(
-      self.state.cpu.registers.last_clock as u8,
+      self.state.cpu.registers.cycles_elapsed_during_last_step as u8,
       &mut self.state.memory,
+      &self.state.cpu.registers,
     );
+
     self.state.sound.step(
       &mut self.state.cpu,
       &mut self.state.memory,
       sample_rate,
       samples,
+      self.disable_sound,
     );
-    self
-      .state
-      .ppu
-      .step(&mut self.state.cpu, &mut self.state.memory, screen_buffer)
+    self.state.ppu.step(
+      &mut self.state.cpu,
+      &mut self.state.memory,
+      screen_buffer,
+      self.disable_framebuffer,
+    )
   }
 }

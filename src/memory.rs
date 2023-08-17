@@ -1,5 +1,6 @@
+use crate::cpu::Registers;
 use crate::util::{stat_interrupts_with_masked_flags, STAT};
-use log::{error, info, trace, warn};
+use log::{info, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io;
@@ -75,6 +76,14 @@ impl RomChunk {
   fn read_u8(&self, address: u16) -> u8 {
     self.bytes[address as usize]
   }
+
+  /// This function changes ROM in the emulator state.
+  /// It should only be used in special cases when we
+  /// need to program the emulator from code.
+  pub fn force_write_u8(&mut self, address: u16, v: u8) {
+    self.bytes[address as usize] = v
+  }
+
   pub fn from_file(path: &str) -> io::Result<RomChunk> {
     info!("Loading {}", path);
     let mut f = File::open(path)?;
@@ -83,8 +92,8 @@ impl RomChunk {
     Ok(RomChunk { bytes: buffer })
   }
 
-  pub fn empty() -> RomChunk {
-    RomChunk { bytes: Vec::new() }
+  pub fn empty(sz: usize) -> RomChunk {
+    RomChunk { bytes: vec![0; sz] }
   }
 
   fn wide_read_u8(&self, address: usize) -> u8 {
@@ -133,20 +142,29 @@ pub struct GameboyState {
   vram: RamChunk,
   iram: RamChunk,
   high_ram: RamChunk,
-  boot_enabled: bool,
+  pub boot_enabled: bool,
   ram_on: bool,
   ram_mode: bool,
   gamepad_high: bool,
 
+  pub cycles_elapsed_during_last_step: usize,
+
   pub cart_type: u8,
 
   /**
-   * Current timer state
-   * The div register is really interesting. While reads only give you the lower byte, under the
-   * hood it's actually 16 bits wide and impacts the div and tima.
-   * We store it here so it can be accessed both by the timer module and read by read_u8.
-   */
+   The div register is really interesting. While reads only give you the lower byte, under the
+   hood it's actually 16 bits wide and impacts the div and tima.  We store it here so it can be
+   accessed both by the timer module and read by read_u8.
+  */
   pub div: u16,
+
+  /**
+  The CPU uses this to decide if the clock should accumulate on the step. We do this because the
+  step occurs after the clock, but the div reset would actually occur after it has stepped and
+  this causes a race condition in some timing logic. */
+  pub wrote_div: bool,
+  /** As above, but with the tima register */
+  pub wrote_tima: bool,
 
   /**
    * Rom and Ram bank settings
@@ -165,10 +183,18 @@ pub struct GameboyState {
   pub right: bool,
   pub up: bool,
   pub down: bool,
+
+  /**
+   * Print sound register changes to stdout
+   */
+  pub print_sound_registers: bool,
+
+  /// Disable writes from 0x4000-0x5FFF for gbs playback
+  pub disable_rom_upper_writes: bool,
 }
 
 impl GameboyState {
-  pub fn new(boot: RomChunk, cart: RomChunk) -> GameboyState {
+  pub fn new(boot: RomChunk, cart: RomChunk, print_sound_registers: bool) -> GameboyState {
     GameboyState {
       cart_type: cart.read_u8(0x147),
 
@@ -181,9 +207,12 @@ impl GameboyState {
       boot_enabled: true,
       ram_on: false,
       ram_mode: false,
+      cycles_elapsed_during_last_step: 0,
 
       /// The divider starts at zero
       div: 0,
+      wrote_div: false,
+      wrote_tima: false,
 
       /**
        * Rom bank defaults
@@ -203,6 +232,9 @@ impl GameboyState {
       up: false,
       down: false,
       gamepad_high: false,
+
+      print_sound_registers,
+      disable_rom_upper_writes: false,
     }
   }
 
@@ -289,10 +321,14 @@ impl GameboyState {
   }
 
   fn set_rom_bank_upper(&mut self, bank: u8) {
-    let bank = (bank & 0x3) << 5;
-    let bank = bank as usize + self.rom_bank;
-    self.rom_bank = bank;
-    info!("set rom bank upper 2 bits {} {}", bank, self.rom_bank);
+    if self.disable_rom_upper_writes {
+      trace!("not setting ROM bank because we are in GBS mode");
+    } else {
+      let bank = (bank & 0x3) << 5;
+      let bank = bank as usize + self.rom_bank;
+      self.rom_bank = bank;
+      info!("set rom bank upper 2 bits {} {}", bank, self.rom_bank);
+    }
   }
 }
 
@@ -304,8 +340,10 @@ impl GameboyState {
       print!("{}", self.read_u8(0xFF01) as char);
     } else if address == DIV_REGISTER {
       self.div = 0;
+      self.wrote_div = true;
     } else if address == TIMA_REGISTER {
       self.high_ram.write_u8(address - END_OF_ECHO_RAM, val);
+      self.wrote_tima = true;
     } else if address == TAC_REGISTER {
       self.high_ram.write_u8(address - END_OF_ECHO_RAM, val & 0x7);
     } else if address == 0xFF46 {
@@ -353,14 +391,149 @@ impl GameboyState {
       self.iram.write_u8(address - END_OF_CARTRIDGE_RAM, val)
     } else if address < END_OF_ECHO_RAM {
       // TODO: mirror ram, do I need?
-      error!("illegal write to {:x}", address);
-      unimplemented!();
+      warn!("illegal write to {:x}", address);
     } else {
       self.write_high_mem(address, val);
     }
   }
 
-  pub fn write_u8(&mut self, address: u16, val: u8) {
+  pub fn write_u8(&mut self, address: u16, val: u8, registers: &Registers) {
+    if address == 0xFF10 {
+      if self.print_sound_registers {
+        println!(
+          "SWEEP {} AT {}",
+          val,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF11 {
+      if self.print_sound_registers {
+        let duty = (val & 0b1100_0000) >> 6;
+        let length = val & 0b0011_1111;
+        println!(
+          "CH 1 DUTYLL {} {} AT {}",
+          duty,
+          length,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF12 {
+      if self.print_sound_registers {
+        let vol = (val & 0b1111_0000) >> 4;
+        let add_mode = (val & 0b0000_1000) >> 3;
+        let period = val & 0b0000_0111;
+
+        println!(
+          "CH 1 VOLENVPER {} {} {} AT {}",
+          vol,
+          add_mode,
+          period,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF13 {
+      if self.print_sound_registers {
+        println!(
+          "CH 1 FREQLSB {} AT {}",
+          val,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF14 {
+      if self.print_sound_registers {
+        let msb = val & 0b0000_0111;
+        let le = isset8(val, 0b0100_0000);
+        let trigger = isset8(val, 0b1000_0000);
+
+        println!(
+          "CH 1 FREQMSB {} {} {} AT {}",
+          msb,
+          le,
+          trigger,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF16 {
+      if self.print_sound_registers {
+        let duty = (val & 0b1100_0000) >> 6;
+        let length = val & 0b0011_1111;
+        println!(
+          "CH 2 DUTYLL {} {} AT {}",
+          duty,
+          length,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF17 {
+      if self.print_sound_registers {
+        let vol = (val & 0b1111_0000) >> 4;
+        let add_mode = (val & 0b0000_1000) >> 3;
+        let period = val & 0b0000_0111;
+        println!(
+          "CH 2 VOLENVPER {} {} {} AT {}",
+          vol,
+          add_mode,
+          period,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF18 {
+      if self.print_sound_registers {
+        println!(
+          "CH 2 FREQLSB {} AT {}",
+          val,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
+    if address == 0xFF19 {
+      if self.print_sound_registers {
+        let msb = val & 0b0000_0111;
+        let le = isset8(val, 0b0100_0000);
+        let trigger = isset8(val, 0b1000_0000);
+        println!(
+          "CH 2 FREQMSB {} {} {} AT {}",
+          msb,
+          le,
+          trigger,
+          registers.total_clock - self.cycles_elapsed_during_last_step
+        );
+
+        self.cycles_elapsed_during_last_step = registers.total_clock;
+      }
+    }
+
     self.core_write(address, val)
   }
 
@@ -421,11 +594,11 @@ impl GameboyState {
     result
   }
 
-  pub fn write_u16(&mut self, address: u16, value: u16) {
+  pub fn write_u16(&mut self, address: u16, value: u16, registers: &Registers) {
     let lower = value & 0xFF;
     let upper = value >> 8;
-    self.write_u8(address + 1, upper as u8);
-    self.write_u8(address, lower as u8);
+    self.write_u8(address + 1, upper as u8, registers);
+    self.write_u8(address, lower as u8, registers);
   }
 
   pub fn read_u16(&mut self, address: u16) -> u16 {

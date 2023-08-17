@@ -54,7 +54,10 @@ pub struct Registers {
   pub ime: bool,
 
   /// How many cycles passed in the last CPU step
-  pub last_clock: u16,
+  pub cycles_elapsed_during_last_step: u16,
+  pub total_clock: usize,
+  pub wrote_div_on_last_instruction: bool,
+  pub wrote_tima_on_last_instruction: bool,
 }
 
 /// The position of flags in the F register
@@ -93,7 +96,7 @@ impl Registers {
   /// Push a 16 bit value from the stack and return it
   pub fn stack_push16<'a>(&mut self, value: u16, memory: &mut GameboyState) {
     let new_sp = self.sp().wrapping_sub(2);
-    memory.write_u16(new_sp, value);
+    memory.write_u16(new_sp, value, &self);
     self.set_sp(new_sp);
   }
 
@@ -272,54 +275,52 @@ impl Cpu {
       // the order of if-else statements.
       if isset8(interrupted, VBLANK) {
         debug!("VBLANK INTERRUPT");
-        Self::clear_interrupt_happened(memory, VBLANK);
+        Self::clear_interrupt_happened(memory, VBLANK, &self.registers);
         self.fire_interrupt(VBLANK_ADDRESS, memory);
       } else if isset8(interrupted, STAT) {
         debug!("STAT INTERRUPT");
-        Self::clear_interrupt_happened(memory, STAT);
+        Self::clear_interrupt_happened(memory, STAT, &self.registers);
         self.fire_interrupt(STAT_ADDRESS, memory);
       } else if isset8(interrupted, TIMER) {
         debug!("TIMER INT");
-        Self::clear_interrupt_happened(memory, TIMER);
+        Self::clear_interrupt_happened(memory, TIMER, &self.registers);
         self.fire_interrupt(TIMER_ADDRESS, memory);
       } else if isset8(interrupted, JOYPAD) {
         debug!("JOYPAD PRESSED");
-        Self::clear_interrupt_happened(memory, JOYPAD);
+        Self::clear_interrupt_happened(memory, JOYPAD, &self.registers);
         self.fire_interrupt(JOYPAD_ADDRESS, memory);
       }
     }
   }
 
   /// Clear an interrupt bit in the interrupts that have triggered register
-  pub fn clear_interrupt_happened(memory: &mut GameboyState, interrupt: u8) {
+  pub fn clear_interrupt_happened(memory: &mut GameboyState, interrupt: u8, registers: &Registers) {
     memory.write_u8(
       INTERRUPTS_HAPPENED_ADDRESS,
       memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) & !interrupt,
+      registers,
     );
   }
 
   /// Set an interrupt triggered bit in memory
-  pub fn set_interrupt_happened(memory: &mut GameboyState, interrupt: u8) {
+  pub fn set_interrupt_happened(memory: &mut GameboyState, interrupt: u8, registers: &Registers) {
     memory.write_u8(
       INTERRUPTS_HAPPENED_ADDRESS,
       memory.read_u8(INTERRUPTS_HAPPENED_ADDRESS) | interrupt,
+      registers,
     );
   }
 
   /// Step the emulator by a single instruction
   pub fn step(&mut self, memory: &mut GameboyState, instructions: &InstructionSet) {
+    // This register tracks if we wrote DIV during this instruction.
+    memory.wrote_div = false;
+    memory.wrote_tima = false;
+
     if !self.registers.halted {
       let opcode = memory.core_read(self.registers.pc());
 
-      let inst;
-
-      if self.registers.escaped {
-        trace!("Selected opcode from extended set since escaped is set");
-        inst = &instructions.ext_instructions[opcode as usize];
-        self.registers.escaped = false;
-      } else {
-        inst = &instructions.instructions[opcode as usize];
-      }
+      let inst = &instructions.instructions[opcode as usize];
 
       debug!(
         "INSTR={} PC={:x} SP={:x} BC={:x} AF={:x} DE={:x} HL={:x}\n B={:x} C={:x} A={:x} F={:x} D={:x} E={:x} H={:x} L={:x} Z={} N={} H={} C={} HALTED={} IME={}",
@@ -338,18 +339,32 @@ impl Cpu {
       );
 
       trace!("{} ({:x})", inst.text, opcode);
-      self.registers.last_clock = 0;
+      self.registers.cycles_elapsed_during_last_step = inst.cycles;
       (inst.execute)(&mut self.registers, memory);
-      //trace!("post-step: {:?}", self.registers);
-      // Some instructions mutate the last clock like JR
-      self.registers.last_clock += inst.cycles;
+
+      /* If the instruction was an escape code then we immediately re-run with the new PC using the
+      extended instruction set. We execute it immediately to avoid the escaped flag behaving
+      weirdly with an interrupt trigger. */
+      if self.registers.escaped {
+        trace!("Selected opcode from extended set since escaped is set");
+        let opcode = memory.core_read(self.registers.pc());
+        let inst = &instructions.ext_instructions[opcode as usize];
+        self.registers.escaped = false;
+        (inst.execute)(&mut self.registers, memory);
+      }
     } else {
-      self.registers.last_clock = 4;
+      self.registers.cycles_elapsed_during_last_step = 4;
     }
 
-    if !self.registers.escaped {
-      // if ime is flagged on and there is an interrupt waiting then trigger it
-      self.check_interrupt(memory);
-    }
+    // if ime is flagged on and there is an interrupt waiting then trigger it
+    self.check_interrupt(memory);
+
+    // We should only accumulate the clock if we did not reset div this instruction.  TODO: Perhaps
+    // this should be self.registers.cycles_elapsed_during_last_step = 4 for the purpose of
+    // clocking instead, but that would require a second
+    // self.registers.cycles_elapsed_during_last_step just for the clock step.
+    self.registers.wrote_div_on_last_instruction = memory.wrote_div;
+    self.wrote_div = false;
+    self.registers.wrote_tima_on_last_instruction = memory.wrote_tima;
   }
 }

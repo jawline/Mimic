@@ -88,7 +88,7 @@ pub fn run(
       match state {
         PpuStepState::VBlank => {
           let mut save = false;
-          let mut state = &mut gameboy_state.state.memory;
+          let state = &mut gameboy_state.state.memory;
 
           state.start = false;
           state.select = false;
@@ -144,7 +144,7 @@ pub fn run(
                   _ => {}
                 }
                 if fired {
-                  Cpu::set_interrupt_happened(state, JOYPAD);
+                  Cpu::set_interrupt_happened(state, JOYPAD, &gameboy_state.state.cpu.registers);
                 }
               }
               _ => {}
