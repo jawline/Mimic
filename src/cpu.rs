@@ -234,12 +234,14 @@ impl Registers {
 #[derive(Serialize, Deserialize)]
 pub struct Cpu {
   pub registers: Registers,
+  pub wrote_div: bool,
 }
 
 impl Cpu {
   pub fn new() -> Self {
     Self {
       registers: Registers::default(),
+      wrote_div: false 
     }
   }
 
